@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import structlog
 
 from app.config import get_settings
+from app.models import Project, Condition, Document, Page, Measurement  # Import models to register with SQLAlchemy
 from app.api.routes import health, projects, documents, pages, conditions, measurements, exports, settings as settings_routes
 
 logger = structlog.get_logger()
