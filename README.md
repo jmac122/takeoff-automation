@@ -43,9 +43,10 @@ Phase 1B has been fully implemented with Google Cloud Vision integration, automa
    # Edit .env if needed for LLM API keys (optional for Phase 1A)
    ```
 
-3. **Start all services**
+3. **Navigate to docker folder and start services**
    ```bash
-   docker-compose up -d
+   cd docker
+   docker compose up -d
    ```
 
 4. **Access the application**
@@ -54,8 +55,10 @@ Phase 1B has been fully implemented with Google Cloud Vision integration, automa
    - **API Documentation**: http://localhost:8000/api/docs
    - **MinIO Console**: http://localhost:9001
 
-5. **Run commands inside Docker**
+5. **Run commands inside Docker (from docker/ folder)**
    ```bash
+   cd docker  # Make sure you're in the docker folder!
+   
    # Run tests
    docker compose exec api pytest
    
@@ -70,15 +73,16 @@ Phase 1B has been fully implemented with Google Cloud Vision integration, automa
 
 **Code in Cursor IDE, Run in Docker:**
 
-1. **Edit code locally** - Use Cursor IDE to edit files
+1. **Edit code locally** - Use Cursor IDE to edit files from project root
 2. **Auto-sync to Docker** - Changes automatically appear in containers
-3. **Test in Docker** - Run all commands via `docker compose exec`
+3. **Test in Docker** - Run all commands from `docker/` folder
 
 ```bash
 # Example workflow
-# 1. Edit backend/app/api/routes/pages.py in Cursor
+# 1. Edit backend/app/api/routes/pages.py in Cursor (from project root)
 # 2. Save file (Ctrl+S)
-# 3. Test immediately in Docker
+# 3. Navigate to docker folder and test
+cd docker
 docker compose exec api pytest tests/test_pages.py
 ```
 
@@ -86,9 +90,11 @@ See [Docker Workflow Guide](docs/development/DOCKER_WORKFLOW.md) for complete in
 
 ### 🧪 Testing the Implementation
 
-**All testing happens in Docker containers:**
+**All testing happens in Docker containers (run from docker/ folder):**
 
 ```bash
+cd docker  # Navigate to docker folder first!
+
 # Run verification script
 docker compose exec api python test_ocr_verification.py
 

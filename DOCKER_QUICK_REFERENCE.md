@@ -6,7 +6,18 @@
 ✅ **Docker** - Run everything (containers)  
 ✅ **Git** - Version control (local)
 
-**Rule:** All execution commands use `docker compose exec`
+**Rule:** All execution commands use `docker compose exec` from the `docker/` directory
+
+---
+
+## 📂 Important: Working Directory
+
+**All docker commands must be run from the `docker/` folder:**
+
+```bash
+cd docker                    # ALWAYS do this first!
+docker compose up -d         # Now this works
+```
 
 ---
 
@@ -15,6 +26,8 @@
 ### Start/Stop
 
 ```bash
+cd docker                    # Navigate to docker folder first!
+
 # Start all services
 docker compose up -d
 
@@ -147,12 +160,14 @@ docker compose exec api python -c "from app.services.ocr_service import OCRServi
 
 ```bash
 # Morning
+cd docker                               # Navigate to docker folder
 docker compose up -d                    # Start services
 docker compose logs -f api              # Check logs
 
 # During development
-# Edit code in Cursor IDE
+# Edit code in Cursor IDE (from project root)
 # Save file (auto-syncs to Docker)
+cd docker                               # Back to docker folder
 docker compose exec api pytest          # Test changes
 
 # Check something
@@ -240,12 +255,15 @@ docker compose exec api python script.py
 
 1. **Alias for speed:**
    ```bash
-   alias dce='docker compose exec'
-   alias dcl='docker compose logs -f'
+   # Add to ~/.bashrc or ~/.zshrc
+   alias dce='cd /d/Repos/takeoff-automation/docker && docker compose exec'
+   alias dcl='cd /d/Repos/takeoff-automation/docker && docker compose logs -f'
+   alias dcd='cd /d/Repos/takeoff-automation/docker'
    
-   # Now you can:
+   # Now you can from anywhere:
    dce api pytest
    dcl api
+   dcd  # Jump to docker folder
    ```
 
 2. **Keep containers running:**

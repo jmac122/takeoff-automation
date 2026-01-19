@@ -4,8 +4,16 @@
 
 **This project uses Docker for everything.** All commands should be run inside Docker containers, not on your local machine.
 
-✅ **Correct:** `docker compose exec api python script.py`  
-❌ **Wrong:** `python script.py` (don't install Python locally)
+**CRITICAL:** All docker commands must be run from the `docker/` folder!
+
+```bash
+cd docker                                        # Navigate to docker folder
+docker compose exec api python script.py        # Now this works
+```
+
+✅ **Correct:** `cd docker && docker compose exec api python script.py`  
+❌ **Wrong:** `python script.py` (don't install Python locally)  
+❌ **Wrong:** `docker compose up -d` (from project root - won't work!)
 
 See [Docker Workflow Guide](docs/development/DOCKER_WORKFLOW.md) for complete instructions.
 
@@ -104,6 +112,9 @@ GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 ### 2. Run Database Migration
 
 ```bash
+# Navigate to docker folder
+cd docker
+
 # Apply full-text search indexes (inside Docker)
 docker compose exec api alembic upgrade head
 ```
@@ -116,6 +127,9 @@ INFO  [alembic.runtime.migration] Running upgrade b01e3b57e974 -> d707bfb8a266, 
 ### 3. Rebuild and Restart Services
 
 ```bash
+# Make sure you're in docker folder
+cd docker
+
 # Rebuild containers with new code
 docker compose build api worker
 
@@ -128,6 +142,9 @@ docker compose up -d
 ### 4. Verify Deployment
 
 ```bash
+# Navigate to docker folder
+cd docker
+
 # Run verification script (inside Docker)
 docker compose exec api python test_ocr_verification.py
 ```

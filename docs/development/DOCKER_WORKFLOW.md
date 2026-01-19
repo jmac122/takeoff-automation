@@ -12,11 +12,29 @@ This project uses **Docker for everything** - all services, testing, and runtime
 
 ---
 
+## ⚠️ Important: Working Directory
+
+**All docker commands must be run from the `docker/` folder!**
+
+The `docker-compose.yml` file is located in `docker/`, so you must:
+
+```bash
+cd docker                    # Navigate to docker folder
+docker compose up -d         # Now commands work
+```
+
+**Why?** Docker Compose looks for `docker-compose.yml` in the current directory.
+
+---
+
 ## Quick Start
 
 ### 1. Start All Services
 
 ```bash
+# Navigate to docker folder first!
+cd docker
+
 # Start everything (API, Worker, Database, Redis, MinIO)
 docker compose up -d
 
@@ -28,6 +46,9 @@ docker compose logs -f worker
 ### 2. Run Commands in Docker
 
 ```bash
+# Make sure you're in the docker folder!
+cd docker
+
 # Run any Python command
 docker compose exec api python script.py
 
@@ -58,21 +79,25 @@ docker compose down -v
 ### Daily Workflow
 
 ```bash
-# 1. Start services in the morning
+# 1. Navigate to docker folder
+cd docker
+
+# 2. Start services in the morning
 docker compose up -d
 
-# 2. Code in Cursor IDE
-# - Edit files locally
+# 3. Code in Cursor IDE (from project root or anywhere)
+# - Edit files locally (e.g., backend/app/api/routes/pages.py)
 # - Changes automatically sync to containers
 # - API auto-reloads on file changes
 
-# 3. Run tests as you code
+# 4. Run tests as you code (from docker folder)
+cd docker  # If not already there
 docker compose exec api pytest tests/
 
-# 4. Check logs if needed
+# 5. Check logs if needed
 docker compose logs -f api
 
-# 5. Stop services at end of day
+# 6. Stop services at end of day
 docker compose down
 ```
 
