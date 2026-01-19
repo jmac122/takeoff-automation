@@ -51,8 +51,8 @@ services:
 
   api:
     build:
-      context: ../backend
-      dockerfile: ../docker/Dockerfile.api
+      context: ..
+      dockerfile: docker/Dockerfile.api
     container_name: forgex-api
     environment:
       - DATABASE_URL=postgresql+asyncpg://forgex:forgex@db:5432/forgex
@@ -84,8 +84,8 @@ services:
 
   worker:
     build:
-      context: ../backend
-      dockerfile: ../docker/Dockerfile.worker
+      context: ..
+      dockerfile: docker/Dockerfile.worker
     container_name: forgex-worker
     environment:
       - DATABASE_URL=postgresql+asyncpg://forgex:forgex@db:5432/forgex
@@ -113,8 +113,8 @@ services:
 
   frontend:
     build:
-      context: ../frontend
-      dockerfile: ../docker/Dockerfile.frontend
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
     container_name: forgex-frontend
     ports:
       - "5173:5173"
