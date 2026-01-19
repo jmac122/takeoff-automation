@@ -1,5 +1,16 @@
 # Phase 1B Deployment Notes
 
+## ⚠️ IMPORTANT: Docker-First Development
+
+**This project uses Docker for everything.** All commands should be run inside Docker containers, not on your local machine.
+
+✅ **Correct:** `docker compose exec api python script.py`  
+❌ **Wrong:** `python script.py` (don't install Python locally)
+
+See [Docker Workflow Guide](docs/development/DOCKER_WORKFLOW.md) for complete instructions.
+
+---
+
 ## ✅ Completed and Committed
 
 **Date:** January 19, 2026  
@@ -93,9 +104,8 @@ GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 ### 2. Run Database Migration
 
 ```bash
-# Apply full-text search indexes
-cd backend
-alembic upgrade head
+# Apply full-text search indexes (inside Docker)
+docker compose exec api alembic upgrade head
 ```
 
 **Expected output:**
@@ -103,34 +113,23 @@ alembic upgrade head
 INFO  [alembic.runtime.migration] Running upgrade b01e3b57e974 -> d707bfb8a266, add_fulltext_search
 ```
 
-### 3. Install Dependencies (if not using Docker)
+### 3. Rebuild and Restart Services
 
 ```bash
-# Dependencies already in requirements.txt
-pip install google-cloud-vision==3.5.0
+# Rebuild containers with new code
+docker compose build api worker
+
+# Restart services
+docker compose up -d
 ```
 
-### 4. Restart Services
+**Note:** Dependencies are already in `requirements.txt` and installed during Docker build. No local installation needed.
+
+### 4. Verify Deployment
 
 ```bash
-# Docker deployment
-docker compose down
-docker compose up -d --build
-
-# Or manual deployment
-# Restart API
-uvicorn app.main:app --reload
-
-# Restart Celery worker
-celery -A app.workers.celery_app worker --loglevel=info
-```
-
-### 5. Verify Deployment
-
-```bash
-# Run verification script
-cd backend
-python test_ocr_verification.py
+# Run verification script (inside Docker)
+docker compose exec api python test_ocr_verification.py
 ```
 
 **Expected:** All 10 checks pass ✅
@@ -142,6 +141,8 @@ python test_ocr_verification.py
 ### Test 1: Upload Document with OCR
 
 ```bash
+# All these commands run on your local machine (curl talks to Docker containers)
+
 # 1. Upload a PDF
 curl -X POST http://localhost:8000/api/v1/documents/upload \
   -F "file=@test-plan.pdf" \
@@ -246,24 +247,23 @@ docker compose up -d
 # 1. Verify Celery worker is running
 docker compose logs worker
 
-# 2. Check Redis connection
-redis-cli ping
+# 2. Check Redis connection (inside Docker)
+docker compose exec redis redis-cli ping
 
-# 3. Verify Google Cloud credentials
-echo $GOOGLE_APPLICATION_CREDENTIALS
+# 3. Verify Google Cloud credentials (inside Docker)
+docker compose exec api env | grep GOOGLE_APPLICATION_CREDENTIALS
 ```
 
 ### Issue: Search not working
 
 **Check:**
 ```bash
-# 1. Verify migration applied
-cd backend
-alembic current
+# 1. Verify migration applied (inside Docker)
+docker compose exec api alembic current
 # Should show: d707bfb8a266
 
-# 2. Check PostgreSQL extensions
-psql -U postgres -d forgex -c "SELECT * FROM pg_extension WHERE extname = 'pg_trgm';"
+# 2. Check PostgreSQL extensions (inside Docker)
+docker compose exec db psql -U forgex -d forgex -c "SELECT * FROM pg_extension WHERE extname = 'pg_trgm';"
 ```
 
 ### Issue: Pattern not detected

@@ -18,13 +18,18 @@ Phase 1B has been fully implemented with Google Cloud Vision integration, automa
 
 ### Prerequisites
 
-- Docker and Docker Compose (recommended)
-- Python 3.11+ (alternative manual setup)
-- Node.js 18+ (alternative manual setup)
-- PostgreSQL 15+ (alternative manual setup)
-- Redis (alternative manual setup)
+**Required:**
+- Docker Desktop (20.10+) and Docker Compose (2.x+)
+- Git
+- Cursor IDE or VS Code
 
-### 🐳 Docker Setup (Recommended)
+**NOT Required:**
+- ❌ Python (runs in Docker)
+- ❌ Node.js (runs in Docker)
+- ❌ PostgreSQL (runs in Docker)
+- ❌ Redis (runs in Docker)
+
+### 🐳 Docker Setup (Only Way)
 
 1. **Clone the repository**
    ```bash
@@ -49,52 +54,60 @@ Phase 1B has been fully implemented with Google Cloud Vision integration, automa
    - **API Documentation**: http://localhost:8000/api/docs
    - **MinIO Console**: http://localhost:9001
 
-### 🔧 Manual Development Setup (Alternative)
-
-1. **Clone and setup**
+5. **Run commands inside Docker**
    ```bash
-   git clone https://github.com/your-org/takeoff-platform.git
-   cd takeoff-platform
+   # Run tests
+   docker compose exec api pytest
+   
+   # Run migrations
+   docker compose exec api alembic upgrade head
+   
+   # Get a shell
+   docker compose exec api bash
    ```
 
-2. **Backend Setup**
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   alembic upgrade head  # Database migrations
-   ```
+### 💻 Development Workflow
 
-3. **Frontend Setup**
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
+**Code in Cursor IDE, Run in Docker:**
 
-4. **Start Services**
-   ```bash
-   # Redis (required for Celery)
-   redis-server
+1. **Edit code locally** - Use Cursor IDE to edit files
+2. **Auto-sync to Docker** - Changes automatically appear in containers
+3. **Test in Docker** - Run all commands via `docker compose exec`
 
-   # Backend API
-   cd backend
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```bash
+# Example workflow
+# 1. Edit backend/app/api/routes/pages.py in Cursor
+# 2. Save file (Ctrl+S)
+# 3. Test immediately in Docker
+docker compose exec api pytest tests/test_pages.py
+```
 
-   # Celery Worker (new terminal)
-   celery -A app.workers.celery_app worker --loglevel=info
-   ```
+See [Docker Workflow Guide](docs/development/DOCKER_WORKFLOW.md) for complete instructions.
 
 ### 🧪 Testing the Implementation
 
-Once running, you can test the document upload functionality:
+**All testing happens in Docker containers:**
 
+```bash
+# Run verification script
+docker compose exec api python test_ocr_verification.py
+
+# Run unit tests
+docker compose exec api pytest
+
+# Run specific test
+docker compose exec api pytest tests/test_ocr_service.py
+
+# Run with coverage
+docker compose exec api pytest --cov=app tests/
+```
+
+**Manual testing:**
 1. **Open the frontend** at http://localhost:5173
 2. **Create a test project** (API call or through UI)
 3. **Upload a PDF/TIFF file** using the drag-and-drop interface
 4. **Monitor processing status** in real-time
-5. **View processed pages** with thumbnails
+5. **View processed pages** with OCR data
 
 ## 📚 Documentation
 

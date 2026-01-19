@@ -147,6 +147,19 @@ Checks passed: 10/10
 
 ## Testing Checklist
 
+### Automated Testing (Docker)
+
+```bash
+# Run verification script
+docker compose exec api python test_ocr_verification.py
+
+# Run unit tests
+docker compose exec api pytest tests/
+
+# Run with coverage
+docker compose exec api pytest --cov=app tests/
+```
+
 ### Manual Testing
 
 - [ ] Upload a PDF with clear title block → verify sheet number and title extracted
@@ -157,9 +170,11 @@ Checks passed: 10/10
 - [ ] Test reprocess OCR endpoint → verify page OCR updates
 - [ ] Test with different title block formats → verify parsing works
 
-### API Testing
+### API Testing (from local machine)
 
 ```bash
+# These commands run on your machine and talk to Docker containers
+
 # List pages for a document
 curl http://localhost:8000/api/v1/documents/{document_id}/pages
 
@@ -193,8 +208,10 @@ curl "http://localhost:8000/api/v1/projects/{project_id}/search?q=foundation"
 ### Immediate Actions
 
 1. **Set up Google Cloud Vision credentials** in your environment
-2. **Run database migration**: `alembic upgrade head`
+2. **Run database migration**: `docker compose exec api alembic upgrade head`
 3. **Test with actual PDF documents** from construction plans
+
+**Important:** All commands must be run inside Docker containers. See [Docker Workflow Guide](../development/DOCKER_WORKFLOW.md).
 
 ### Phase 2A: Page Classification
 

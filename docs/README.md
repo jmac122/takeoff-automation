@@ -8,7 +8,8 @@ Complete documentation for the ForgeX Takeoffs platform.
 
 | Document | Description |
 |----------|-------------|
-| [Setup Complete](./plans/SETUP_COMPLETE.md) | 🚀 **START HERE** - Current system status and quick commands |
+| [Docker Workflow](./development/DOCKER_WORKFLOW.md) | ⭐ **START HERE** - Docker-first development guide |
+| [Setup Complete](./plans/SETUP_COMPLETE.md) | Current system status and quick commands |
 | [API Reference](./api/API_REFERENCE.md) | Complete API endpoint documentation |
 | [OCR API](./api/OCR_API.md) | OCR and text extraction endpoints |
 | [Database Schema](./database/DATABASE_SCHEMA.md) | Database structure and relationships |
@@ -30,6 +31,9 @@ Complete documentation for the ForgeX Takeoffs platform.
 ### `/deployment/` - Deployment & Operations
 - **DEPLOYMENT_SETUP.md** - Production deployment guide
 - **DOCKER_GUIDE.md** - Docker configuration and commands
+
+### `/development/` - Development Workflow
+- **DOCKER_WORKFLOW.md** - ⭐ **Docker-first development guide** (start here!)
 
 ### `/design/` - Design System
 - **DESIGN-SYSTEM.md** - UI components and design patterns

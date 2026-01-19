@@ -1,4 +1,14 @@
-"""Verification script for Phase 1B - OCR and Text Extraction."""
+"""Verification script for Phase 1B - OCR and Text Extraction.
+
+This script is designed to run inside Docker containers with full database access.
+
+Usage:
+    # Inside Docker (recommended)
+    docker compose exec api python test_ocr_verification.py
+
+    # Or locally (if you have all dependencies)
+    python test_ocr_verification.py
+"""
 
 import asyncio
 import sys
@@ -227,13 +237,18 @@ async def verify_phase_1b():
         logger.info("\n[SUCCESS] All checks passed! Phase 1B is ready.")
         logger.info("\nNext steps:")
         logger.info("1. Set up Google Cloud Vision credentials")
-        logger.info("2. Run database migration: alembic upgrade head")
+        logger.info(
+            "2. Run database migration: docker compose exec api alembic upgrade head"
+        )
         logger.info("3. Test with actual PDF documents")
+        logger.info("\nRunning in Docker? Good! This is the recommended way.")
         return 0
     else:
         logger.error(
             f"\n[FAILED] {checks_failed} check(s) failed. Please fix the issues above."
         )
+        logger.info("\nMake sure you're running this inside Docker:")
+        logger.info("  docker compose exec api python test_ocr_verification.py")
         return 1
 
 
