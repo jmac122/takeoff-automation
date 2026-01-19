@@ -1,6 +1,3 @@
-# Core dependencies for Phases 0-3
-# Use this for Phase 1A, 1B, 2A, 2B, 3A, 3B
-
 # Web Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
@@ -25,15 +22,24 @@ email-validator==2.1.0
 boto3==1.34.25
 python-magic==0.4.27
 
-# PDF/Image Processing (lightweight)
+# PDF/Image Processing
 pdf2image==1.17.0
 pymupdf==1.23.18
 Pillow==10.2.0
 numpy==1.26.3
 
+# Computer Vision
+opencv-python-headless==4.9.0.80
+scikit-image==0.22.0
+
+# ML/AI
+torch==2.1.2
+torchvision==0.16.2
+ultralytics==8.1.0
+
 # LLM Clients - Multi-Provider Support
 anthropic==0.18.1
-openai==1.10.0
+openai==1.10.0              # Also used for xAI (Grok) - OpenAI-compatible API
 google-generativeai==0.3.2
 
 # Google Cloud Vision (OCR)

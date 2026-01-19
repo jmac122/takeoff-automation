@@ -1,0 +1,15 @@
+# ML/AI dependencies for Phase 4A+ (AI Takeoff Generation)
+# Only install these when you reach Phase 4A
+# Install with: pip install -r requirements-base.txt -r requirements-ml.txt
+
+# Computer Vision (for scale detection and element analysis)
+opencv-python-headless==4.9.0.80
+scikit-image==0.22.0
+
+# Deep Learning (for AI takeoff generation)
+torch==2.1.2
+torchvision==0.16.2
+ultralytics==8.1.0
+
+# NOTE: These packages are LARGE (~2.5GB total)
+# Only install when you actually need AI-powered element detection
