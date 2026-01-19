@@ -4,7 +4,7 @@ Use these prompts to start each phase. Copy and paste into a new Cursor/Claude c
 
 ---
 
-## Phase 0: Project Setup (Week 1)
+## Phase 0: Project Setup (Week 1) - Grok Code
 
 ### Prompt:
 ```
@@ -77,7 +77,7 @@ Run through the verification checklist:
 
 ---
 
-## Phase 1A: Document Ingestion (Weeks 2-5)
+## Phase 1A: Document Ingestion (Weeks 2-5) - Grok Code
 
 ### Prompt:
 ```
@@ -153,7 +153,7 @@ Run through the verification checklist:
 
 ---
 
-## Phase 1B: OCR and Text Extraction (Weeks 4-6)
+## Phase 1B: OCR and Text Extraction (Weeks 4-6) - Sonnet 4.5 (non-thinking)
 
 ### Prompt:
 ```
@@ -241,7 +241,7 @@ Test Cases:
 
 ---
 
-## Phase 2A: Page Classification (Weeks 6-9)
+## Phase 2A: Page Classification (Weeks 6-9) - Composer 1
 
 ### Prompt:
 ```
@@ -337,7 +337,7 @@ Test Cases:
 
 ---
 
-## Phase 2B: Scale Detection (Weeks 8-11)
+## Phase 2B: Scale Detection (Weeks 8-11) - Opus 4.5 (thinking)
 
 ### Prompt:
 ```
@@ -419,7 +419,7 @@ Test Cases:
 
 ---
 
-## Phase 3A: Measurement Engine (Weeks 10-16)
+## Phase 3A: Measurement Engine (Weeks 10-16) - Sonnet 4.5 (thinking)
 
 ### Prompt:
 ```
@@ -544,7 +544,7 @@ Test Cases:
 
 ---
 
-## Phase 3B: Condition Management (Weeks 14-18)
+## Phase 3B: Condition Management (Weeks 14-18) - Composer 1
 
 ### Prompt:
 ```
@@ -639,7 +639,7 @@ Test Cases:
 
 ---
 
-## Phase 4A: AI Takeoff Generation (Weeks 16-22)
+## Phase 4A: AI Takeoff Generation (Weeks 16-22) - Opus 4.5 (thinking)
 
 ### Prompt:
 ```
@@ -761,7 +761,7 @@ Accuracy Testing:
 
 ---
 
-## Phase 4B: Review Interface (Weeks 20-26)
+## Phase 4B: Review Interface (Weeks 20-26) - Composer 1
 
 ### Prompt:
 ```
@@ -879,7 +879,7 @@ Test Cases:
 
 ---
 
-## Phase 5A: Export System (Weeks 24-28)
+## Phase 5A: Export System (Weeks 24-28) - Composer 1
 
 ### Prompt:
 ```
@@ -1056,7 +1056,7 @@ Test Cases:
 
 ---
 
-## Phase 5B: Testing & QA (Weeks 26-32)
+## Phase 5B: Testing & QA (Weeks 26-32) - Composer 1
 
 ### Prompt:
 ```
@@ -1249,7 +1249,7 @@ Performance:
 
 ---
 
-## Phase 6: Deployment & Operations (Weeks 30-36)
+## Phase 6: Deployment & Operations (Weeks 30-36) - Composer 1
 
 ### Prompt:
 ```
