@@ -23,7 +23,14 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from app.models.base import Base
 
+# Import all models so Alembic can detect them
+from app.models import Project, Document, Page, Condition, Measurement  # noqa: F401
+
+# Import settings to get DATABASE_URL from environment
+from app.config import get_settings
+
 target_metadata = Base.metadata
+settings = get_settings()
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -43,7 +50,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = str(settings.database_url)
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -62,8 +69,12 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Use database URL from settings instead of alembic.ini
+    configuration = config.get_section(config.config_ini_section, {})
+    configuration["sqlalchemy.url"] = str(settings.database_url)
+    
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

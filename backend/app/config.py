@@ -19,23 +19,21 @@ class Settings(BaseSettings):
     # Application
     app_env: Literal["development", "staging", "production"] = "development"
     debug: bool = False
-    secret_key: str = Field(
-        default="dev-secret-key-32-characters-long-key", min_length=32
-    )
+    secret_key: str = Field(..., min_length=32)
 
     # Database
-    database_url: str = "sqlite+aiosqlite:///dev.db"
+    database_url: PostgresDsn
     database_pool_size: int = 20
 
     # Redis
-    redis_url: str = "redis://localhost:6379/0"
-    celery_broker_url: str = "redis://localhost:6379/0"
-    celery_result_backend: str = "redis://localhost:6379/0"
+    redis_url: RedisDsn
+    celery_broker_url: RedisDsn
+    celery_result_backend: RedisDsn
 
     # Storage
-    storage_endpoint: str = "localhost:9000"
-    storage_access_key: str = "minioadmin"
-    storage_secret_key: str = "minioadmin"
+    storage_endpoint: str
+    storage_access_key: str
+    storage_secret_key: str
     storage_bucket: str = "takeoff-documents"
     storage_use_ssl: bool = False
 
