@@ -12,6 +12,7 @@ celery_app = Celery(
     backend=str(settings.celery_result_backend),
     include=[
         "app.workers.document_tasks",
+        "app.workers.ocr_tasks",
     ],
 )
 

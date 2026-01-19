@@ -1,4 +1,4 @@
-# Database Schema - Phase 1A: Document Ingestion
+# Database Schema - Phases 1A & 1B: Document Ingestion & OCR
 
 ## Overview
 
@@ -580,4 +580,115 @@ def test_query_performance():
     # Verify indexes are used
 ```
 
-This database schema provides a solid foundation for the construction takeoff platform, with proper normalization, indexing, and extensibility for future phases.
+## Phase 1B: OCR Data Storage
+
+### OCR Text Columns
+
+Phase 1B adds OCR-related columns to the `pages` table:
+
+```sql
+-- OCR data columns (added in Phase 1B)
+ALTER TABLE pages ADD COLUMN ocr_text TEXT;
+ALTER TABLE pages ADD COLUMN ocr_blocks JSONB;
+```
+
+**OCR Fields:**
+- `ocr_text` - Full extracted text from the page (searchable)
+- `ocr_blocks` - Structured OCR data including:
+  - Individual text blocks with positions
+  - Detected scales
+  - Detected sheet numbers
+  - Detected titles
+  - Title block parsed data
+
+### OCR Blocks JSON Structure
+
+```json
+{
+  "blocks": [
+    {
+      "text": "FOUNDATION PLAN",
+      "confidence": 0.98,
+      "bounding_box": {
+        "x": 100,
+        "y": 50,
+        "width": 400,
+        "height": 60
+      }
+    }
+  ],
+  "detected_scales": ["1/4\" = 1'-0\""],
+  "detected_sheet_numbers": ["A1.01"],
+  "detected_titles": ["FOUNDATION PLAN"],
+  "title_block": {
+    "sheet_number": "A1.01",
+    "sheet_title": "FOUNDATION PLAN",
+    "project_name": "Downtown Office Building",
+    "project_number": "2024-001",
+    "date": "01/15/2024",
+    "revision": "A",
+    "scale": "1/4\" = 1'-0\"",
+    "drawn_by": "JD",
+    "checked_by": "MS"
+  }
+}
+```
+
+### Full-Text Search Indexes
+
+Phase 1B adds PostgreSQL full-text search capabilities:
+
+```sql
+-- Full-text search index (GIN)
+CREATE INDEX idx_pages_ocr_text_search 
+ON pages 
+USING gin(to_tsvector('english', COALESCE(ocr_text, '')));
+
+-- Trigram index for fuzzy matching
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX idx_pages_ocr_text_trgm 
+ON pages 
+USING gin(ocr_text gin_trgm_ops);
+```
+
+**Index Benefits:**
+- Fast full-text search across all page text
+- Fuzzy matching for typos and variations
+- Relevance ranking with `ts_rank`
+- Supports complex search queries
+
+### Search Query Example
+
+```sql
+-- Search for pages containing "foundation"
+SELECT p.id, p.document_id, p.page_number, p.title, p.sheet_number,
+       ts_rank(to_tsvector('english', COALESCE(p.ocr_text, '')), 
+               plainto_tsquery('english', 'foundation')) as rank
+FROM pages p
+JOIN documents d ON p.document_id = d.id
+WHERE d.project_id = '550e8400-e29b-41d4-a716-446655440000'
+  AND to_tsvector('english', COALESCE(p.ocr_text, '')) 
+      @@ plainto_tsquery('english', 'foundation')
+ORDER BY rank DESC
+LIMIT 50;
+```
+
+### Migration History
+
+**Phase 1B Migrations:**
+- `d707bfb8a266_add_fulltext_search.py` - Full-text search indexes
+
+**Applied Migrations:**
+```bash
+# Check current migration status
+alembic current
+
+# Apply Phase 1B migrations
+alembic upgrade head
+```
+
+---
+
+This database schema provides a solid foundation for the construction takeoff platform, with proper normalization, indexing, full-text search capabilities, and extensibility for future phases.
+
+**Last Updated:** January 19, 2026 - Phase 1B Complete

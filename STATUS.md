@@ -1,7 +1,7 @@
 # ForgeX Takeoffs - Project Status
 
 **Last Updated:** January 19, 2026  
-**Current Phase:** ✅ Phase 1A Complete - Ready for Phase 1B
+**Current Phase:** ✅ Phase 1B Complete - Ready for Phase 2A
 
 ---
 
@@ -38,7 +38,7 @@
 - Split dependencies (base: 500MB, ML: 2GB)
 - Created proper `.env` configuration
 
-### Phase 1A: Document Ingestion (Weeks 2-5)
+### Phase 1A: Document Ingestion (Weeks 2-3)
 **Status:** COMPLETE ✅  
 **Completed:** January 19, 2026
 
@@ -56,25 +56,50 @@
 - Document upload flow works
 - Frontend displays correctly
 
+### Phase 1B: OCR and Text Extraction (Weeks 4-6)
+**Status:** COMPLETE ✅  
+**Completed:** January 19, 2026
+
+- ✅ Google Cloud Vision integration
+- ✅ Automatic text extraction from pages
+- ✅ Pattern detection (scales, sheet numbers, titles)
+- ✅ Title block parsing
+- ✅ Full-text search with PostgreSQL
+- ✅ OCR API endpoints
+- ✅ Reprocess OCR capability
+
+**Verification:**
+- All 10 verification checks passed
+- OCR service extracts text correctly
+- Scale patterns detected (6 types)
+- Sheet numbers extracted (3 patterns)
+- Full-text search working
+- API endpoints functional
+
+**Documentation:**
+- [Phase 1B Complete Guide](docs/phase-guides/PHASE_1B_COMPLETE.md)
+- [OCR API Reference](docs/api/OCR_API.md)
+- [OCR Service Documentation](docs/services/OCR_SERVICE.md)
+
 ---
 
 ## ⏭️ Next Phase
 
-### Phase 1B: OCR and Text Extraction (Weeks 4-6)
+### Phase 2A: Page Classification (Weeks 7-9)
 **Status:** READY TO START
 
 **Requirements:**
-- Google Cloud Vision API key
-- Service account JSON file
+- LLM API keys (Anthropic/OpenAI/Google)
+- Phase 1B complete (OCR working)
 
 **Tasks:**
-- OCR text extraction from page images
-- Title block parsing
-- Sheet number detection
-- Scale text detection
-- Full-text search implementation
+- AI-powered page classification
+- Identify page types (floor plan, elevation, section, detail)
+- Detect relevant pages for concrete takeoff
+- Confidence scoring
+- Classification API endpoints
 
-**See:** `PHASE_PROMPTS.md` lines 156-240
+**See:** `plans/04-PAGE-CLASSIFICATION.md`
 
 ---
 

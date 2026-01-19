@@ -1,4 +1,4 @@
-# API Reference - Phase 1A: Document Ingestion
+# API Reference - Phases 1A & 1B: Document Ingestion & OCR
 
 ## Overview
 
@@ -576,21 +576,36 @@ uvicorn app.main:app
 
 ## Version History
 
+- **v1.1.0** - Phase 1B complete (January 19, 2026)
+  - OCR text extraction with Google Cloud Vision
+  - Page listing and OCR data endpoints
+  - Full-text search across pages
+  - Scale, sheet number, and title detection
+  - Title block parsing
+  - OCR reprocessing capability
+
 - **v1.0.0** - Phase 1A complete
   - Document upload and processing
   - Project management
   - Basic file validation
   - Async processing with Celery
 
-## Future Endpoints
+## Phase 1B Endpoints (OCR)
 
-### Phase 1B
-- `POST /documents/{id}/ocr` - Trigger OCR processing
-- `GET /pages/{id}/text` - Get extracted text
+For complete OCR API documentation, see [OCR API Reference](./OCR_API.md).
+
+**Quick Reference:**
+- `GET /documents/{id}/pages` - List pages with OCR metadata
+- `GET /pages/{id}` - Get page details
+- `GET /pages/{id}/ocr` - Get complete OCR data
+- `POST /pages/{id}/reprocess-ocr` - Reprocess OCR
+- `GET /projects/{id}/search?q=text` - Search pages by text
+
+## Future Endpoints
 
 ### Phase 2A
 - `POST /pages/{id}/classify` - Classify page type
-- `GET /projects/{id}/pages` - List project pages
+- `GET /projects/{id}/pages` - List project pages with classification
 
 ### Phase 2B
 - `POST /pages/{id}/calibrate` - Calibrate scale
@@ -601,3 +616,7 @@ uvicorn app.main:app
 - `GET /measurements/{id}` - Get measurement details
 
 This API reference will be updated as new endpoints are implemented in future phases.
+
+---
+
+**Last Updated:** January 19, 2026 - Phase 1B Complete

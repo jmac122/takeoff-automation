@@ -2,28 +2,13 @@
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
 
-class PageSummaryResponse(BaseModel):
-    """Brief page information for document responses."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    page_number: int
-    width: int
-    height: int
-    dpi: int
-    thumbnail_key: str | None = None
-    classification: str | None = None
-    scale_calibrated: bool = False
-    status: str
-
-
 class PageResponse(BaseModel):
-    """Full page response schema."""
+    """Page response schema."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,9 +17,6 @@ class PageResponse(BaseModel):
     page_number: int
     width: int
     height: int
-    dpi: int
-    image_key: str
-    thumbnail_key: str | None = None
     classification: str | None = None
     classification_confidence: float | None = None
     title: str | None = None
@@ -43,13 +25,26 @@ class PageResponse(BaseModel):
     scale_value: float | None = None
     scale_unit: str = "foot"
     scale_calibrated: bool = False
-    scale_calibration_data: dict | None = None
-    ocr_text: str | None = None
-    ocr_blocks: dict | None = None
     status: str
-    processing_error: str | None = None
-    created_at: datetime
-    updated_at: datetime
+    image_url: str | None = None
+    thumbnail_url: str | None = None
+
+
+class PageSummaryResponse(BaseModel):
+    """Brief page response for listings."""
+
+    id: uuid.UUID
+    document_id: uuid.UUID
+    page_number: int
+    width: int
+    height: int
+    classification: str | None = None
+    title: str | None = None
+    sheet_number: str | None = None
+    scale_text: str | None = None
+    scale_calibrated: bool = False
+    status: str
+    thumbnail_url: str | None = None
 
 
 class PageListResponse(BaseModel):
@@ -62,18 +57,19 @@ class PageListResponse(BaseModel):
 class PageOCRResponse(BaseModel):
     """OCR data response."""
 
-    ocr_text: str | None = None
-    ocr_blocks: dict | None = None
-    detected_scale_texts: list[str] = []
+    full_text: str | None = None
+    blocks: list[dict[str, Any]] = []
+    detected_scales: list[str] = []
     detected_sheet_numbers: list[str] = []
     detected_titles: list[str] = []
+    sheet_number: str | None = None
+    title: str | None = None
+    scale_text: str | None = None
 
 
 class ScaleUpdateRequest(BaseModel):
     """Request to update page scale."""
 
-    scale_text: str | None = None
-    scale_value: float
+    scale_value: float  # pixels per foot
     scale_unit: str = "foot"
-    scale_calibrated: bool = True
-    scale_calibration_data: dict | None = None
+    scale_text: str | None = None

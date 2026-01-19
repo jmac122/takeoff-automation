@@ -4,11 +4,15 @@ AI-powered construction takeoff automation platform.
 
 ## 📊 Current Status
 
-### ✅ **Phase 1A: Document Ingestion - COMPLETE**
+### ✅ **Phase 1B: OCR and Text Extraction - COMPLETE**
 
-Phase 1A has been fully implemented with comprehensive document upload, processing, and management capabilities. See [STATUS.md](STATUS.md) for detailed implementation status.
+Phase 1B has been fully implemented with Google Cloud Vision integration, automatic text extraction, pattern detection, and full-text search. See [STATUS.md](STATUS.md) for detailed implementation status.
 
-**Ready for Phase 1B: OCR Text Extraction**
+**Completed:**
+- ✅ Phase 1A: Document Ingestion
+- ✅ Phase 1B: OCR and Text Extraction
+
+**Ready for Phase 2A: Page Classification**
 
 ## 🚀 Quick Start
 
@@ -94,10 +98,18 @@ Once running, you can test the document upload functionality:
 
 ## 📚 Documentation
 
-### Phase 1A Documentation
+### Implementation Documentation
 - **[STATUS.md](STATUS.md)** - Current implementation status and roadmap
 - **[docs/README.md](docs/README.md)** - Main documentation index
-- **[docs/PHASE_1A_IMPLEMENTATION.md](docs/PHASE_1A_IMPLEMENTATION.md)** - Complete technical implementation guide
+- **[docs/phase-guides/PHASE_1A_COMPLETE.md](docs/phase-guides/PHASE_1A_COMPLETE.md)** - Phase 1A completion guide
+- **[docs/phase-guides/PHASE_1B_COMPLETE.md](docs/phase-guides/PHASE_1B_COMPLETE.md)** - Phase 1B completion guide
+
+### API Documentation
+- **[docs/api/API_REFERENCE.md](docs/api/API_REFERENCE.md)** - Complete API reference
+- **[docs/api/OCR_API.md](docs/api/OCR_API.md)** - OCR API endpoints
+
+### Service Documentation
+- **[docs/services/OCR_SERVICE.md](docs/services/OCR_SERVICE.md)** - OCR service implementation
 - **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)** - REST API endpoints and usage
 - **[docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md)** - Database design and schema
 - **[docs/FRONTEND_IMPLEMENTATION.md](docs/FRONTEND_IMPLEMENTATION.md)** - React frontend architecture

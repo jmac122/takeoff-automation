@@ -23,3 +23,7 @@ GOOGLE_AI_API_KEY=
 XAI_API_KEY=
 DEFAULT_LLM_PROVIDER=anthropic
 LLM_FALLBACK_PROVIDERS=
+
+# Google Cloud Vision (OCR - Required for Phase 1B)
+# Path to service account JSON key file
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json

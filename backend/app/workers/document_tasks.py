@@ -128,6 +128,11 @@ async def _process_document(document_id: str, project_id: str) -> dict:
             page_count=len(pages_data),
         )
 
+        # Queue OCR processing for the document
+        from app.workers.ocr_tasks import process_document_ocr_task
+
+        process_document_ocr_task.delay(document_id)
+
         return {
             "status": "success",
             "document_id": document_id,

@@ -10,8 +10,10 @@ Complete documentation for the ForgeX Takeoffs platform.
 |----------|-------------|
 | [Setup Complete](./plans/SETUP_COMPLETE.md) | 🚀 **START HERE** - Current system status and quick commands |
 | [API Reference](./api/API_REFERENCE.md) | Complete API endpoint documentation |
+| [OCR API](./api/OCR_API.md) | OCR and text extraction endpoints |
 | [Database Schema](./database/DATABASE_SCHEMA.md) | Database structure and relationships |
-| [Phase Progress](./plans/PHASE_1A_VERIFICATION.md) | Current implementation status |
+| [OCR Service](./services/OCR_SERVICE.md) | OCR service implementation guide |
+| [Phase 1B Complete](./phase-guides/PHASE_1B_COMPLETE.md) | Phase 1B completion status |
 
 ---
 
@@ -19,6 +21,7 @@ Complete documentation for the ForgeX Takeoffs platform.
 
 ### `/api/` - API Documentation
 - **API_REFERENCE.md** - Complete endpoint reference with examples
+- **OCR_API.md** - OCR and text extraction API reference
 - **API-CONVENTIONS.md** - API design patterns and standards
 
 ### `/database/` - Database Documentation
@@ -40,20 +43,23 @@ Complete documentation for the ForgeX Takeoffs platform.
 - **FRONTEND_IMPLEMENTATION.md** - React architecture and components
 
 ### `/phase-guides/` - Phase-by-Phase Guides
-- **PHASE_0_SETUP.md** - Project setup (complete)
-- **PHASE_1A_DOCUMENT_INGESTION.md** - Document upload (complete)
-- **PHASE_1B_OCR.md** - OCR and text extraction (next)
+- **PHASE_1A_COMPLETE.md** - Document ingestion (complete)
+- **PHASE_1B_COMPLETE.md** - OCR and text extraction (complete)
+
+### `/services/` - Service Documentation
+- **OCR_SERVICE.md** - OCR service implementation and usage
 
 ---
 
-## 🎯 Current Status: **Phase 1A Complete** ✅
+## 🎯 Current Status: **Phase 1B Complete** ✅
 
 ### Completed Phases
 - ✅ **Phase 0:** Project Setup
 - ✅ **Phase 1A:** Document Ingestion
+- ✅ **Phase 1B:** OCR and Text Extraction
 
 ### Next Phase
-- ⏭️ **Phase 1B:** OCR and Text Extraction
+- ⏭️ **Phase 2A:** Page Classification
 
 ### Services Running
 - ✅ PostgreSQL (localhost:5432)
@@ -89,4 +95,4 @@ When adding new documentation:
 
 ---
 
-**Last Updated:** January 19, 2026 - Phase 1A Complete
+**Last Updated:** January 19, 2026 - Phase 1B Complete
