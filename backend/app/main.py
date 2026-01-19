@@ -8,8 +8,23 @@ from fastapi.middleware.cors import CORSMiddleware
 import structlog
 
 from app.config import get_settings
-from app.models import Project, Condition, Document, Page, Measurement  # Import models to register with SQLAlchemy
-from app.api.routes import health, projects, documents, pages, conditions, measurements, exports, settings as settings_routes
+from app.models import (
+    Project,
+    Condition,
+    Document,
+    Page,
+    Measurement,
+)  # Import models to register with SQLAlchemy
+from app.api.routes import (
+    health,
+    projects,
+    documents,
+    pages,
+    conditions,
+    measurements,
+    exports,
+    settings as settings_routes,
+)
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -56,7 +71,9 @@ def create_app() -> FastAPI:
     app.include_router(conditions.router, prefix="/api/v1", tags=["Conditions"])
     app.include_router(measurements.router, prefix="/api/v1", tags=["Measurements"])
     app.include_router(exports.router, prefix="/api/v1", tags=["Exports"])
-    app.include_router(settings_routes.router, prefix="/api/v1/settings", tags=["Settings"])
+    app.include_router(
+        settings_routes.router, prefix="/api/v1/settings", tags=["Settings"]
+    )
 
     return app
 

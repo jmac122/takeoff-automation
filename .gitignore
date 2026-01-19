@@ -43,6 +43,8 @@ venv.bak/
 # IDE
 .vscode/
 .idea/
+.cursor/
+.cursorindexingignore
 *.swp
 *.swo
 *~
