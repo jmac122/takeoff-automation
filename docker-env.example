@@ -1,0 +1,25 @@
+# Docker Environment Configuration
+APP_ENV=development
+SECRET_KEY=docker-secret-key-32-chars-for-development-only
+
+# Database (Docker internal networking)
+DATABASE_URL=postgresql+asyncpg://forgex:forgex@db:5432/forgex
+
+# Redis/Celery (Docker internal networking)
+REDIS_URL=redis://redis:6379/0
+CELERY_BROKER_URL=redis://redis:6379/1
+CELERY_RESULT_BACKEND=redis://redis:6379/2
+
+# Storage (MinIO - Docker internal networking)
+STORAGE_ENDPOINT=minio:9000
+STORAGE_ACCESS_KEY=minioadmin
+STORAGE_SECRET_KEY=minioadmin
+STORAGE_BUCKET=takeoff-documents
+
+# LLM Provider Configuration (Optional - leave empty for Phase 1A)
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+GOOGLE_AI_API_KEY=
+XAI_API_KEY=
+DEFAULT_LLM_PROVIDER=anthropic
+LLM_FALLBACK_PROVIDERS=
