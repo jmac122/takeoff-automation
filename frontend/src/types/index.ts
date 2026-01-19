@@ -26,3 +26,27 @@ export interface Measurement {
   geometryType: "polygon" | "polyline" | "line" | "point";
   quantity: number;
 }
+
+// Document Types
+export interface PageSummary {
+  id: string;
+  page_number: number;
+  classification?: string | null;
+  scale_calibrated: boolean;
+  thumbnail_url?: string | null;
+}
+
+export interface Document {
+  id: string;
+  project_id: string;
+  filename: string;
+  original_filename: string;
+  file_type: string;
+  file_size: number;
+  status: string;
+  page_count?: number | null;
+  processing_error?: string | null;
+  created_at: string;
+  updated_at: string;
+  pages: PageSummary[];
+}
