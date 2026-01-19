@@ -1,29 +1,57 @@
-"""Document model."""
+"""Document model for uploaded plan sets."""
 
 import uuid
-from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Integer
+from typing import TYPE_CHECKING
+
+from sqlalchemy import String, Integer, BigInteger, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy import JSON
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base
+from app.models.base import Base, TimestampMixin, UUIDMixin
+
+if TYPE_CHECKING:
+    from app.models.project import Project
+    from app.models.page import Page
 
 
-class Document(Base):
-    """Document model representing a PDF/TIFF file."""
+class Document(Base, UUIDMixin, TimestampMixin):
+    """Uploaded document (PDF or TIFF plan set)."""
 
     __tablename__ = "documents"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
-    filename = Column(String(255), nullable=False)
-    file_path = Column(String(500), nullable=False)
-    file_size = Column(Integer, nullable=False)
-    mime_type = Column(String(100), nullable=False)
-    page_count = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    processed_at = Column(DateTime, nullable=True)
+    # Foreign keys
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # File info
+    filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_type: Mapped[str] = mapped_column(String(10), nullable=False)  # pdf, tiff
+    file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)  # bytes
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    # Storage
+    storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
+
+    # Processing
+    status: Mapped[str] = mapped_column(
+        String(50),
+        default="uploaded",
+        nullable=False,
+    )  # uploaded, processing, ready, error
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    processing_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Relationships
-    project = relationship("Project", back_populates="documents")
-    pages = relationship("Page", back_populates="document", cascade="all, delete-orphan")
+    project: Mapped["Project"] = relationship("Project", back_populates="documents")
+    pages: Mapped[list["Page"]] = relationship(
+        "Page",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="Page.page_number",
+    )

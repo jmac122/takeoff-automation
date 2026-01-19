@@ -1,31 +1,81 @@
-"""Page model."""
+"""Page model for individual sheets within documents."""
 
 import uuid
-from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Float, Text, JSON
+from typing import TYPE_CHECKING
+
+from sqlalchemy import String, Integer, Float, Boolean, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy import JSON
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base
+from app.models.base import Base, TimestampMixin, UUIDMixin
+
+if TYPE_CHECKING:
+    from app.models.document import Document
+    from app.models.measurement import Measurement
 
 
-class Page(Base):
-    """Page model representing an individual sheet/page from a document."""
+class Page(Base, UUIDMixin, TimestampMixin):
+    """Individual page/sheet from a document."""
 
     __tablename__ = "pages"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
-    page_number = Column(Integer, nullable=False)
-    width = Column(Float, nullable=False)
-    height = Column(Float, nullable=False)
-    scale = Column(Float, nullable=True)  # Detected scale (e.g., 1/4" = 1')
-    classification = Column(String(100), nullable=True)  # foundation, framing, etc.
-    ocr_text = Column(Text, nullable=True)
-    image_path = Column(String(500), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    processed_at = Column(DateTime, nullable=True)
+    # Foreign keys
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # Page info
+    page_number: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Dimensions (in pixels)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    dpi: Mapped[int] = mapped_column(Integer, default=150)
+
+    # Storage keys
+    image_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    thumbnail_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Classification (populated by AI in Phase 2)
+    classification: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    classification_confidence: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+
+    # Page title/name (extracted via OCR)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    sheet_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Scale (populated by scale detection in Phase 2)
+    scale_text: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )  # e.g., "1/4\" = 1'-0\""
+    scale_value: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )  # pixels per foot
+    scale_unit: Mapped[str] = mapped_column(String(20), default="foot")
+    scale_calibrated: Mapped[bool] = mapped_column(Boolean, default=False)
+    scale_calibration_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # OCR data
+    ocr_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ocr_blocks: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Processing
+    status: Mapped[str] = mapped_column(
+        String(50),
+        default="pending",
+        nullable=False,
+    )  # pending, processing, ready, error
+    processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    document = relationship("Document", back_populates="pages")
-    measurements = relationship("Measurement", back_populates="page", cascade="all, delete-orphan")
+    document: Mapped["Document"] = relationship("Document", back_populates="pages")
+    measurements: Mapped[list["Measurement"]] = relationship(
+        "Measurement",
+        back_populates="page",
+        cascade="all, delete-orphan",
+    )
