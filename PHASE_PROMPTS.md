@@ -4,7 +4,7 @@ Use these prompts to start each phase. Copy and paste into a new Cursor chat whe
 
 ---
 
-## Phase 0: Project Setup
+## Phase 0: Project Setup - Grok Code
 
 ```
 Let's begin implementing the Takeoff Platform. Start with Phase 0 - Project Setup.
@@ -24,7 +24,7 @@ Run through the verification checklist at the end before we proceed to the next 
 
 ---
 
-## Phase 1A: Document Ingestion
+## Phase 1A: Document Ingestion - Grok Code
 
 ```
 Continue to Phase 1A - Document Ingestion.
@@ -43,7 +43,7 @@ Run through the verification checklist at the end before we proceed.
 
 ---
 
-## Phase 1B: OCR and Text Extraction
+## Phase 1B: OCR and Text Extraction - Composer 1
 
 ```
 Continue to Phase 1B - OCR and Text Extraction.
@@ -62,7 +62,7 @@ Run through the verification checklist and test cases at the end.
 
 ---
 
-## Phase 2A: Page Classification
+## Phase 2A: Page Classification - Composer 1
 
 ```
 Continue to Phase 2A - Page Classification.
@@ -80,7 +80,7 @@ Run through the verification checklist and test cases at the end.
 
 ---
 
-## Phase 2B: Scale Detection
+## Phase 2B: Scale Detection - Composer 1
 
 ```
 Continue to Phase 2B - Scale Detection and Calibration.
@@ -97,7 +97,7 @@ Run through the verification checklist and test cases at the end.
 
 ---
 
-## Phase 3A: Measurement Engine
+## Phase 3A: Measurement Engine - Claude 4 Sonnet
 
 ```
 Continue to Phase 3A - Measurement Engine.
@@ -115,7 +115,7 @@ Run through the verification checklist and test cases at the end.
 
 ---
 
-## Phase 3B: Condition Management
+## Phase 3B: Condition Management - Grok Code
 
 ```
 Continue to Phase 3B - Condition Management.
@@ -132,7 +132,7 @@ Run through the verification checklist and test cases at the end.
 
 ---
 
-## Phase 4A: AI Takeoff Generation
+## Phase 4A: AI Takeoff Generation - Claude 4 Sonnet
 
 ```
 Continue to Phase 4A - AI Takeoff Generation.
@@ -150,7 +150,7 @@ Run through the verification checklist, test cases, and accuracy testing at the 
 
 ---
 
-## Phase 4B: Review Interface
+## Phase 4B: Review Interface - Composer 1
 
 ```
 Continue to Phase 4B - Review Interface.
@@ -170,7 +170,7 @@ Run through the verification checklist and test cases at the end.
 
 ---
 
-## Phase 5A: Export System
+## Phase 5A: Export System - Composer 1
 
 ```
 Continue to Phase 5A - Export System.
@@ -191,7 +191,7 @@ Run through the verification checklist and test cases at the end.
 
 ---
 
-## Phase 5B: Testing & QA
+## Phase 5B: Testing & QA - Composer 1
 
 ```
 Continue to Phase 5B - Testing & Quality Assurance.
@@ -212,7 +212,7 @@ Ensure all coverage targets are met and CI pipeline passes.
 
 ---
 
-## Phase 6: Deployment
+## Phase 6: Deployment - Grok Code
 
 ```
 Continue to Phase 6 - Deployment & Operations.

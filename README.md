@@ -1,48 +1,153 @@
-# Takeoff Automation
+# ForgeX Takeoffs
 
-AI-Powered Construction Takeoff Platform - Automated Plan Analysis & Quantity Extraction System
+AI-powered construction takeoff automation platform.
 
-## Overview
+## Quick Start
 
-This platform automates the analysis of construction plan sets (PDF and TIFF formats), identifies relevant scopes of work, extracts measurements, and generates draft takeoffs that human estimators can review and refine.
+### Prerequisites
 
-## Project Status
-
-**Current Phase:** Phase 1 - Foundation
-
-## Documentation
-
-- [Phase 1 Task List](docs/PHASE_1_TASK_LIST.md) - Detailed breakdown of foundation tasks
-
-## Technology Stack
-
-### Backend
+- Docker and Docker Compose
 - Python 3.11+
-- FastAPI
-- PostgreSQL 15+
-- Redis + Celery
-- SQLAlchemy 2.0
+- Node.js 20+
+- At least one LLM API key (Anthropic, OpenAI, Google, or xAI)
 
-### Frontend
-- React 18+ with TypeScript
-- Vite
-- Tailwind CSS + Shadcn/ui
-- Zustand
-- PDF.js
+### Setup
 
-### Infrastructure
-- Docker + Docker Compose
-- MinIO (S3-compatible storage)
+1. Clone the repository
+2. Copy environment file and configure API keys:
 
-## Getting Started
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your LLM API keys
+   ```
 
-*Setup instructions will be added as Phase 1 infrastructure tasks are completed.*
+3. Run setup:
 
-## Project Phases
+   ```bash
+   make setup
+   ```
 
-1. **Phase 1: Foundation** - Project scaffolding, file upload, document viewer
-2. **Phase 2: Classification** - LLM integration, page classification, OCR
-3. **Phase 3: Measurement Engine** - Scale calibration, area/linear detection
-4. **Phase 4: Review Interface** - Interactive overlay editing
-5. **Phase 5: Export & Polish** - Excel/OST export, derived calculations
-6. **Phase 6: SaaS Preparation** - Multi-tenancy, billing, public launch
+4. Start development environment:
+
+   ```bash
+   make dev
+   ```
+
+5. Access the application:
+   - Frontend: http://localhost:5173
+   - API: http://localhost:8000
+   - API Docs: http://localhost:8000/api/docs
+   - MinIO Console: http://localhost:9001
+
+## LLM Provider Configuration
+
+The platform supports multiple LLM providers for AI operations:
+
+| Provider  | Model             | Best For                              |
+| --------- | ----------------- | ------------------------------------- |
+| Anthropic | Claude 3.5 Sonnet | General accuracy, recommended primary |
+| OpenAI    | GPT-4o            | Good all-around performance           |
+| Google    | Gemini 1.5 Pro    | Cost-effective option                 |
+| xAI       | Grok Vision       | Alternative option                    |
+
+### Configuration Options
+
+```env
+# Set default provider
+DEFAULT_LLM_PROVIDER=anthropic
+
+# Configure fallbacks (comma-separated)
+LLM_FALLBACK_PROVIDERS=openai,google
+
+# Override provider per task (optional)
+LLM_PROVIDER_PAGE_CLASSIFICATION=google
+LLM_PROVIDER_SCALE_DETECTION=anthropic
+LLM_PROVIDER_ELEMENT_DETECTION=anthropic
+LLM_PROVIDER_MEASUREMENT=anthropic
+```
+
+### Benchmarking Providers
+
+Configure all provider API keys to run accuracy benchmarks:
+
+```bash
+# Run benchmark comparison across all providers
+make benchmark-llm
+```
+
+## Development
+
+### Running Tests
+
+```bash
+make test
+```
+
+### Running Linters
+
+```bash
+make lint
+```
+
+### Database Migrations
+
+```bash
+# Create a new migration
+make create-migration name="add_users_table"
+
+# Apply migrations
+make migrate
+```
+
+## Architecture
+
+See `/docs/architecture` for detailed architecture documentation.
+
+## Tech Stack
+
+- **Backend**: Python 3.11, FastAPI, SQLAlchemy, PostgreSQL, Redis, Celery
+- **Frontend**: React 18, TypeScript, Vite, TailwindCSS, Konva.js
+- **AI/ML**: Multi-LLM support (Anthropic, OpenAI, Google, xAI)
+- **Storage**: MinIO (S3-compatible)
+- **Infrastructure**: Docker, Docker Compose
+
+## API Endpoints
+
+All endpoints under `/api/v1/`:
+
+```
+Projects:     /projects, /projects/{id}
+Documents:    /projects/{id}/documents, /documents/{id}
+Pages:        /documents/{id}/pages, /pages/{id}
+Conditions:   /projects/{id}/conditions, /conditions/{id}
+Measurements: /conditions/{id}/measurements, /measurements/{id}
+Exports:      /projects/{id}/export, /exports/{id}
+Settings:     /settings/llm (LLM provider configuration)
+```
+
+## Data Model
+
+```
+Project (1) ──< Document (many) ──< Page (many)
+    │                                    │
+    ▼                                    ▼
+Condition (many) ──────────────< Measurement (many)
+```
+
+- **Project**: Contains plan sets and takeoff conditions
+- **Document**: A PDF/TIFF file (can be 100+ pages)
+- **Page**: Individual sheet with classification, scale, OCR data
+- **Condition**: Takeoff line item (e.g., "4" Concrete Slab")
+- **Measurement**: Geometry on a page linked to a condition
+
+## Contributing
+
+1. Follow the established coding standards (SOLID, DRY, KISS)
+2. Use type hints everywhere in Python
+3. Strict TypeScript mode in frontend
+4. Run tests and linters before committing
+5. Follow conventional commit messages
+
+## License
+
+[Add license information here]
