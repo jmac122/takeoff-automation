@@ -3,7 +3,13 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class DocumentCreate(BaseModel):
+    """Schema for creating a document."""
+
+    project_id: uuid.UUID = Field(..., description="Project to upload document to")
 
 
 class PageSummary(BaseModel):
