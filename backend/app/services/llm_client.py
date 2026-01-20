@@ -64,8 +64,8 @@ class LLMResponse:
 PROVIDER_MODELS = {
     LLMProvider.ANTHROPIC: "claude-sonnet-4-20250514",
     LLMProvider.OPENAI: "gpt-4o",
-    LLMProvider.GOOGLE: "gemini-1.5-pro",
-    LLMProvider.XAI: "grok-vision-beta",
+    LLMProvider.GOOGLE: "gemini-2.5-flash",
+    LLMProvider.XAI: "grok-2-vision-latest",
 }
 
 

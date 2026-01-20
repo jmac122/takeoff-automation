@@ -7,6 +7,16 @@ interface HealthResponse {
   status: string;
 }
 
+interface LLMProvider {
+  name: string;
+  display_name: string;
+  model: string;
+  strengths: string;
+  cost_tier: string;
+  available: boolean;
+  is_default: boolean;
+}
+
 interface PageData {
   id: string;
   document_id: string;
@@ -44,6 +54,21 @@ interface PageClassification {
 export default function Dashboard() {
   const [uploadedDocumentId, setUploadedDocumentId] = useState<string | null>(null);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [classificationProvider, setClassificationProvider] = useState<string>("default");
+  const [showProviderSettings, setShowProviderSettings] = useState(false);
+
+  // Fetch available LLM providers
+  const { data: providersData } = useQuery({
+    queryKey: ["llm-providers"],
+    queryFn: async () => {
+      const response = await axios.get("/api/v1/settings/llm/providers");
+      return response.data as { providers: Record<string, LLMProvider> };
+    },
+  });
+
+  const availableProviders = providersData?.providers
+    ? Object.values(providersData.providers).filter((p) => p.available)
+    : [];
 
   const { data: healthData, isLoading: healthLoading, error: healthError } = useQuery({
     queryKey: ["health"],
@@ -79,7 +104,10 @@ export default function Dashboard() {
   // Classify document mutation
   const classifyDocumentMutation = useMutation({
     mutationFn: async (documentId: string) => {
-      const response = await axios.post(`/api/v1/documents/${documentId}/classify`);
+      const provider = classificationProvider !== "default" ? classificationProvider : undefined;
+      const response = await axios.post(`/api/v1/documents/${documentId}/classify`, {
+        provider,
+      });
       return response.data;
     },
     onSuccess: () => {
@@ -91,7 +119,10 @@ export default function Dashboard() {
   // Classify single page mutation
   const classifyPageMutation = useMutation({
     mutationFn: async (pageId: string) => {
-      const response = await axios.post(`/api/v1/pages/${pageId}/classify`);
+      const provider = classificationProvider !== "default" ? classificationProvider : undefined;
+      const response = await axios.post(`/api/v1/pages/${pageId}/classify`, {
+        provider,
+      });
       return response.data;
     },
     onSuccess: () => {
@@ -166,6 +197,111 @@ export default function Dashboard() {
         </p>
       </div>
 
+      {/* LLM Provider Settings */}
+      <div className="bg-white shadow rounded-lg mb-6 overflow-hidden">
+        <button
+          onClick={() => setShowProviderSettings(!showProviderSettings)}
+          className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="font-medium text-gray-900">LLM Provider Settings</span>
+            <span className="text-sm text-gray-500">
+              (Classification: {classificationProvider === "default" ? "Auto" : availableProviders.find(p => p.name === classificationProvider)?.display_name || classificationProvider})
+            </span>
+          </div>
+          <svg
+            className={`w-5 h-5 text-gray-400 transition-transform ${showProviderSettings ? "rotate-180" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showProviderSettings && (
+          <div className="px-6 pb-6 border-t border-gray-100">
+            <p className="text-sm text-gray-600 mt-4 mb-4">
+              Select which AI provider to use for each task. This helps you evaluate and compare different LLMs.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Classification Provider */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Page Classification Provider
+                </label>
+                <select
+                  value={classificationProvider}
+                  onChange={(e) => setClassificationProvider(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                >
+                  <option value="default">🤖 Auto (Use Default)</option>
+                  {availableProviders.map((provider) => (
+                    <option key={provider.name} value={provider.name}>
+                      {provider.display_name} {provider.is_default && "(Default)"}
+                    </option>
+                  ))}
+                </select>
+                {classificationProvider !== "default" && (
+                  <div className="mt-2 text-xs text-gray-500">
+                    {availableProviders.find(p => p.name === classificationProvider)?.strengths}
+                  </div>
+                )}
+              </div>
+
+              {/* Provider Info Cards */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Available Providers
+                </label>
+                <div className="space-y-2">
+                  {availableProviders.map((provider) => (
+                    <div
+                      key={provider.name}
+                      className={`p-3 rounded-lg border text-sm ${classificationProvider === provider.name
+                        ? "border-purple-300 bg-purple-50"
+                        : "border-gray-200 bg-gray-50"
+                        }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-900">{provider.display_name}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${provider.cost_tier === "low" ? "bg-green-100 text-green-700" :
+                          provider.cost_tier === "medium" ? "bg-yellow-100 text-yellow-700" :
+                            provider.cost_tier === "medium-high" ? "bg-orange-100 text-orange-700" :
+                              "bg-red-100 text-red-700"
+                          }`}>
+                          {provider.cost_tier}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{provider.model}</p>
+                    </div>
+                  ))}
+                  {availableProviders.length === 0 && (
+                    <p className="text-sm text-gray-500 italic">No providers configured. Add API keys to enable.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Evaluation Tips */}
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm font-medium text-blue-800 mb-2">💡 Evaluation Tips</p>
+              <ul className="text-xs text-blue-700 space-y-1">
+                <li>• Upload the same document and classify with different providers to compare accuracy</li>
+                <li>• Check the "LLM Details" section in classification results to see latency and model used</li>
+                <li>• Consider both accuracy and cost when choosing your primary provider</li>
+                <li>• Claude (Anthropic) typically excels at technical document analysis</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Document Pages Section */}
       {uploadedDocumentId && (
         <div className="bg-white shadow rounded-lg p-6 mb-6">
@@ -183,9 +319,18 @@ export default function Dashboard() {
               <button
                 onClick={() => classifyDocumentMutation.mutate(uploadedDocumentId)}
                 disabled={classifyDocumentMutation.isPending}
-                className="px-4 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md disabled:opacity-50"
+                className="px-4 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md disabled:opacity-50 flex items-center gap-2"
               >
-                {classifyDocumentMutation.isPending ? "Starting..." : "Classify All Pages"}
+                {classifyDocumentMutation.isPending ? "Starting..." : (
+                  <>
+                    Classify All Pages
+                    {classificationProvider !== "default" && (
+                      <span className="text-purple-200 text-xs">
+                        ({availableProviders.find(p => p.name === classificationProvider)?.display_name?.split(" ")[0] || classificationProvider})
+                      </span>
+                    )}
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -264,9 +409,18 @@ export default function Dashboard() {
               <button
                 onClick={() => classifyPageMutation.mutate(selectedPageId)}
                 disabled={classifyPageMutation.isPending}
-                className="px-4 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md disabled:opacity-50"
+                className="px-4 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md disabled:opacity-50 flex items-center gap-2"
               >
-                {classifyPageMutation.isPending ? "Classifying..." : "Re-classify Page"}
+                {classifyPageMutation.isPending ? "Classifying..." : (
+                  <>
+                    Re-classify Page
+                    {classificationProvider !== "default" && (
+                      <span className="text-purple-200 text-xs">
+                        ({availableProviders.find(p => p.name === classificationProvider)?.display_name?.split(" ")[0] || classificationProvider})
+                      </span>
+                    )}
+                  </>
+                )}
               </button>
             </div>
           </div>
