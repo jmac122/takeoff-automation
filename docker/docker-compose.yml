@@ -125,7 +125,7 @@ services:
     volumes:
       - ../backend:/app
       - ../credentials:/app/credentials
-    command: celery -A app.workers.celery_app worker --loglevel=info
+    command: [ "celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "-E" ]
 
   frontend:
     build:
