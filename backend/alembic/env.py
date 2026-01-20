@@ -40,7 +40,7 @@ settings = get_settings()
 
 def get_sync_database_url() -> str:
     """Convert async database URL to synchronous URL for Alembic.
-    
+
     Alembic migrations run synchronously, so we need to use psycopg2
     instead of asyncpg.
     """
@@ -86,7 +86,7 @@ def run_migrations_online() -> None:
     # Convert to synchronous URL for Alembic
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = get_sync_database_url()
-    
+
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
