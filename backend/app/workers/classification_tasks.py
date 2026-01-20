@@ -15,6 +15,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.config import get_settings
 from app.models.page import Page
+from app.models.classification_history import ClassificationHistory
 from app.services.page_classifier import classify_page
 from app.utils.storage import get_storage_service
 from app.workers.celery_app import celery_app
@@ -71,7 +72,7 @@ def classify_page_task(
                 provider=provider,
             )
 
-            # Update page record
+            # Update page record with latest classification
             page.classification = f"{result.discipline}:{result.page_type}"
             page.classification_confidence = min(
                 result.discipline_confidence,
@@ -79,6 +80,28 @@ def classify_page_task(
             )
             page.concrete_relevance = result.concrete_relevance
             page.classification_metadata = result.to_dict()
+
+            # Save to classification history for BI tracking
+            history_entry = ClassificationHistory(
+                page_id=uuid.UUID(page_id),
+                classification=f"{result.discipline}:{result.page_type}",
+                classification_confidence=min(
+                    result.discipline_confidence,
+                    result.page_type_confidence,
+                ),
+                discipline=result.discipline,
+                discipline_confidence=result.discipline_confidence,
+                page_type=result.page_type,
+                page_type_confidence=result.page_type_confidence,
+                concrete_relevance=result.concrete_relevance,
+                concrete_elements=result.concrete_elements,
+                description=result.description,
+                llm_provider=result.llm_provider,
+                llm_model=result.llm_model,
+                llm_latency_ms=result.llm_latency_ms,
+                raw_response=result.to_dict(),
+            )
+            db.add(history_entry)
 
             db.commit()
 
@@ -90,6 +113,7 @@ def classify_page_task(
                 concrete_relevance=result.concrete_relevance,
                 provider=result.llm_provider,
                 latency_ms=result.llm_latency_ms,
+                history_id=str(history_entry.id),
             )
 
             return result.to_dict()

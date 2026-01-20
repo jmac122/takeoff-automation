@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.models.page import Page
+from app.models.classification_history import ClassificationHistory
 from app.schemas.page import (
     PageResponse,
     PageListResponse,
@@ -357,4 +358,108 @@ async def get_page_classification(
         "confidence": page.classification_confidence,
         "concrete_relevance": page.concrete_relevance,
         "metadata": page.classification_metadata,
+    }
+
+
+@router.get("/pages/{page_id}/classification/history")
+async def get_page_classification_history(
+    page_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: int = 50,
+) -> dict:
+    """Get classification history for a page.
+
+    Returns all historical classification runs for BI analysis,
+    ordered by most recent first.
+    """
+    # Verify page exists
+    page_result = await db.execute(select(Page.id).where(Page.id == page_id))
+    if not page_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Page not found")
+
+    # Get classification history
+    result = await db.execute(
+        select(ClassificationHistory)
+        .where(ClassificationHistory.page_id == page_id)
+        .order_by(ClassificationHistory.created_at.desc())
+        .limit(limit)
+    )
+    history = result.scalars().all()
+
+    return {
+        "page_id": str(page_id),
+        "total": len(history),
+        "history": [entry.to_dict() for entry in history],
+    }
+
+
+@router.get("/classification/stats")
+async def get_classification_stats(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Get aggregate classification statistics for BI.
+
+    Returns stats grouped by provider/model for performance comparison.
+    """
+    from sqlalchemy import func
+
+    # Get stats by provider/model
+    result = await db.execute(
+        select(
+            ClassificationHistory.llm_provider,
+            ClassificationHistory.llm_model,
+            func.count(ClassificationHistory.id).label("total_runs"),
+            func.avg(ClassificationHistory.llm_latency_ms).label("avg_latency_ms"),
+            func.min(ClassificationHistory.llm_latency_ms).label("min_latency_ms"),
+            func.max(ClassificationHistory.llm_latency_ms).label("max_latency_ms"),
+            func.avg(ClassificationHistory.classification_confidence).label(
+                "avg_confidence"
+            ),
+        )
+        .group_by(
+            ClassificationHistory.llm_provider,
+            ClassificationHistory.llm_model,
+        )
+        .order_by(func.count(ClassificationHistory.id).desc())
+    )
+    rows = result.all()
+
+    # Get concrete relevance distribution by provider
+    relevance_result = await db.execute(
+        select(
+            ClassificationHistory.llm_provider,
+            ClassificationHistory.concrete_relevance,
+            func.count(ClassificationHistory.id).label("count"),
+        ).group_by(
+            ClassificationHistory.llm_provider,
+            ClassificationHistory.concrete_relevance,
+        )
+    )
+    relevance_rows = relevance_result.all()
+
+    # Build relevance distribution dict
+    relevance_by_provider: dict = {}
+    for row in relevance_rows:
+        provider = row[0]
+        relevance = row[1] or "unknown"
+        count = row[2]
+        if provider not in relevance_by_provider:
+            relevance_by_provider[provider] = {}
+        relevance_by_provider[provider][relevance] = count
+
+    return {
+        "by_provider": [
+            {
+                "provider": row[0],
+                "model": row[1],
+                "total_runs": row[2],
+                "avg_latency_ms": round(row[3], 2) if row[3] else None,
+                "min_latency_ms": round(row[4], 2) if row[4] else None,
+                "max_latency_ms": round(row[5], 2) if row[5] else None,
+                "avg_confidence": round(row[6], 3) if row[6] else None,
+                "relevance_distribution": relevance_by_provider.get(row[0], {}),
+            }
+            for row in rows
+        ],
+        "total_classifications": sum(row[2] for row in rows),
     }

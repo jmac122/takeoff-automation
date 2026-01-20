@@ -7,6 +7,7 @@ from app.models.condition import Condition
 from app.models.document import Document
 from app.models.page import Page
 from app.models.measurement import Measurement
+from app.models.classification_history import ClassificationHistory
 
 __all__ = [
     "Base",
@@ -17,4 +18,5 @@ __all__ = [
     "Document",
     "Page",
     "Measurement",
+    "ClassificationHistory",
 ]

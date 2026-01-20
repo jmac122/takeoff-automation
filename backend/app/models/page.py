@@ -13,6 +13,7 @@ from app.models.base import Base, TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from app.models.document import Document
     from app.models.measurement import Measurement
+    from app.models.classification_history import ClassificationHistory
 
 
 class Page(Base, UUIDMixin, TimestampMixin):
@@ -84,4 +85,10 @@ class Page(Base, UUIDMixin, TimestampMixin):
         "Measurement",
         back_populates="page",
         cascade="all, delete-orphan",
+    )
+    classification_history: Mapped[list["ClassificationHistory"]] = relationship(
+        "ClassificationHistory",
+        back_populates="page",
+        cascade="all, delete-orphan",
+        order_by="desc(ClassificationHistory.created_at)",
     )
