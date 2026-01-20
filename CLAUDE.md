@@ -19,7 +19,7 @@ You are helping build an AI-powered construction takeoff platform that:
 | **Frontend** | React 18, TypeScript, Vite, TailwindCSS, Konva.js, PDF.js |
 | **Backend** | Python 3.11+, FastAPI, Celery, SQLAlchemy |
 | **Database** | PostgreSQL 15+, Redis 7+ |
-| **AI/ML** | Claude 3.5 Sonnet, GPT-4o, Gemini 1.5 Pro, OpenCV, Google Cloud Vision |
+| **AI/ML** | Claude 3.5 Sonnet, GPT-4o, Gemini 2.5 Flash, OpenCV, Google Cloud Vision |
 | **Storage** | MinIO (S3-compatible) |
 | **Infrastructure** | Docker, Docker Compose, Nginx |
 

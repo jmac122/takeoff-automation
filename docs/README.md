@@ -90,7 +90,7 @@ The platform supports multiple AI providers for page classification:
 |----------|-------|----------|
 | **Anthropic** | Claude 3.5 Sonnet | Recommended primary - best accuracy |
 | **OpenAI** | GPT-4o | Fast, good accuracy |
-| **Google** | Gemini 1.5 Pro | Cost-effective |
+| **Google** | Gemini 2.5 Flash | Cost-effective |
 | **xAI** | Grok Vision | Alternative option |
 
 ### Page Classification

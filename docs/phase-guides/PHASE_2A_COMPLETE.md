@@ -17,7 +17,7 @@ Phase 2A implements AI-powered page classification for construction plan documen
 A unified client supporting four LLM providers:
 - **Anthropic Claude 3.5 Sonnet** - Recommended primary provider
 - **OpenAI GPT-4o** - Fast, reliable alternative
-- **Google Gemini 1.5 Pro** - Cost-effective option
+- **Google Gemini 2.5 Flash** - Cost-effective option
 - **xAI Grok Vision** - Fast responses
 
 **Key Features:**

@@ -554,7 +554,7 @@ PROVIDER_INFO = {
         "model": "gpt-4o",
     },
     "google": {
-        "display_name": "Google (Gemini 1.5 Pro)",
+        "display_name": "Google (Gemini 2.5 Flash)",
         "model": "gemini-1.5-pro",
     },
     "xai": {
@@ -806,7 +806,7 @@ The platform supports multiple LLM providers for AI operations:
 |----------|-------|----------|
 | Anthropic | Claude 3.5 Sonnet | General accuracy, recommended primary |
 | OpenAI | GPT-4o | Good all-around performance |
-| Google | Gemini 1.5 Pro | Cost-effective option |
+| Google | Gemini 2.5 Flash | Cost-effective option |
 | xAI | Grok Vision | Alternative option |
 
 ### Configuration Options

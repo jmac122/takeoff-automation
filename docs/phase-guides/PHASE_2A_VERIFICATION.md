@@ -9,7 +9,7 @@
 - `backend/app/services/llm_client.py` implements `_init_client()` method that supports all 4 providers:
   - ✅ Anthropic (Claude 3.5 Sonnet) - Lines 114-119
   - ✅ OpenAI (GPT-4o) - Lines 121-126
-  - ✅ Google (Gemini 1.5 Pro) - Lines 128-134
+  - ✅ Google (Gemini 2.5 Flash) - Lines 128-134
   - ✅ xAI (Grok Vision) - Lines 136-144
 - Each provider checks for API key configuration before initialization
 - `get_llm_client()` factory function uses `settings.get_provider_for_task()` to select provider

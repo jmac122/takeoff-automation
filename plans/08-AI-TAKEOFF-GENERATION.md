@@ -19,7 +19,7 @@ The platform supports **four LLM providers** that can be configured per-task:
 |----------|-------|-----------|
 | Anthropic | Claude 3.5 Sonnet | Best document understanding |
 | OpenAI | GPT-4o | Good spatial reasoning |
-| Google | Gemini 1.5 Pro | Cost-effective |
+| Google | Gemini 2.5 Flash | Cost-effective |
 | xAI | Grok Vision | Alternative option |
 
 Different providers may excel at different tasks. The system supports:

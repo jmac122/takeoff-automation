@@ -111,7 +111,7 @@
 |----------|-------|--------|----------|
 | Anthropic | Claude 3.5 Sonnet | ✅ Configured | Primary - best accuracy |
 | OpenAI | GPT-4o | ✅ Configured | Fast, good accuracy |
-| Google | Gemini 1.5 Pro | ✅ Configured | Cost-effective |
+| Google | Gemini 2.5 Flash | ✅ Configured | Cost-effective |
 | xAI | Grok Vision | ⚠️ Optional | Alternative |
 
 ### Environment Variables

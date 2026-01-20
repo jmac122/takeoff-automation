@@ -262,7 +262,7 @@ Read `plans/04-PAGE-CLASSIFICATION.md` and implement all tasks in order:
     - _analyze_with_provider() for provider-specific implementations
     - Support for Anthropic Claude 3.5 Sonnet
     - Support for OpenAI GPT-4o
-    - Support for Google Gemini 1.5 Pro
+    - Support for Google Gemini 2.5 Flash
     - Support for xAI Grok Vision
   - Create get_llm_client() factory function
 

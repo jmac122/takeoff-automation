@@ -3975,7 +3975,7 @@ export LLM_FALLBACK_PROVIDERS=openai,google
 |----------|-------|----------------------|------------------------|
 | Anthropic | Claude 3.5 Sonnet | $3.00 | $15.00 |
 | OpenAI | GPT-4o | $2.50 | $10.00 |
-| Google | Gemini 1.5 Pro | $1.25 | $5.00 |
+| Google | Gemini 2.5 Flash | $1.25 | $5.00 |
 | xAI | Grok Vision | $5.00 | $15.00 |
 
 **Note:** Prices change frequently. Update `PROVIDER_PRICING` in `multi_provider_benchmark.py` as needed.

@@ -20,7 +20,7 @@ You are implementing AI-powered page classification for a construction takeoff p
 The platform supports **four LLM providers** for AI operations:
 - **Anthropic** (Claude 3.5 Sonnet) - Recommended primary
 - **OpenAI** (GPT-4o)
-- **Google** (Gemini 1.5 Pro)
+- **Google** (Gemini 2.5 Flash)
 - **xAI** (Grok Vision)
 
 This allows benchmarking across providers and configuring the best provider per task.
@@ -76,7 +76,7 @@ Create `backend/app/services/llm_client.py`:
 Supports:
 - Anthropic (Claude 3.5 Sonnet)
 - OpenAI (GPT-4o)
-- Google (Gemini 1.5 Pro)
+- Google (Gemini 2.5 Flash)
 - xAI (Grok Vision)
 """
 
