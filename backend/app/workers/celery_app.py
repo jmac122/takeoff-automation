@@ -14,6 +14,7 @@ celery_app = Celery(
         "app.workers.document_tasks",
         "app.workers.ocr_tasks",
         "app.workers.classification_tasks",
+        "app.workers.scale_tasks",
     ],
 )
 
