@@ -105,7 +105,13 @@ async def upload_document(
     # Queue processing task
     process_document_task.delay(str(document_id), str(project_id))
 
-    await db.refresh(document)
+    # Reload document with pages eagerly loaded (will be empty until worker processes it)
+    result = await db.execute(
+        select(Document)
+        .where(Document.id == document_id)
+        .options(selectinload(Document.pages))
+    )
+    document = result.scalar_one()
     return document
 
 
@@ -138,8 +144,9 @@ async def get_document_status(
 ):
     """Get document processing status."""
     result = await db.execute(
-        select(Document.status, Document.page_count, Document.processing_error)
-        .where(Document.id == document_id)
+        select(Document.status, Document.page_count, Document.processing_error).where(
+            Document.id == document_id
+        )
     )
     row = result.one_or_none()
 
@@ -162,9 +169,7 @@ async def delete_document(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Delete a document and all associated files."""
-    result = await db.execute(
-        select(Document).where(Document.id == document_id)
-    )
+    result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
 
     if not document:
