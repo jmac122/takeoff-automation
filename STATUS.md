@@ -1,7 +1,7 @@
 # ForgeX Takeoffs - Project Status
 
 **Last Updated:** January 19, 2026  
-**Current Phase:** ✅ Phase 1B Complete - Ready for Phase 2A
+**Current Phase:** ✅ Phase 2A Complete - Ready for Phase 2B
 
 ---
 
@@ -32,12 +32,6 @@
 - ✅ Celery task queue
 - ✅ Multi-LLM provider configuration
 
-**Key Fixes Applied:**
-- Fixed Docker build context paths
-- Configured PostgreSQL instead of SQLite
-- Split dependencies (base: 500MB, ML: 2GB)
-- Created proper `.env` configuration
-
 ### Phase 1A: Document Ingestion (Weeks 2-3)
 **Status:** COMPLETE ✅  
 **Completed:** January 19, 2026
@@ -49,12 +43,6 @@
 - ✅ Status tracking
 - ✅ Frontend drag-and-drop uploader
 - ✅ Progress tracking and error handling
-
-**Verification:**
-- API health check responds
-- All 5 database tables created
-- Document upload flow works
-- Frontend displays correctly
 
 ### Phase 1B: OCR and Text Extraction (Weeks 4-6)
 **Status:** COMPLETE ✅  
@@ -68,38 +56,78 @@
 - ✅ OCR API endpoints
 - ✅ Reprocess OCR capability
 
-**Verification:**
-- All 10 verification checks passed
-- OCR service extracts text correctly
-- Scale patterns detected (6 types)
-- Sheet numbers extracted (3 patterns)
-- Full-text search working
-- API endpoints functional
+### Phase 2A: Page Classification (Weeks 7-9)
+**Status:** COMPLETE ✅  
+**Completed:** January 19, 2026
+
+- ✅ Multi-provider LLM client (Anthropic, OpenAI, Google, xAI)
+- ✅ AI-powered page classification service
+- ✅ Discipline detection (Structural, Architectural, Civil, etc.)
+- ✅ Page type detection (Plan, Elevation, Section, Detail, etc.)
+- ✅ Concrete relevance scoring (high/medium/low/none)
+- ✅ Classification confidence scoring
+- ✅ Celery tasks for async classification
+- ✅ Classification API endpoints
+- ✅ Frontend testing UI with page browser
+- ✅ Database migration for classification fields
+
+**Key Features:**
+- **Multi-Provider Support**: Anthropic Claude, OpenAI GPT-4o, Google Gemini, xAI Grok
+- **Automatic Fallback**: If primary provider fails, automatically tries fallbacks
+- **Retry Logic**: Exponential backoff for rate limits and transient errors
+- **Detailed Metadata**: Stores LLM provider, model, latency for each classification
 
 **Documentation:**
-- [Phase 1B Complete Guide](docs/phase-guides/PHASE_1B_COMPLETE.md)
-- [OCR API Reference](docs/api/OCR_API.md)
-- [OCR Service Documentation](docs/services/OCR_SERVICE.md)
+- [Phase 2A Complete Guide](docs/phase-guides/PHASE_2A_COMPLETE.md)
+- [Phase 2A Docker Testing](docs/phase-guides/PHASE_2A_DOCKER_TESTING.md)
 
 ---
 
 ## ⏭️ Next Phase
 
-### Phase 2A: Page Classification (Weeks 7-9)
+### Phase 2B: Scale Detection (Weeks 10-12)
 **Status:** READY TO START
 
 **Requirements:**
-- LLM API keys (Anthropic/OpenAI/Google)
-- Phase 1B complete (OCR working)
+- Phase 2A complete (classification working)
+- LLM API keys configured
 
 **Tasks:**
-- AI-powered page classification
-- Identify page types (floor plan, elevation, section, detail)
-- Detect relevant pages for concrete takeoff
-- Confidence scoring
-- Classification API endpoints
+- Detect scale indicators on pages
+- Parse scale text (e.g., "1/4" = 1'-0"")
+- Visual scale calibration interface
+- Store calibration data per page
+- Scale API endpoints
 
-**See:** `plans/04-PAGE-CLASSIFICATION.md`
+**See:** `plans/05-SCALE-DETECTION.md`
+
+---
+
+## 🤖 AI/LLM Configuration
+
+### Supported Providers
+
+| Provider | Model | Status | Best For |
+|----------|-------|--------|----------|
+| Anthropic | Claude 3.5 Sonnet | ✅ Configured | Primary - best accuracy |
+| OpenAI | GPT-4o | ✅ Configured | Fast, good accuracy |
+| Google | Gemini 1.5 Pro | ✅ Configured | Cost-effective |
+| xAI | Grok Vision | ⚠️ Optional | Alternative |
+
+### Environment Variables
+```bash
+# Required for Phase 2A
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GOOGLE_AI_API_KEY=...
+
+# Optional
+XAI_API_KEY=...
+
+# LLM Configuration
+DEFAULT_LLM_PROVIDER=anthropic
+LLM_FALLBACK_PROVIDERS=openai,google
+```
 
 ---
 
@@ -122,8 +150,6 @@ requirements-ml.txt (2GB) - NOT INSTALLED YET
 └── Ultralytics (YOLO)
 ```
 
-**Install when needed:** `pip install -r requirements-ml.txt`
-
 ---
 
 ## 🗄️ Database Schema
@@ -132,15 +158,19 @@ requirements-ml.txt (2GB) - NOT INSTALLED YET
 ```sql
 projects        -- Main project container
 ├── documents   -- Uploaded PDF/TIFF files
-│   └── pages   -- Individual sheets
+│   └── pages   -- Individual sheets (with classification)
 ├── conditions  -- Takeoff line items
     └── measurements -- Geometry and quantities
 ```
 
-**Connection:**
-- Host: localhost:5432
-- Database: forgex
-- User/Pass: forgex/forgex
+### Phase 2A Additions to `pages` Table
+```sql
+-- Classification fields (Phase 2A)
+classification VARCHAR(100)           -- "Structural:Plan"
+classification_confidence FLOAT       -- 0.0 to 1.0
+concrete_relevance VARCHAR(20)        -- high/medium/low/none
+classification_metadata JSONB         -- Full LLM response data
+```
 
 ---
 
@@ -158,30 +188,46 @@ curl http://localhost:8000/api/v1/health
 # Should return: {"status":"healthy"}
 ```
 
+### Run Migrations
+```bash
+cd docker
+docker compose exec api alembic upgrade head
+```
+
 ### View Logs
 ```bash
 docker logs forgex-api -f
 docker logs forgex-worker -f
 ```
 
-### Database Operations
-```bash
-# Shell
-docker exec -it forgex-db psql -U forgex -d forgex
-
-# Run migrations
-docker exec -e DATABASE_URL=postgresql+psycopg2://forgex:forgex@db:5432/forgex forgex-api alembic upgrade head
-
-# List tables
-docker exec forgex-db psql -U forgex -d forgex -c "\dt"
-```
-
-### Rebuild Containers
+### Rebuild After Code Changes
 ```bash
 cd docker
-docker compose build --no-cache
+docker compose build api frontend worker
 docker compose up -d
 ```
+
+---
+
+## 📊 API Endpoints Summary
+
+### Phase 1A - Documents
+- `POST /projects` - Create project
+- `POST /projects/{id}/documents` - Upload document
+- `GET /documents/{id}` - Get document details
+- `GET /documents/{id}/status` - Get processing status
+
+### Phase 1B - OCR
+- `GET /documents/{id}/pages` - List pages with OCR data
+- `GET /pages/{id}/ocr` - Get OCR text and blocks
+- `POST /pages/{id}/reprocess-ocr` - Reprocess OCR
+- `GET /projects/{id}/search?q=text` - Full-text search
+
+### Phase 2A - Classification
+- `POST /pages/{id}/classify` - Classify single page
+- `POST /documents/{id}/classify` - Classify all pages in document
+- `GET /pages/{id}/classification` - Get classification results
+- `GET /settings/llm/providers` - List available LLM providers
 
 ---
 
@@ -190,33 +236,11 @@ docker compose up -d
 | Document | Purpose |
 |----------|---------|
 | [docs/README.md](docs/README.md) | Documentation index |
-| [docs/plans/SETUP_COMPLETE.md](docs/plans/SETUP_COMPLETE.md) | Setup guide and commands |
-| [docs/plans/PHASE_1A_VERIFICATION.md](docs/plans/PHASE_1A_VERIFICATION.md) | Phase 1A completion status |
-| [docs/phase-guides/PHASE_1A_COMPLETE.md](docs/phase-guides/PHASE_1A_COMPLETE.md) | Phase 1A detailed guide |
-| [docs/deployment/DOCKER_GUIDE.md](docs/deployment/DOCKER_GUIDE.md) | Docker operations guide |
 | [docs/api/API_REFERENCE.md](docs/api/API_REFERENCE.md) | API endpoint reference |
+| [docs/database/DATABASE_SCHEMA.md](docs/database/DATABASE_SCHEMA.md) | Database schema |
+| [docs/frontend/FRONTEND_IMPLEMENTATION.md](docs/frontend/FRONTEND_IMPLEMENTATION.md) | Frontend architecture |
+| [docs/phase-guides/PHASE_2A_COMPLETE.md](docs/phase-guides/PHASE_2A_COMPLETE.md) | Phase 2A guide |
 | [PHASE_PROMPTS.md](PHASE_PROMPTS.md) | Complete implementation prompts |
-
----
-
-## 🔧 Configuration Files
-
-### Backend
-- `backend/.env` - Environment variables (PostgreSQL connection, API keys)
-- `backend/requirements.txt` - Python dependencies (base)
-- `backend/requirements-ml.txt` - ML dependencies (Phase 4A+)
-- `backend/alembic.ini` - Migration configuration
-
-### Frontend
-- `frontend/.env` - Frontend environment (API URL)
-- `frontend/vite.config.ts` - Vite configuration
-- `frontend/tailwind.config.js` - Tailwind CSS
-
-### Docker
-- `docker/docker-compose.yml` - Service orchestration
-- `docker/Dockerfile.api` - API container
-- `docker/Dockerfile.worker` - Worker container
-- `docker/Dockerfile.frontend` - Frontend container
 
 ---
 
@@ -224,81 +248,42 @@ docker compose up -d
 
 ### 1. Alembic Async Driver Issue
 **Problem:** `asyncpg` driver doesn't work with Alembic  
-**Solution:** Use `psycopg2` for migrations:
-```bash
-docker exec -e DATABASE_URL=postgresql+psycopg2://forgex:forgex@db:5432/forgex forgex-api alembic upgrade head
-```
+**Solution:** Alembic env.py now auto-converts to sync driver
 
-### 2. PDF/TIFF Processing Stubs
-**Problem:** Current implementation uses placeholder image extraction  
-**Impact:** Sufficient for Phase 1A testing  
-**TODO:** Implement real extraction before production use
+### 2. Celery Sync Database
+**Problem:** Celery workers need synchronous database connections  
+**Solution:** Workers use `psycopg2` driver (already configured)
 
 ---
 
 ## 📊 Project Metrics
 
 ### Code Statistics
-- **Backend:** 31 Python files
-- **Frontend:** 9 TypeScript/TSX files
+- **Backend:** 35+ Python files
+- **Frontend:** 12+ TypeScript/TSX files
 - **Database:** 5 tables with relationships
-- **API Endpoints:** 8 routes implemented
+- **API Endpoints:** 15+ routes implemented
 - **Docker Services:** 6 containers
 
-### Performance
-- **API Response Time:** < 200ms (health check)
-- **Document Upload:** < 5s (small PDFs)
-- **Docker Build Time:** ~2-3 min (with optimized deps)
-- **Container Size:** ~500MB (base), ~2.5GB (with ML)
+### AI/LLM Stats
+- **Providers Supported:** 4 (Anthropic, OpenAI, Google, xAI)
+- **Classification Categories:** 8 disciplines, 8 page types
+- **Concrete Relevance Levels:** 4 (high, medium, low, none)
 
 ---
 
 ## 🎯 Immediate Next Steps
 
-1. **Start Phase 1B:**
-   - Get Google Cloud Vision API key
-   - Configure service account
-   - Begin OCR implementation
+1. **Test Phase 2A:**
+   - Go to http://localhost:5173
+   - Upload a PDF document
+   - Click "Classify All Pages"
+   - View classification results
 
-2. **Optional Improvements:**
-   - Add Projects CRUD UI
-   - Implement real PDF extraction
-   - Add more comprehensive tests
-
-3. **Documentation:**
-   - ✅ Already updated and organized!
-
----
-
-## 📞 Quick Troubleshooting
-
-### Container Not Starting?
-```bash
-docker compose logs servicename
-docker compose restart servicename
-```
-
-### Frontend Not Loading?
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-### Database Connection Failed?
-```bash
-# Check if PostgreSQL is running
-docker ps | grep forgex-db
-
-# Restart database
-docker compose restart db
-```
-
-### Need to Reset Everything?
-```bash
-docker compose down -v
-docker compose up -d
-```
+2. **Start Phase 2B:**
+   - Review `plans/05-SCALE-DETECTION.md`
+   - Implement scale detection service
+   - Add calibration UI
 
 ---
 
@@ -308,13 +293,14 @@ docker compose up -d
 - [x] API responds to health check
 - [x] Frontend loads and displays
 - [x] Database has all tables
-- [x] Can upload files (once project created)
+- [x] Can upload files
+- [x] OCR extracts text
+- [x] Classification works with LLM
 - [x] Documentation organized and complete
 
 ---
 
-**Your platform is ready for Phase 1B!** 🚀
+**Your platform is ready for Phase 2B!** 🚀
 
 For detailed implementation guides, see `PHASE_PROMPTS.md`  
-For system setup, see `docs/plans/SETUP_COMPLETE.md`  
-For Docker operations, see `docs/deployment/DOCKER_GUIDE.md`
+For Phase 2A testing, see `docs/phase-guides/PHASE_2A_DOCKER_TESTING.md`

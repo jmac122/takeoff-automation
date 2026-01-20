@@ -15,7 +15,7 @@ Complete documentation for the ForgeX Takeoffs platform.
 | [Database Schema](./database/DATABASE_SCHEMA.md) | Database structure and relationships |
 | [OCR Service](./services/OCR_SERVICE.md) | OCR service implementation guide |
 | [Google Cloud Setup](./deployment/GOOGLE_CLOUD_SETUP.md) | Google Cloud Platform configuration |
-| [Phase 1B Complete](./phase-guides/PHASE_1B_COMPLETE.md) | Phase 1B completion status |
+| [Phase 2A Complete](./phase-guides/PHASE_2A_COMPLETE.md) | Phase 2A completion status |
 
 ---
 
@@ -36,6 +36,7 @@ Complete documentation for the ForgeX Takeoffs platform.
 
 ### `/development/` - Development Workflow
 - **DOCKER_WORKFLOW.md** - ⭐ **Docker-first development guide** (start here!)
+- **DOCKER_QUICK_REFERENCE.md** - Quick Docker commands
 
 ### `/design/` - Design System
 - **DESIGN-SYSTEM.md** - UI components and design patterns
@@ -51,21 +52,24 @@ Complete documentation for the ForgeX Takeoffs platform.
 ### `/phase-guides/` - Phase-by-Phase Guides
 - **PHASE_1A_COMPLETE.md** - Document ingestion (complete)
 - **PHASE_1B_COMPLETE.md** - OCR and text extraction (complete)
+- **PHASE_2A_COMPLETE.md** - Page classification (complete)
+- **PHASE_2A_DOCKER_TESTING.md** - Docker testing guide for Phase 2A
 
 ### `/services/` - Service Documentation
 - **OCR_SERVICE.md** - OCR service implementation and usage
 
 ---
 
-## 🎯 Current Status: **Phase 1B Complete** ✅
+## 🎯 Current Status: **Phase 2A Complete** ✅
 
 ### Completed Phases
 - ✅ **Phase 0:** Project Setup
 - ✅ **Phase 1A:** Document Ingestion
 - ✅ **Phase 1B:** OCR and Text Extraction
+- ✅ **Phase 2A:** Page Classification
 
 ### Next Phase
-- ⏭️ **Phase 2A:** Page Classification
+- ⏭️ **Phase 2B:** Scale Detection
 
 ### Services Running
 - ✅ PostgreSQL (localhost:5432)
@@ -73,6 +77,27 @@ Complete documentation for the ForgeX Takeoffs platform.
 - ✅ MinIO (localhost:9000)
 - ✅ API (http://localhost:8000)
 - ✅ Frontend (http://localhost:5173)
+- ✅ Celery Worker (background processing)
+
+---
+
+## 🤖 AI/LLM Features (Phase 2A)
+
+### Multi-Provider LLM Support
+The platform supports multiple AI providers for page classification:
+
+| Provider | Model | Best For |
+|----------|-------|----------|
+| **Anthropic** | Claude 3.5 Sonnet | Recommended primary - best accuracy |
+| **OpenAI** | GPT-4o | Fast, good accuracy |
+| **Google** | Gemini 1.5 Pro | Cost-effective |
+| **xAI** | Grok Vision | Alternative option |
+
+### Page Classification
+- **Discipline Detection**: Structural, Architectural, Civil, Mechanical, Electrical, Plumbing, Landscape, General
+- **Page Type Detection**: Plan, Elevation, Section, Detail, Schedule, Notes, Cover, Title
+- **Concrete Relevance**: high, medium, low, none
+- **Confidence Scoring**: 0-100% confidence for each classification
 
 ---
 
@@ -97,8 +122,8 @@ When adding new documentation:
 
 3. **Follow naming convention:**
    - Use UPPERCASE with hyphens: `NEW-FEATURE.md`
-   - Be descriptive: `PHASE_1B_OCR_IMPLEMENTATION.md`
+   - Be descriptive: `PHASE_2A_CLASSIFICATION.md`
 
 ---
 
-**Last Updated:** January 19, 2026 - Phase 1B Complete
+**Last Updated:** January 19, 2026 - Phase 2A Complete

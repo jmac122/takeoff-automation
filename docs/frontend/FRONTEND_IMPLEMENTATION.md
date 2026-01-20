@@ -1,8 +1,8 @@
-# Frontend Implementation - Phase 1A: Document Ingestion
+# Frontend Implementation - Phases 1A, 1B & 2A: Document Ingestion, OCR & Classification
 
 ## Overview
 
-The frontend implementation for Phase 1A provides a React-based user interface for document upload and management. Built with modern React patterns, TypeScript, and TailwindCSS, it offers drag-and-drop file uploads with progress tracking and real-time status updates.
+The frontend implementation provides a React-based user interface for document upload, management, and AI-powered page classification. Built with modern React patterns, TypeScript, and TailwindCSS, it offers drag-and-drop file uploads with progress tracking, real-time status updates, and interactive classification results.
 
 ## Technology Stack
 
@@ -735,17 +735,83 @@ EXPOSE 80
 CMD ["npm", "run", "preview", "--", "--port", "80", "--host"]
 ```
 
+## Phase 2A: Page Classification UI (IMPLEMENTED ✅)
+
+### Dashboard with Classification Testing
+
+The Dashboard component (`src/pages/Dashboard.tsx`) now includes:
+
+1. **Document Pages Grid**
+   - Thumbnail display for all pages
+   - Classification status indicators
+   - Concrete relevance badges (color-coded)
+
+2. **Classification Controls**
+   - "Classify All Pages" button for batch classification
+   - "Re-classify Page" for individual pages
+   - Refresh buttons for real-time updates
+
+3. **Classification Results Panel**
+   - Discipline with confidence score
+   - Page type with confidence score
+   - Concrete relevance (high/medium/low/none)
+   - Detected concrete elements list
+   - AI-generated description
+   - LLM provider/model/latency metadata
+
+### Key Components
+
+```tsx
+// Dashboard.tsx - Main testing interface
+- Document upload with drag-and-drop
+- Pages grid with thumbnails
+- Classification trigger buttons
+- Detailed results panel
+
+// LLMProviderSelector.tsx - Provider selection (future use)
+- Dropdown for selecting AI provider
+- Shows provider details and cost tier
+- Supports default/auto selection
+```
+
+### Classification API Integration
+
+```typescript
+// Classify all pages in a document
+const classifyDocumentMutation = useMutation({
+  mutationFn: async (documentId: string) => {
+    const response = await axios.post(`/api/v1/documents/${documentId}/classify`);
+    return response.data;
+  },
+});
+
+// Get classification results
+const { data: classificationData } = useQuery({
+  queryKey: ["page-classification", selectedPageId],
+  queryFn: async () => {
+    const response = await axios.get(`/api/v1/pages/${selectedPageId}/classification`);
+    return response.data;
+  },
+});
+```
+
+### Visual Indicators
+
+```tsx
+// Concrete relevance color coding
+const getConcreteRelevanceColor = (relevance: string) => {
+  switch (relevance) {
+    case "high": return "bg-red-100 text-red-800";
+    case "medium": return "bg-yellow-100 text-yellow-800";
+    case "low": return "bg-blue-100 text-blue-800";
+    case "none": return "bg-gray-100 text-gray-600";
+  }
+};
+```
+
+---
+
 ## Future Enhancements
-
-### Phase 1B: OCR Integration
-- Add OCR progress indicators
-- Display extracted text previews
-- Search functionality for OCR text
-
-### Phase 2A: Page Classification
-- Classification status indicators
-- Confidence score displays
-- Bulk classification operations
 
 ### Phase 2B: Scale Calibration
 - Visual scale calibration interface
@@ -757,4 +823,4 @@ CMD ["npm", "run", "preview", "--", "--port", "80", "--host"]
 - Real-time quantity calculations
 - Measurement history and undo/redo
 
-This frontend implementation provides a solid foundation for the document ingestion workflow with modern React patterns, comprehensive error handling, and scalability for future phases.
+This frontend implementation provides a solid foundation for the document ingestion, OCR, and classification workflows with modern React patterns, comprehensive error handling, and scalability for future phases.

@@ -1,8 +1,8 @@
-# Database Schema - Phases 1A & 1B: Document Ingestion & OCR
+# Database Schema - Phases 1A, 1B & 2A: Document Ingestion, OCR & Classification
 
 ## Overview
 
-The database schema for Phase 1A implements a document-centric data model optimized for construction takeoff workflows. Built with SQLAlchemy 2.0 and PostgreSQL, the schema supports hierarchical organization of projects, documents, pages, and measurements.
+The database schema implements a document-centric data model optimized for construction takeoff workflows. Built with SQLAlchemy 2.0 and PostgreSQL, the schema supports hierarchical organization of projects, documents, pages, and measurements, with AI-powered classification metadata.
 
 ## Schema Design Principles
 
@@ -493,12 +493,48 @@ CREATE INDEX ix_pages_search ON pages USING gin(search_vector);
 ALTER TABLE pages ADD COLUMN ocr_confidence FLOAT;
 ```
 
-### Phase 2A: Page Classification
+### Phase 2A: Page Classification (IMPLEMENTED ✅)
+
+Phase 2A adds AI classification fields to the `pages` table:
+
 ```sql
--- Classification metadata
+-- Classification fields (added in Phase 2A)
+ALTER TABLE pages ADD COLUMN concrete_relevance VARCHAR(20);
 ALTER TABLE pages ADD COLUMN classification_metadata JSONB;
-ALTER TABLE pages ADD COLUMN ai_model_version VARCHAR(50);
 ```
+
+**Classification Fields:**
+- `concrete_relevance` - Relevance for concrete takeoff: 'high', 'medium', 'low', 'none'
+- `classification_metadata` - Full LLM response data including:
+  - Discipline and confidence
+  - Page type and confidence
+  - Detected concrete elements
+  - AI description
+  - LLM provider, model, and latency
+
+**Classification Metadata JSON Structure:**
+```json
+{
+  "discipline": "Structural",
+  "discipline_confidence": 0.95,
+  "page_type": "Plan",
+  "page_type_confidence": 0.90,
+  "concrete_relevance": "high",
+  "concrete_elements": ["slab", "foundation wall", "footing"],
+  "description": "Foundation plan showing footings and grade beams",
+  "llm_provider": "anthropic",
+  "llm_model": "claude-3-5-sonnet-20241022",
+  "llm_latency_ms": 2450.5
+}
+```
+
+**Classification Values:**
+
+| Field | Possible Values |
+|-------|-----------------|
+| discipline | Structural, Architectural, Civil, Mechanical, Electrical, Plumbing, Landscape, General |
+| page_type | Plan, Elevation, Section, Detail, Schedule, Notes, Cover, Title |
+| concrete_relevance | high, medium, low, none |
 
 ### Phase 2B: Scale Detection
 ```sql
@@ -675,20 +711,26 @@ LIMIT 50;
 
 ### Migration History
 
+**Phase 2A Migrations:**
+- `576b3ce9ef71_add_classification_fields_to_pages.py` - Classification fields
+
 **Phase 1B Migrations:**
 - `d707bfb8a266_add_fulltext_search.py` - Full-text search indexes
+
+**Initial Migration:**
+- `b01e3b57e974_initial_schema.py` - Base tables
 
 **Applied Migrations:**
 ```bash
 # Check current migration status
 alembic current
 
-# Apply Phase 1B migrations
+# Apply all migrations
 alembic upgrade head
 ```
 
 ---
 
-This database schema provides a solid foundation for the construction takeoff platform, with proper normalization, indexing, full-text search capabilities, and extensibility for future phases.
+This database schema provides a solid foundation for the construction takeoff platform, with proper normalization, indexing, full-text search capabilities, AI classification metadata, and extensibility for future phases.
 
-**Last Updated:** January 19, 2026 - Phase 1B Complete
+**Last Updated:** January 19, 2026 - Phase 2A Complete

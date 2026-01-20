@@ -4,15 +4,16 @@ AI-powered construction takeoff automation platform.
 
 ## 📊 Current Status
 
-### ✅ **Phase 1B: OCR and Text Extraction - COMPLETE**
+### ✅ **Phase 2A: Page Classification - COMPLETE**
 
-Phase 1B has been fully implemented with Google Cloud Vision integration, automatic text extraction, pattern detection, and full-text search. See [STATUS.md](STATUS.md) for detailed implementation status.
+Phase 2A has been fully implemented with multi-provider LLM support (Anthropic, OpenAI, Google, xAI), AI-powered page classification, discipline/page type detection, and concrete relevance scoring. See [STATUS.md](STATUS.md) for detailed implementation status.
 
 **Completed:**
 - ✅ Phase 1A: Document Ingestion
 - ✅ Phase 1B: OCR and Text Extraction
+- ✅ Phase 2A: Page Classification
 
-**Ready for Phase 2A: Page Classification**
+**Ready for Phase 2B: Scale Detection**
 
 ## 🚀 Quick Start
 
@@ -122,6 +123,7 @@ docker compose exec api pytest --cov=app tests/
 - **[docs/README.md](docs/README.md)** - Main documentation index
 - **[docs/phase-guides/PHASE_1A_COMPLETE.md](docs/phase-guides/PHASE_1A_COMPLETE.md)** - Phase 1A completion guide
 - **[docs/phase-guides/PHASE_1B_COMPLETE.md](docs/phase-guides/PHASE_1B_COMPLETE.md)** - Phase 1B completion guide
+- **[docs/phase-guides/PHASE_2A_COMPLETE.md](docs/phase-guides/PHASE_2A_COMPLETE.md)** - Phase 2A completion guide
 
 ### API Documentation
 - **[docs/api/API_REFERENCE.md](docs/api/API_REFERENCE.md)** - Complete API reference
@@ -171,9 +173,9 @@ docker compose exec api pytest --cov=app tests/
 - **Processing**: Async document processing with background workers
 - **Infrastructure**: Docker, Docker Compose (future)
 
-## 🎯 Features (Phase 1A)
+## 🎯 Features
 
-### Document Management
+### Phase 1A: Document Management
 - ✅ PDF and TIFF file upload support
 - ✅ Multi-page document processing
 - ✅ File validation and type checking
@@ -181,19 +183,37 @@ docker compose exec api pytest --cov=app tests/
 - ✅ Progress tracking and status updates
 - ✅ Error handling and recovery
 
+### Phase 1B: OCR and Text Extraction
+- ✅ Google Cloud Vision integration
+- ✅ Automatic text extraction from pages
+- ✅ Pattern detection (scales, sheet numbers, titles)
+- ✅ Title block parsing
+- ✅ Full-text search with PostgreSQL
+
+### Phase 2A: AI Page Classification
+- ✅ Multi-provider LLM support (Anthropic, OpenAI, Google, xAI)
+- ✅ Discipline detection (Structural, Architectural, Civil, etc.)
+- ✅ Page type detection (Plan, Elevation, Section, Detail, etc.)
+- ✅ Concrete relevance scoring (high/medium/low/none)
+- ✅ Classification confidence scoring
+- ✅ Automatic fallback between providers
+- ✅ Detailed classification metadata storage
+
 ### API Capabilities
 - ✅ RESTful CRUD operations for documents
 - ✅ Real-time processing status polling
 - ✅ Project-based document organization
 - ✅ File upload with multipart support
-- ✅ Comprehensive error responses
+- ✅ OCR text extraction endpoints
+- ✅ Classification trigger and results endpoints
+- ✅ LLM provider configuration endpoint
 
 ### Processing Pipeline
 - ✅ Async document processing with Celery
 - ✅ Page image extraction and storage
-- ✅ Background task management
+- ✅ Background OCR processing
+- ✅ Background AI classification
 - ✅ Structured logging and monitoring
-- ✅ Configurable processing options
 
 ## 🧪 Testing & Verification
 
@@ -317,9 +337,18 @@ chore: Maintenance tasks
   - API and frontend implementation
   - Database schema and migrations
 
+- **Phase 1B**: OCR Text Extraction - Complete
+  - Google Cloud Vision integration
+  - Pattern detection and title block parsing
+  - Full-text search
+
+- **Phase 2A**: Page Classification - Complete
+  - Multi-provider LLM client
+  - AI-powered classification
+  - Discipline and page type detection
+  - Concrete relevance scoring
+
 ### 🔄 Next Phases
-- **Phase 1B**: OCR Text Extraction
-- **Phase 2A**: Page Classification
 - **Phase 2B**: Scale Detection
 - **Phase 3A**: Interactive Measurements
 - **Phase 3B**: Export System
@@ -340,4 +369,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 **Built with ❤️ for the construction industry**
 
-*Phase 1A: Document Ingestion - Complete and production-ready*
+*Phase 2A: Page Classification - Complete and production-ready*

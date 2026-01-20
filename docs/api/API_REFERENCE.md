@@ -1,8 +1,8 @@
-# API Reference - Phases 1A & 1B: Document Ingestion & OCR
+# API Reference - Phases 1A, 1B & 2A: Document Ingestion, OCR & Classification
 
 ## Overview
 
-The Document Ingestion API provides RESTful endpoints for managing construction plan documents, projects, and processing workflows. All endpoints are prefixed with `/api/v1` and return JSON responses.
+The ForgeX Takeoffs API provides RESTful endpoints for managing construction plan documents, projects, OCR text extraction, and AI-powered page classification. All endpoints are prefixed with `/api/v1` and return JSON responses.
 
 ## Authentication
 
@@ -576,6 +576,14 @@ uvicorn app.main:app
 
 ## Version History
 
+- **v1.2.0** - Phase 2A complete (January 19, 2026)
+  - Multi-provider LLM client (Anthropic, OpenAI, Google, xAI)
+  - AI-powered page classification
+  - Discipline and page type detection
+  - Concrete relevance scoring
+  - Classification API endpoints
+  - LLM provider selection endpoint
+
 - **v1.1.0** - Phase 1B complete (January 19, 2026)
   - OCR text extraction with Google Cloud Vision
   - Page listing and OCR data endpoints
@@ -601,11 +609,161 @@ For complete OCR API documentation, see [OCR API Reference](./OCR_API.md).
 - `POST /pages/{id}/reprocess-ocr` - Reprocess OCR
 - `GET /projects/{id}/search?q=text` - Search pages by text
 
-## Future Endpoints
+## Phase 2A Endpoints - Page Classification
 
-### Phase 2A
-- `POST /pages/{id}/classify` - Classify page type
-- `GET /projects/{id}/pages` - List project pages with classification
+### POST /pages/{page_id}/classify
+
+Trigger AI classification for a single page.
+
+**Parameters:**
+- `page_id` (path) - UUID of the page
+
+**Request Body (optional):**
+```json
+{
+  "provider": "anthropic"  // Optional: anthropic, openai, google, xai
+}
+```
+
+**Response:**
+```json
+{
+  "task_id": "abc123-task-id",
+  "message": "Classification started for page 550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Status Codes:**
+- `202` - Classification task started
+- `400` - Invalid provider specified
+- `404` - Page not found
+
+---
+
+### POST /documents/{document_id}/classify
+
+Trigger AI classification for all pages in a document.
+
+**Parameters:**
+- `document_id` (path) - UUID of the document
+
+**Request Body (optional):**
+```json
+{
+  "provider": "anthropic"  // Optional: anthropic, openai, google, xai
+}
+```
+
+**Response:**
+```json
+{
+  "document_id": "660e8400-e29b-41d4-a716-446655440001",
+  "pages_queued": 5,
+  "task_ids": ["task-1", "task-2", "task-3", "task-4", "task-5"]
+}
+```
+
+**Status Codes:**
+- `202` - Classification tasks started
+- `400` - Invalid provider specified
+- `404` - Document not found
+
+---
+
+### GET /pages/{page_id}/classification
+
+Get classification results for a page.
+
+**Parameters:**
+- `page_id` (path) - UUID of the page
+
+**Response:**
+```json
+{
+  "page_id": "770e8400-e29b-41d4-a716-446655440002",
+  "classification": "Structural:Plan",
+  "confidence": 0.92,
+  "concrete_relevance": "high",
+  "metadata": {
+    "discipline": "Structural",
+    "discipline_confidence": 0.95,
+    "page_type": "Plan",
+    "page_type_confidence": 0.90,
+    "concrete_elements": ["slab", "foundation wall", "footing"],
+    "description": "Foundation plan showing footings and grade beams",
+    "llm_provider": "anthropic",
+    "llm_model": "claude-3-5-sonnet-20241022",
+    "llm_latency_ms": 2450.5
+  }
+}
+```
+
+**Classification Values:**
+
+| Field | Possible Values |
+|-------|-----------------|
+| discipline | Structural, Architectural, Civil, Mechanical, Electrical, Plumbing, Landscape, General |
+| page_type | Plan, Elevation, Section, Detail, Schedule, Notes, Cover, Title |
+| concrete_relevance | high, medium, low, none |
+
+**Status Codes:**
+- `200` - Classification found
+- `404` - Page not found
+
+---
+
+### GET /settings/llm/providers
+
+List available LLM providers and their configuration.
+
+**Response:**
+```json
+{
+  "providers": {
+    "anthropic": {
+      "name": "anthropic",
+      "display_name": "Anthropic Claude",
+      "model": "claude-3-5-sonnet-20241022",
+      "strengths": "Best accuracy for construction documents",
+      "cost_tier": "medium-high",
+      "available": true,
+      "is_default": true
+    },
+    "openai": {
+      "name": "openai",
+      "display_name": "OpenAI GPT-4o",
+      "model": "gpt-4o",
+      "strengths": "Fast response, good accuracy",
+      "cost_tier": "high",
+      "available": true,
+      "is_default": false
+    },
+    "google": {
+      "name": "google",
+      "display_name": "Google Gemini",
+      "model": "gemini-1.5-pro",
+      "strengths": "Cost-effective, good for batch processing",
+      "cost_tier": "medium",
+      "available": true,
+      "is_default": false
+    },
+    "xai": {
+      "name": "xai",
+      "display_name": "xAI Grok",
+      "model": "grok-vision-beta",
+      "strengths": "Alternative option",
+      "cost_tier": "medium",
+      "available": false,
+      "is_default": false
+    }
+  },
+  "default_provider": "anthropic"
+}
+```
+
+---
+
+## Future Endpoints
 
 ### Phase 2B
 - `POST /pages/{id}/calibrate` - Calibrate scale
@@ -619,4 +777,4 @@ This API reference will be updated as new endpoints are implemented in future ph
 
 ---
 
-**Last Updated:** January 19, 2026 - Phase 1B Complete
+**Last Updated:** January 19, 2026 - Phase 2A Complete
