@@ -393,6 +393,43 @@ async def get_page_classification_history(
     }
 
 
+@router.get("/classification/history")
+async def get_all_classification_history(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: int = 50,
+) -> dict:
+    """Get all recent classification history across all pages.
+
+    Returns recent classification runs for BI analysis timeline,
+    ordered by most recent first. Includes page/document context.
+    """
+    from sqlalchemy.orm import selectinload
+
+    # Get classification history with page relationship
+    result = await db.execute(
+        select(ClassificationHistory)
+        .options(selectinload(ClassificationHistory.page))
+        .order_by(ClassificationHistory.created_at.desc())
+        .limit(limit)
+    )
+    history = result.scalars().all()
+
+    # Build response with page context
+    history_with_context = []
+    for entry in history:
+        entry_dict = entry.to_dict()
+        if entry.page:
+            entry_dict["page_number"] = entry.page.page_number
+            entry_dict["sheet_number"] = entry.page.sheet_number
+            entry_dict["document_id"] = str(entry.page.document_id)
+        history_with_context.append(entry_dict)
+
+    return {
+        "total": len(history),
+        "history": history_with_context,
+    }
+
+
 @router.get("/classification/stats")
 async def get_classification_stats(
     db: Annotated[AsyncSession, Depends(get_db)],
