@@ -31,6 +31,9 @@ pymupdf==1.23.18
 Pillow==10.2.0
 numpy==1.26.3
 
+# Computer Vision (needed for Phase 2B scale detection)
+opencv-python-headless==4.9.0.80
+
 # LLM Clients - Multi-Provider Support
 anthropic==0.18.1
 openai==1.10.0
