@@ -51,11 +51,60 @@ interface PageClassification {
   } | null;
 }
 
+interface ClassificationHistoryEntry {
+  id: string;
+  page_id: string;
+  classification: string | null;
+  classification_confidence: number | null;
+  discipline: string | null;
+  discipline_confidence: number | null;
+  page_type: string | null;
+  page_type_confidence: number | null;
+  concrete_relevance: string | null;
+  concrete_elements: string[] | null;
+  description: string | null;
+  llm_provider: string;
+  llm_model: string;
+  llm_latency_ms: number | null;
+  created_at: string;
+}
+
+interface ClassificationHistoryResponse {
+  page_id: string;
+  total: number;
+  history: ClassificationHistoryEntry[];
+}
+
+interface DocumentData {
+  id: string;
+  project_id: string;
+  filename: string;
+  original_filename: string;
+  file_type: string;
+  file_size: number;
+  page_count: number | null;
+  status: string;
+  created_at: string;
+}
+
 export default function Dashboard() {
   const [uploadedDocumentId, setUploadedDocumentId] = useState<string | null>(null);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [classificationProvider, setClassificationProvider] = useState<string>("default");
   const [showProviderSettings, setShowProviderSettings] = useState(false);
+  const [showExistingDocs, setShowExistingDocs] = useState(true);
+
+  // For Phase 2A testing, use the actual project ID we created
+  const demoProjectId = "fb5df285-615c-40e7-875c-4639c9ea0706";
+
+  // Fetch existing documents for the project
+  const { data: existingDocsData, refetch: refetchDocs } = useQuery({
+    queryKey: ["project-documents", demoProjectId],
+    queryFn: async () => {
+      const response = await axios.get(`/api/v1/projects/${demoProjectId}/documents`);
+      return response.data as { documents: DocumentData[]; total: number };
+    },
+  });
 
   // Fetch available LLM providers
   const { data: providersData } = useQuery({
@@ -99,6 +148,23 @@ export default function Dashboard() {
       return response.data as PageClassification;
     },
     enabled: !!selectedPageId,
+    staleTime: 0, // Always consider data stale to get fresh results
+    gcTime: 0, // Don't cache (formerly cacheTime)
+  });
+
+  // Fetch classification history for selected page
+  const { data: historyData, refetch: refetchHistory } = useQuery({
+    queryKey: ["page-classification-history", selectedPageId],
+    queryFn: async () => {
+      if (!selectedPageId) return null;
+      const response = await axios.get(
+        `/api/v1/pages/${selectedPageId}/classification/history`
+      );
+      return response.data as ClassificationHistoryResponse;
+    },
+    enabled: !!selectedPageId,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   // Classify document mutation
@@ -135,9 +201,6 @@ export default function Dashboard() {
 
   if (healthLoading) return <div>Loading...</div>;
   if (healthError) return <div>Error loading dashboard</div>;
-
-  // For Phase 2A testing, use the actual project ID we created
-  const demoProjectId = "fb5df285-615c-40e7-875c-4639c9ea0706";
 
   const getConcreteRelevanceColor = (relevance: string | null | undefined) => {
     switch (relevance) {
@@ -193,8 +256,112 @@ export default function Dashboard() {
         <p className="font-semibold mb-1">Phase 2A Testing Mode - Page Classification</p>
         <p>Using project: <code className="bg-purple-100 px-2 py-1 rounded">Test Project</code></p>
         <p className="mt-2 text-xs text-purple-600">
-          Upload a PDF → View pages below → Click "Classify All Pages" to run AI classification!
+          Select an existing document below OR upload a new PDF → Click "Classify All Pages" to test different LLMs!
         </p>
+      </div>
+
+      {/* Existing Documents Browser */}
+      <div className="bg-white shadow rounded-lg mb-6 overflow-hidden">
+        <button
+          onClick={() => setShowExistingDocs(!showExistingDocs)}
+          className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+            </svg>
+            <span className="font-medium text-gray-900">Existing Documents</span>
+            <span className="text-sm text-gray-500">
+              ({existingDocsData?.total || 0} documents with OCR data ready)
+            </span>
+          </div>
+          <svg
+            className={`w-5 h-5 text-gray-400 transition-transform ${showExistingDocs ? "rotate-180" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showExistingDocs && (
+          <div className="px-6 pb-6 border-t border-gray-100">
+            <p className="text-sm text-gray-600 mt-4 mb-4">
+              💡 <strong>Save OCR credits!</strong> Select a previously uploaded document to re-classify with different LLM providers without re-running OCR.
+            </p>
+
+            {existingDocsData?.documents && existingDocsData.documents.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {existingDocsData.documents.map((doc) => (
+                  <button
+                    key={doc.id}
+                    onClick={() => {
+                      setUploadedDocumentId(doc.id);
+                      setSelectedPageId(null);
+                    }}
+                    className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${uploadedDocumentId === doc.id
+                      ? "border-purple-400 bg-purple-50 ring-2 ring-purple-300"
+                      : "border-gray-200 bg-gray-50 hover:border-purple-300"
+                      }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded ${doc.status === "ready" ? "bg-green-100" :
+                        doc.status === "processing" ? "bg-yellow-100" : "bg-gray-100"
+                        }`}>
+                        <svg className={`w-5 h-5 ${doc.status === "ready" ? "text-green-600" :
+                          doc.status === "processing" ? "text-yellow-600" : "text-gray-500"
+                          }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate" title={doc.original_filename}>
+                          {doc.original_filename}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                          <span>{doc.page_count || "?"} pages</span>
+                          <span>•</span>
+                          <span className={`px-1.5 py-0.5 rounded ${doc.status === "ready" ? "bg-green-100 text-green-700" :
+                            doc.status === "processing" ? "bg-yellow-100 text-yellow-700" :
+                              "bg-gray-100 text-gray-600"
+                            }`}>
+                            {doc.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(doc.created_at).toLocaleDateString()} {new Date(doc.created_at).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      {uploadedDocumentId === doc.id && (
+                        <svg className="w-5 h-5 text-purple-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p>No documents uploaded yet.</p>
+                <p className="text-sm">Upload a PDF above to get started.</p>
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => refetchDocs()}
+                className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                ↻ Refresh list
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* LLM Provider Settings */}
@@ -497,6 +664,108 @@ export default function Dashboard() {
                     {classificationData.metadata.llm_latency_ms && (
                       <span>Latency: <strong>{classificationData.metadata.llm_latency_ms.toFixed(0)}ms</strong></span>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Classification History Timeline */}
+              {historyData && historyData.history.length > 0 && (
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">
+                      Classification History ({historyData.total} runs)
+                    </p>
+                    <button
+                      onClick={() => refetchHistory()}
+                      className="text-xs text-purple-600 hover:text-purple-800"
+                    >
+                      Refresh History
+                    </button>
+                  </div>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {historyData.history.map((entry, idx) => (
+                      <div
+                        key={entry.id}
+                        className={`relative pl-6 pb-3 ${idx < historyData.history.length - 1 ? "border-l-2 border-gray-200" : ""
+                          }`}
+                      >
+                        {/* Timeline dot */}
+                        <div
+                          className={`absolute left-0 top-0 w-3 h-3 rounded-full -translate-x-1.5 ${idx === 0
+                              ? "bg-purple-500 ring-4 ring-purple-100"
+                              : "bg-gray-300"
+                            }`}
+                        />
+
+                        {/* Entry content */}
+                        <div className={`rounded-lg p-3 ${idx === 0 ? "bg-purple-50 border border-purple-200" : "bg-gray-50"}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.llm_provider === "anthropic" ? "bg-orange-100 text-orange-800" :
+                                    entry.llm_provider === "openai" ? "bg-green-100 text-green-800" :
+                                      entry.llm_provider === "google" ? "bg-blue-100 text-blue-800" :
+                                        entry.llm_provider === "xai" ? "bg-purple-100 text-purple-800" :
+                                          "bg-gray-100 text-gray-800"
+                                  }`}>
+                                  {entry.llm_provider}
+                                </span>
+                                <span className="text-xs text-gray-500">{entry.llm_model}</span>
+                                {idx === 0 && (
+                                  <span className="px-1.5 py-0.5 bg-purple-600 text-white text-xs rounded">
+                                    Current
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-1 text-sm">
+                                <span className="font-medium text-gray-900">
+                                  {entry.discipline}:{entry.page_type}
+                                </span>
+                                <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${entry.concrete_relevance === "high" ? "bg-red-100 text-red-800" :
+                                    entry.concrete_relevance === "medium" ? "bg-yellow-100 text-yellow-800" :
+                                      entry.concrete_relevance === "low" ? "bg-green-100 text-green-800" :
+                                        "bg-gray-100 text-gray-600"
+                                  }`}>
+                                  {entry.concrete_relevance || "none"}
+                                </span>
+                              </div>
+                              {entry.concrete_elements && entry.concrete_elements.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {entry.concrete_elements.slice(0, 5).map((el, i) => (
+                                    <span key={i} className="text-xs text-gray-500 bg-gray-200 px-1 rounded">
+                                      {el}
+                                    </span>
+                                  ))}
+                                  {entry.concrete_elements.length > 5 && (
+                                    <span className="text-xs text-gray-400">
+                                      +{entry.concrete_elements.length - 5} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <div className="text-xs text-gray-500">
+                                {new Date(entry.created_at).toLocaleDateString()}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                {new Date(entry.created_at).toLocaleTimeString()}
+                              </div>
+                              {entry.llm_latency_ms && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {entry.llm_latency_ms.toFixed(0)}ms
+                                </div>
+                              )}
+                              {entry.classification_confidence && (
+                                <div className="text-xs font-medium text-gray-600">
+                                  {(entry.classification_confidence * 100).toFixed(0)}%
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
