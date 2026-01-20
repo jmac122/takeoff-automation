@@ -8,7 +8,7 @@
  */
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,14 +36,6 @@ interface PageData {
   status: string;
 }
 
-interface DocumentData {
-  id: string;
-  original_filename: string;
-  page_count: number | null;
-  status: string;
-  created_at: string;
-}
-
 // Constants
 const DEMO_PROJECT_ID = "fb5df285-615c-40e7-875c-4639c9ea0706";
 
@@ -51,7 +43,6 @@ export default function Dashboard() {
   const [uploadedDocumentId, setUploadedDocumentId] = useState<string | null>(null);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [classificationProvider, setClassificationProvider] = useState<string | undefined>(undefined);
-  const queryClient = useQueryClient();
 
   // API: Health check
   const { data: healthData, isLoading: healthLoading, error: healthError } = useQuery({
@@ -202,7 +193,7 @@ export default function Dashboard() {
               {pagesData?.pages.map((page) => (
                 <PageInfoCard
                   key={page.id}
-                  page={page}
+                  page={{ ...page, document_id: uploadedDocumentId }}
                   isSelected={selectedPageId === page.id}
                   onSelect={() => setSelectedPageId(page.id)}
                 />

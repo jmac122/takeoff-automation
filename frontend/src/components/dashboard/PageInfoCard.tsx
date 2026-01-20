@@ -1,9 +1,13 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
+import { Pencil } from "lucide-react";
 
 interface PageInfoCardProps {
     page: {
         id: string;
+        document_id: string;
         page_number: number;
         sheet_number: string | null;
         classification: string | null;
@@ -25,6 +29,13 @@ function getConcreteVariant(relevance: string | null | undefined): "default" | "
 }
 
 export function PageInfoCard({ page, isSelected, onSelect }: PageInfoCardProps) {
+    const navigate = useNavigate();
+
+    const handleOpenTakeoff = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        navigate(`/documents/${page.document_id}/pages/${page.id}`);
+    };
+
     return (
         <div
             onClick={onSelect}
@@ -58,21 +69,34 @@ export function PageInfoCard({ page, isSelected, onSelect }: PageInfoCardProps) 
             </div>
 
             {/* Page Info */}
-            <div className="text-xs">
-                <p className="font-medium text-foreground">
-                    Page {page.page_number}
-                    {page.sheet_number && (
-                        <span className="text-muted-foreground ml-1">({page.sheet_number})</span>
+            <div className="text-xs space-y-2">
+                <div>
+                    <p className="font-medium text-foreground">
+                        Page {page.page_number}
+                        {page.sheet_number && (
+                            <span className="text-muted-foreground ml-1">({page.sheet_number})</span>
+                        )}
+                    </p>
+                    {page.classification && (
+                        <p className="text-primary truncate">{page.classification}</p>
                     )}
-                </p>
-                {page.classification && (
-                    <p className="text-primary truncate">{page.classification}</p>
-                )}
-                {page.concrete_relevance && (
-                    <Badge variant={getConcreteVariant(page.concrete_relevance)} className="mt-1">
-                        Concrete: {page.concrete_relevance}
-                    </Badge>
-                )}
+                    {page.concrete_relevance && (
+                        <Badge variant={getConcreteVariant(page.concrete_relevance)} className="mt-1">
+                            Concrete: {page.concrete_relevance}
+                        </Badge>
+                    )}
+                </div>
+
+                {/* Takeoff Button */}
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs"
+                    onClick={handleOpenTakeoff}
+                >
+                    <Pencil className="w-3 h-3 mr-1" />
+                    Open Takeoff
+                </Button>
             </div>
         </div>
     );

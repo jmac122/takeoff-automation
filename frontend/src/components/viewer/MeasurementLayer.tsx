@@ -1,5 +1,4 @@
 import { Layer, Line, Rect, Circle, Group, Text } from 'react-konva';
-import type { KonvaEventObject } from 'konva/lib/Node';
 
 import type { Measurement, Condition } from '@/types';
 
@@ -63,10 +62,8 @@ function MeasurementShape({
     measurement,
     condition,
     isSelected,
-    isEditing,
     scale,
     onClick,
-    onUpdate,
 }: MeasurementShapeProps) {
     const { geometry_type, geometry_data } = measurement;
     const color = condition.color;

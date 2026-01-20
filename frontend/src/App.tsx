@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
+import { TakeoffViewer } from "./pages/TakeoffViewer";
 import "./App.css";
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
           <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/documents/:documentId/pages/:pageId" element={<TakeoffViewer />} />
             </Routes>
           </div>
         </main>
