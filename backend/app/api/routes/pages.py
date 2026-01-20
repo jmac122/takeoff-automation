@@ -48,6 +48,7 @@ async def list_document_pages(
             width=page.width,
             height=page.height,
             classification=page.classification,
+            concrete_relevance=page.concrete_relevance,
             title=page.title,
             sheet_number=page.sheet_number,
             scale_text=page.scale_text,
