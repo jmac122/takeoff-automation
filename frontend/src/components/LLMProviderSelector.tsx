@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Provider {
     name: string;
@@ -19,11 +23,19 @@ interface LLMProviderSelectorProps {
     label?: string;
 }
 
-const COST_COLORS = {
-    low: 'bg-green-100 text-green-700',
-    medium: 'bg-yellow-100 text-yellow-700',
-    'medium-high': 'bg-orange-100 text-orange-700',
-    high: 'bg-red-100 text-red-700',
+const getCostBadgeVariant = (costTier: string): "default" | "secondary" | "destructive" | "outline" => {
+    switch (costTier) {
+        case 'low':
+            return 'secondary';
+        case 'medium':
+            return 'secondary';
+        case 'medium-high':
+            return 'default';
+        case 'high':
+            return 'destructive';
+        default:
+            return 'secondary';
+    }
 };
 
 export function LLMProviderSelector({
@@ -47,51 +59,59 @@ export function LLMProviderSelector({
     const [showTooltip, setShowTooltip] = useState<string | null>(null);
 
     if (isLoading) {
-        return <div className="h-10 w-48 bg-gray-100 animate-pulse rounded-md" />;
+        return (
+            <div className="flex flex-col gap-2">
+                {label && <Skeleton className="h-4 w-20" />}
+                <Skeleton className="h-10 w-[220px]" />
+            </div>
+        );
     }
 
     return (
-        <div className="flex flex-col gap-1">
-            {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
-            <div className="relative">
-                <select
-                    value={value || 'default'}
-                    onChange={(e) => onChange(e.target.value === 'default' ? undefined : e.target.value)}
-                    className="w-[220px] px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm"
-                >
+        <div className="flex flex-col gap-2">
+            {label && <Label htmlFor="llm-provider">{label}</Label>}
+            <Select
+                value={value || 'default'}
+                onValueChange={(val) => onChange(val === 'default' ? undefined : val)}
+            >
+                <SelectTrigger id="llm-provider" className="w-[220px]">
+                    <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
                     {showDefault && (
-                        <option value="default">🤖 Default (Auto)</option>
+                        <SelectItem value="default">🤖 Default (Auto)</SelectItem>
                     )}
                     {availableProviders.map((provider) => (
-                        <option key={provider.name} value={provider.name}>
+                        <SelectItem
+                            key={provider.name}
+                            value={provider.name}
+                            onMouseEnter={() => setShowTooltip(provider.name)}
+                            onMouseLeave={() => setShowTooltip(null)}
+                        >
                             {provider.display_name}
                             {provider.is_default && ' (Default)'}
-                        </option>
+                        </SelectItem>
                     ))}
-                </select>
-            </div>
+                </SelectContent>
+            </Select>
 
-            {/* Provider details tooltips */}
-            {availableProviders.map((provider) => (
-                <div
-                    key={provider.name}
-                    className="relative"
-                    onMouseEnter={() => setShowTooltip(provider.name)}
-                    onMouseLeave={() => setShowTooltip(null)}
-                >
-                    {showTooltip === provider.name && (
-                        <div className="absolute z-50 left-0 mt-2 w-64 p-3 bg-white border border-gray-200 rounded-lg shadow-lg">
+            {/* Provider details tooltip */}
+            {showTooltip && availableProviders.find(p => p.name === showTooltip) && (
+                <div className="mt-2 p-3 bg-card border border-border rounded-lg shadow-lg">
+                    {(() => {
+                        const provider = availableProviders.find(p => p.name === showTooltip)!;
+                        return (
                             <div className="space-y-2">
-                                <p className="font-medium text-sm">{provider.model}</p>
-                                <p className="text-xs text-gray-600">{provider.strengths}</p>
-                                <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${COST_COLORS[provider.cost_tier as keyof typeof COST_COLORS] || COST_COLORS.medium}`}>
+                                <p className="font-medium text-sm text-foreground">{provider.model}</p>
+                                <p className="text-xs text-muted-foreground">{provider.strengths}</p>
+                                <Badge variant={getCostBadgeVariant(provider.cost_tier)}>
                                     💰 {provider.cost_tier}
-                                </span>
+                                </Badge>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
                 </div>
-            ))}
+            )}
         </div>
     );
 }

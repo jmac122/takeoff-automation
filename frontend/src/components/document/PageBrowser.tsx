@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Filter } from 'lucide-react';
 import { apiClient } from '../../api/client';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 interface Page {
     id: string;
@@ -117,29 +124,26 @@ export function PageBrowser({ documentId, onPageSelect }: PageBrowserProps) {
         return prefixMap[discipline] || '';
     };
 
-    const getConcreteBadgeColor = (relevance: string | null): string => {
+    const getConcreteBadgeVariant = (relevance: string | null): "default" | "secondary" | "destructive" | "outline" => {
         switch (relevance) {
             case 'high':
-                return 'bg-red-100 text-red-800 border-red-300';
+                return 'destructive';
             case 'medium':
-                return 'bg-orange-100 text-orange-800 border-orange-300';
             case 'low':
-                return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-            case 'none':
-                return 'bg-gray-100 text-gray-800 border-gray-300';
+                return 'secondary';
             default:
-                return 'bg-gray-100 text-gray-800 border-gray-300';
+                return 'outline';
         }
     };
 
     if (isLoading) {
         return (
             <div className="p-4">
-                <div className="animate-pulse space-y-4">
-                    <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+                <div className="space-y-4">
+                    <Skeleton className="h-8 w-1/4" />
                     <div className="grid grid-cols-4 gap-4">
                         {[...Array(8)].map((_, i) => (
-                            <div key={i} className="h-32 bg-gray-200 rounded"></div>
+                            <Skeleton key={i} className="h-32" />
                         ))}
                     </div>
                 </div>
@@ -151,67 +155,71 @@ export function PageBrowser({ documentId, onPageSelect }: PageBrowserProps) {
         <div className="p-4 space-y-4">
             {/* Filters */}
             <div className="flex flex-wrap gap-4 items-end">
-                <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">Discipline</label>
-                    <select
-                        value={disciplineFilter}
-                        onChange={(e) => setDisciplineFilter(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm min-w-[160px]"
-                    >
-                        {DISCIPLINES.map((d) => (
-                            <option key={d.value} value={d.value}>
-                                {d.label}
-                            </option>
-                        ))}
-                    </select>
+                <div className="flex flex-col gap-2">
+                    <Label htmlFor="discipline-filter">Discipline</Label>
+                    <Select value={disciplineFilter} onValueChange={setDisciplineFilter}>
+                        <SelectTrigger id="discipline-filter" className="w-[160px]">
+                            <SelectValue placeholder="All Disciplines" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {DISCIPLINES.map((d) => (
+                                <SelectItem key={d.value} value={d.value}>
+                                    {d.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
 
-                <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">Page Type</label>
-                    <select
-                        value={pageTypeFilter}
-                        onChange={(e) => setPageTypeFilter(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm min-w-[160px]"
-                    >
-                        {PAGE_TYPES.map((pt) => (
-                            <option key={pt.value} value={pt.value}>
-                                {pt.label}
-                            </option>
-                        ))}
-                    </select>
+                <div className="flex flex-col gap-2">
+                    <Label htmlFor="page-type-filter">Page Type</Label>
+                    <Select value={pageTypeFilter} onValueChange={setPageTypeFilter}>
+                        <SelectTrigger id="page-type-filter" className="w-[160px]">
+                            <SelectValue placeholder="All Types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {PAGE_TYPES.map((pt) => (
+                                <SelectItem key={pt.value} value={pt.value}>
+                                    {pt.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
 
-                <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">Concrete Relevance</label>
-                    <select
-                        value={concreteFilter}
-                        onChange={(e) => setConcreteFilter(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm min-w-[160px]"
-                    >
-                        {CONCRETE_RELEVANCE.map((cr) => (
-                            <option key={cr.value} value={cr.value}>
-                                {cr.label}
-                            </option>
-                        ))}
-                    </select>
+                <div className="flex flex-col gap-2">
+                    <Label htmlFor="concrete-filter">Concrete Relevance</Label>
+                    <Select value={concreteFilter} onValueChange={setConcreteFilter}>
+                        <SelectTrigger id="concrete-filter" className="w-[160px]">
+                            <SelectValue placeholder="All Relevance" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {CONCRETE_RELEVANCE.map((cr) => (
+                                <SelectItem key={cr.value} value={cr.value}>
+                                    {cr.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
 
                 {(disciplineFilter || pageTypeFilter || concreteFilter) && (
-                    <button
+                    <Button
+                        variant="outline"
                         onClick={() => {
                             setDisciplineFilter('');
                             setPageTypeFilter('');
                             setConcreteFilter('');
                         }}
-                        className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
                     >
+                        <Filter className="mr-2 h-4 w-4" />
                         Clear Filters
-                    </button>
+                    </Button>
                 )}
             </div>
 
             {/* Results count */}
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-muted-foreground">
                 Showing {filteredPages.length} of {pages.length} pages
             </div>
 
@@ -225,77 +233,73 @@ export function PageBrowser({ documentId, onPageSelect }: PageBrowserProps) {
                         <div
                             key={page.id}
                             onClick={() => onPageSelect?.(page.id)}
-                            className={`
-                relative border rounded-lg overflow-hidden cursor-pointer transition-all
-                ${isHighConcrete ? 'border-red-400 border-2 shadow-md' : 'border-gray-300 hover:border-blue-400'}
-                ${onPageSelect ? 'hover:shadow-lg' : ''}
-              `}
+                            className={cn(
+                                "relative border rounded-lg overflow-hidden cursor-pointer transition-all",
+                                isHighConcrete ? "border-destructive border-2 shadow-md" : "border-border hover:border-primary",
+                                onPageSelect && "hover:shadow-lg"
+                            )}
                         >
                             {/* Thumbnail */}
                             {page.thumbnail_url ? (
                                 <img
                                     src={page.thumbnail_url}
                                     alt={`Page ${page.page_number}`}
-                                    className="w-full h-32 object-contain bg-gray-50"
+                                    className="w-full h-32 object-contain bg-muted"
                                 />
                             ) : (
-                                <div className="w-full h-32 bg-gray-100 flex items-center justify-center">
-                                    <span className="text-gray-400 text-sm">No thumbnail</span>
+                                <div className="w-full h-32 bg-muted flex items-center justify-center">
+                                    <span className="text-muted-foreground text-sm">No thumbnail</span>
                                 </div>
                             )}
 
                             {/* Page info overlay */}
-                            <div className="p-2 bg-white">
+                            <div className="p-2 bg-card">
                                 <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs font-medium text-gray-900">
+                                    <span className="text-xs font-medium text-foreground">
                                         {disciplinePrefix && (
-                                            <span className="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs mr-1">
+                                            <Badge variant="secondary" className="mr-1 text-xs">
                                                 {disciplinePrefix}
-                                            </span>
+                                            </Badge>
                                         )}
                                         Page {page.page_number}
                                     </span>
                                     {page.classification_confidence !== null && (
-                                        <span className="text-xs text-gray-500">
+                                        <span className="text-xs text-muted-foreground">
                                             {(page.classification_confidence * 100).toFixed(0)}%
                                         </span>
                                     )}
                                 </div>
 
                                 {page.sheet_number && (
-                                    <div className="text-xs text-gray-600 mb-1">{page.sheet_number}</div>
+                                    <div className="text-xs text-muted-foreground mb-1">{page.sheet_number}</div>
                                 )}
 
                                 {page.title && (
-                                    <div className="text-xs text-gray-700 truncate mb-1" title={page.title}>
+                                    <div className="text-xs text-foreground truncate mb-1" title={page.title}>
                                         {page.title}
                                     </div>
                                 )}
 
                                 {page.classification && (
-                                    <div className="text-xs text-gray-600 mb-1">{page.classification}</div>
+                                    <div className="text-xs text-muted-foreground mb-1">{page.classification}</div>
                                 )}
 
                                 {/* Concrete relevance badge */}
                                 {page.concrete_relevance && (
                                     <div className="mt-1">
-                                        <span
-                                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getConcreteBadgeColor(
-                                                page.concrete_relevance
-                                            )}`}
-                                        >
+                                        <Badge variant={getConcreteBadgeVariant(page.concrete_relevance)}>
                                             {page.concrete_relevance === 'high' && '🔴 '}
                                             {page.concrete_relevance === 'medium' && '🟠 '}
                                             {page.concrete_relevance === 'low' && '🟡 '}
                                             {page.concrete_relevance === 'none' && '⚪ '}
                                             {page.concrete_relevance}
-                                        </span>
+                                        </Badge>
                                     </div>
                                 )}
 
                                 {/* Classification metadata */}
                                 {page.classification_confidence !== null && (
-                                    <div className="mt-1 text-xs text-gray-500">
+                                    <div className="mt-1 text-xs text-muted-foreground">
                                         Confidence: {(page.classification_confidence * 100).toFixed(0)}%
                                     </div>
                                 )}
@@ -306,7 +310,7 @@ export function PageBrowser({ documentId, onPageSelect }: PageBrowserProps) {
             </div>
 
             {filteredPages.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-muted-foreground">
                     No pages match the selected filters.
                 </div>
             )}
