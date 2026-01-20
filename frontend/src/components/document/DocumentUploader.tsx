@@ -24,7 +24,7 @@ interface DocumentUploaderProps {
   onUploadComplete?: (documentId: string) => void;
 }
 
-export default function DocumentUploader({
+export function DocumentUploader({
   projectId,
   onUploadComplete,
 }: DocumentUploaderProps) {

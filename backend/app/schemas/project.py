@@ -32,7 +32,9 @@ class ProjectResponse(BaseModel):
     name: str
     description: str | None = None
     client_name: str | None = None
+    project_address: str | None = None
     status: str
+    document_count: int = 0
     created_at: datetime
     updated_at: datetime
 

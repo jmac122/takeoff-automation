@@ -100,14 +100,19 @@ export function TakeoffViewer() {
             img.src = page.image_url;
             img.onload = () => {
                 setImage(img);
-                // Fit image to viewport
+                // Fit image to viewport - prioritize width for plan sets
                 const container = document.getElementById('canvas-container');
                 if (container) {
-                    const scale = Math.min(
-                        container.clientWidth / img.width,
-                        container.clientHeight / img.height,
-                        1
-                    );
+                    // For wide plan sets, fit to width first
+                    const widthScale = container.clientWidth / img.width;
+                    const heightScale = container.clientHeight / img.height;
+
+                    // Use width scale if image is wider than tall (typical for plan sets)
+                    const isHorizontalPlan = img.width > img.height;
+                    const scale = isHorizontalPlan
+                        ? Math.min(widthScale, 1)  // Fit to width, max 100%
+                        : Math.min(widthScale, heightScale, 1);  // Fit to container
+
                     setZoom(scale);
                     setStageSize({
                         width: container.clientWidth,
@@ -336,42 +341,12 @@ export function TakeoffViewer() {
                 </div>
             </div>
 
-            {/* Main content */}
-            <div className="flex flex-1 overflow-hidden">
-                {/* Left sidebar - Conditions */}
-                <div className="w-80 border-r bg-white p-4 overflow-y-auto">
-                    <h2 className="text-sm font-semibold mb-3">Conditions</h2>
-                    <div className="space-y-2">
-                        {conditions.map((condition: Condition) => (
-                            <button
-                                key={condition.id}
-                                onClick={() => setSelectedConditionId(condition.id)}
-                                className={`w-full text-left p-3 rounded-lg border-2 transition-colors ${selectedConditionId === condition.id
-                                    ? 'border-blue-500 bg-blue-50'
-                                    : 'border-gray-200 hover:border-gray-300'
-                                    }`}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <div
-                                        className="w-4 h-4 rounded"
-                                        style={{ backgroundColor: condition.color }}
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-sm truncate">{condition.name}</p>
-                                        <p className="text-xs text-gray-600">
-                                            {condition.total_quantity.toFixed(1)} {condition.unit}
-                                        </p>
-                                    </div>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Center - Canvas */}
-                <div className="flex-1 flex flex-col bg-gray-100">
+            {/* Main content - Full width canvas */}
+            <div className="flex flex-1 overflow-hidden bg-gray-900">
+                {/* Canvas - Full width */}
+                <div className="flex-1 flex flex-col">
                     {/* Drawing Toolbar */}
-                    <div className="p-4">
+                    <div className="p-4 bg-gray-800 border-b border-gray-700">
                         <DrawingToolbar
                             activeTool={drawing.tool}
                             onToolChange={drawing.setTool}
@@ -390,7 +365,7 @@ export function TakeoffViewer() {
                     </div>
 
                     {/* Canvas */}
-                    <div id="canvas-container" className="flex-1 relative">
+                    <div id="canvas-container" className="flex-1 relative flex items-center justify-center">
                         <Stage
                             ref={stageRef}
                             width={stageSize.width}
@@ -434,37 +409,69 @@ export function TakeoffViewer() {
 
                         {/* Scale warning */}
                         {!page?.scale_calibrated && (
-                            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded-lg">
+                            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded-lg shadow-lg z-10">
                                 ⚠️ Scale not calibrated. Measurements will not be accurate.
                             </div>
                         )}
-                    </div>
-                </div>
 
-                {/* Right sidebar - Measurement details */}
-                <div className="w-80 border-l bg-white p-4 overflow-y-auto">
-                    <h2 className="text-sm font-semibold mb-3">Measurements</h2>
-                    {selectedConditionId && (
-                        <div className="space-y-2">
-                            {measurements
-                                .filter((m: Measurement) => m.condition_id === selectedConditionId)
-                                .map((measurement: Measurement) => (
-                                    <div
-                                        key={measurement.id}
-                                        onClick={() => setSelectedMeasurementId(measurement.id)}
-                                        className={`p-3 rounded-lg border cursor-pointer ${selectedMeasurementId === measurement.id
-                                            ? 'border-blue-500 bg-blue-50'
-                                            : 'border-gray-200 hover:border-gray-300'
-                                            }`}
-                                    >
-                                        <p className="text-sm font-medium">{measurement.geometry_type}</p>
-                                        <p className="text-lg font-bold text-blue-600">
-                                            {measurement.quantity.toFixed(1)} {measurement.unit}
-                                        </p>
-                                    </div>
-                                ))}
-                        </div>
-                    )}
+                        {/* Conditions overlay - Bottom left */}
+                        {conditions.length > 0 && (
+                            <div className="absolute bottom-4 left-4 bg-gray-800/95 backdrop-blur border border-gray-700 rounded-lg shadow-xl p-3 max-w-xs max-h-96 overflow-y-auto z-10">
+                                <h2 className="text-sm font-semibold mb-2 text-white">Conditions</h2>
+                                <div className="space-y-1">
+                                    {conditions.map((condition: Condition) => (
+                                        <button
+                                            key={condition.id}
+                                            onClick={() => setSelectedConditionId(condition.id)}
+                                            className={`w-full text-left px-3 py-2 rounded transition-colors ${selectedConditionId === condition.id
+                                                ? 'bg-blue-600 text-white'
+                                                : 'text-gray-300 hover:bg-gray-700'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <div
+                                                    className="w-3 h-3 rounded flex-shrink-0"
+                                                    style={{ backgroundColor: condition.color }}
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm truncate">{condition.name}</p>
+                                                    <p className="text-xs opacity-75">
+                                                        {condition.total_quantity.toFixed(1)} {condition.unit}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Measurements overlay - Bottom right */}
+                        {selectedConditionId && measurements.filter((m: Measurement) => m.condition_id === selectedConditionId).length > 0 && (
+                            <div className="absolute bottom-4 right-4 bg-gray-800/95 backdrop-blur border border-gray-700 rounded-lg shadow-xl p-3 max-w-xs max-h-96 overflow-y-auto z-10">
+                                <h2 className="text-sm font-semibold mb-2 text-white">Measurements</h2>
+                                <div className="space-y-1">
+                                    {measurements
+                                        .filter((m: Measurement) => m.condition_id === selectedConditionId)
+                                        .map((measurement: Measurement) => (
+                                            <div
+                                                key={measurement.id}
+                                                onClick={() => setSelectedMeasurementId(measurement.id)}
+                                                className={`px-3 py-2 rounded cursor-pointer transition-colors ${selectedMeasurementId === measurement.id
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'text-gray-300 hover:bg-gray-700'
+                                                    }`}
+                                            >
+                                                <p className="text-xs opacity-75">{measurement.geometry_type}</p>
+                                                <p className="text-sm font-bold">
+                                                    {measurement.quantity.toFixed(1)} {measurement.unit}
+                                                </p>
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 

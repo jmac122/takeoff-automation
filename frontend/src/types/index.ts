@@ -62,6 +62,26 @@ export interface Condition {
   updated_at: string;
 }
 
+// Project Types
+export interface Project {
+  id: string;
+  name: string;
+  description?: string | null;
+  client_name?: string | null;
+  project_address?: string | null;
+  status?: string;
+  document_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  description?: string;
+  client_name?: string;
+  project_address?: string;
+}
+
 // Document Types
 export interface PageSummary {
   id: string;
@@ -104,10 +124,10 @@ export interface Document {
   original_filename: string;
   file_type: string;
   file_size: number;
-  status: string;
-  page_count?: number | null;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  page_count: number | null;
   processing_error?: string | null;
   created_at: string;
   updated_at: string;
-  pages: PageSummary[];
+  pages?: PageSummary[];
 }

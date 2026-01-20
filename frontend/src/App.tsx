@@ -1,26 +1,39 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Dashboard from "./pages/Dashboard";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Header } from "./components/layout/Header";
+import Projects from "./pages/Projects";
+import ProjectDetail from "./pages/ProjectDetail";
+import DocumentDetail from "./pages/DocumentDetail";
 import { TakeoffViewer } from "./pages/TakeoffViewer";
+import Testing from "./pages/Testing";
+import AIEvaluation from "./pages/AIEvaluation";
 import "./App.css";
 
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-background">
-        <header className="bg-card shadow border-b">
-          <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-            <h1 className="text-3xl font-bold text-foreground">
-              ForgeX Takeoffs
-            </h1>
-          </div>
-        </header>
+      <div className="min-h-screen bg-neutral-950">
+        <Header />
         <main>
-          <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/documents/:documentId/pages/:pageId" element={<TakeoffViewer />} />
-            </Routes>
-          </div>
+          <Routes>
+            {/* Redirect root to projects */}
+            <Route path="/" element={<Navigate to="/projects" replace />} />
+
+            {/* Projects */}
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/projects/:projectId" element={<ProjectDetail />} />
+
+            {/* Documents */}
+            <Route path="/projects/:projectId/documents/:documentId" element={<DocumentDetail />} />
+
+            {/* Takeoff Viewer */}
+            <Route path="/documents/:documentId/pages/:pageId" element={<TakeoffViewer />} />
+
+            {/* Testing */}
+            <Route path="/testing" element={<Testing />} />
+
+            {/* AI Evaluation */}
+            <Route path="/ai-evaluation" element={<AIEvaluation />} />
+          </Routes>
         </main>
       </div>
     </Router>
