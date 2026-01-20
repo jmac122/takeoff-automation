@@ -115,6 +115,50 @@ async def upload_document(
     return document
 
 
+@router.get("/projects/{project_id}/documents", response_model=DocumentListResponse)
+async def list_project_documents(
+    project_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """List all documents for a project."""
+    # Verify project exists
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Get documents
+    result = await db.execute(
+        select(Document)
+        .where(Document.project_id == project_id)
+        .order_by(Document.created_at.desc())
+    )
+    documents = result.scalars().all()
+
+    return DocumentListResponse(
+        documents=[
+            DocumentResponse(
+                id=doc.id,
+                project_id=doc.project_id,
+                filename=doc.filename,
+                original_filename=doc.original_filename,
+                file_type=doc.file_type,
+                file_size=doc.file_size,
+                page_count=doc.page_count,
+                status=doc.status,
+                created_at=doc.created_at,
+                updated_at=doc.updated_at,
+                pages=[],  # Don't load pages for list view
+            )
+            for doc in documents
+        ],
+        total=len(documents),
+    )
+
+
 @router.get("/documents/{document_id}", response_model=DocumentResponse)
 async def get_document(
     document_id: uuid.UUID,
