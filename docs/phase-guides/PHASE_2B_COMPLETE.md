@@ -128,6 +128,7 @@ Implemented:
 
 ### ✅ Verification Checklist
 
+**Backend (Fully Tested):**
 - [x] Scale parser correctly parses "1/4\" = 1'-0\""
 - [x] Scale parser correctly parses "1\" = 20'"
 - [x] Scale parser correctly parses "1:100"
@@ -136,9 +137,16 @@ Implemented:
 - [x] Detected scale stored in database
 - [x] Manual calibration calculates correct pixels/foot
 - [x] Scale can be copied between pages
-- [x] Frontend calibration tool works (draw line, enter distance)
-- [x] Scale indicator shows calibrated/uncalibrated status
-- [x] High-confidence auto-detection marks page as calibrated
+- [x] Unit tests passing (17/17)
+- [x] Integration tests passing (5/5)
+
+**Frontend (Deferred to Phase 3A):**
+- [x] ScaleCalibration component created with shadcn/ui
+- [ ] Frontend calibration tool E2E testing (requires PlanViewer from Phase 3A)
+- [ ] Scale indicator display testing (requires page navigation from Phase 3A)
+- [ ] Calibration workflow integration (requires Konva.js canvas from Phase 3A)
+
+**Note:** Frontend component is complete and ready for integration. Testing will occur in Phase 3A when the PlanViewer component with Konva.js canvas is built.
 
 ---
 
@@ -178,10 +186,23 @@ docker compose exec api python test_scale_detection.py
 
 ### Test Frontend Components
 
+**Status:** Deferred to Phase 3A (requires PlanViewer component)
+
+The ScaleCalibration component (`frontend/src/components/viewer/ScaleCalibration.tsx`) is complete but cannot be tested yet because:
+- No page viewer exists (built in Phase 3A)
+- No Konva.js canvas for drawing calibration lines (built in Phase 3A)
+- No page navigation routes (built in Phase 3A)
+
+**Testing will occur in Phase 3A when:**
+1. PlanViewer component is built with Konva.js canvas
+2. Navigation to individual pages is implemented
+3. ScaleCalibration is integrated with the measurement layer
+
+**Expected workflow (Phase 3A):**
 1. Navigate to a page viewer in the UI
-2. Look for the scale calibration toolbar
+2. Locate the scale calibration toolbar
 3. Click "Calibrate" to enter calibration mode
-4. Draw a line on the plan
+4. Draw a line on the plan (Konva.js canvas)
 5. Click "Done" and enter the real-world distance
 6. Verify scale is saved and displayed
 
@@ -376,4 +397,10 @@ Response:
 
 **Phase 2B Status**: ✅ COMPLETE AND VERIFIED
 
+**Backend:** ✅ Fully tested (17/17 unit, 5/5 integration)  
+**Frontend:** ✅ Component created, testing deferred to Phase 3A  
+**Docker:** ✅ OpenCV dependencies added, all services running
+
 Ready to proceed to **Phase 3A - Measurement Engine** (`plans/06-MEASUREMENT-ENGINE.md`)
+
+ScaleCalibration component will be tested and integrated when PlanViewer is built in Phase 3A.

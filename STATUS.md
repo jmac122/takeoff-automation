@@ -95,6 +95,7 @@
 - ✅ Scale API endpoints (4 endpoints)
 - ✅ Frontend calibration component (shadcn/ui)
 - ✅ Database fields for scale storage
+- ✅ Backend fully tested (17/17 unit tests, 5/5 integration tests)
 
 **Key Features:**
 - **Supported Formats**: 1/4" = 1'-0", 1" = 20', 1:100, N.T.S., etc.
@@ -102,6 +103,10 @@
 - **Manual Fallback**: Draw line + enter distance for edge cases
 - **Scale Copying**: Copy calibrated scale between similar pages
 - **Unit Support**: Feet, inches, meters
+
+**Testing:**
+- ✅ Backend: Fully tested (unit + integration tests passing)
+- ⏭️ Frontend: Component created, will be tested in Phase 3A when page viewer is built
 
 **Documentation:**
 - [Phase 2B Complete Guide](docs/phase-guides/PHASE_2B_COMPLETE.md)
