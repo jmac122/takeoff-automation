@@ -18,9 +18,9 @@ export default function Dashboard() {
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error loading dashboard</div>;
 
-  // For Phase 1A testing, we'll use a demo project ID
+  // For Phase 1B testing, use the actual project ID we created
   // In a real app, you'd select/create a project first
-  const demoProjectId = "test-project-123";
+  const demoProjectId = "fb5df285-615c-40e7-875c-4639c9ea0706";
 
   return (
     <div className="px-4 py-6 sm:px-0">
@@ -43,7 +43,7 @@ export default function Dashboard() {
 
           <div className="border-t border-gray-200 pt-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
-              Upload Plans (Phase 1A Test)
+              Upload Plans (Phase 1B - OCR Test)
             </h3>
             <DocumentUploader
               projectId={demoProjectId}
@@ -56,10 +56,10 @@ export default function Dashboard() {
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-        <p className="font-semibold mb-1">Phase 1A Testing Mode</p>
-        <p>Using demo project ID: <code className="bg-blue-100 px-2 py-1 rounded">{demoProjectId}</code></p>
+        <p className="font-semibold mb-1">Phase 1B Testing Mode - OCR Enabled</p>
+        <p>Using project: <code className="bg-blue-100 px-2 py-1 rounded">Test Project</code></p>
         <p className="mt-2 text-xs text-blue-600">
-          Note: This will work once we create the project via API. For now, you can test the UI!
+          Upload a PDF to test OCR text extraction, scale detection, and title block parsing!
         </p>
       </div>
     </div>

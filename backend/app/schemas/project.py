@@ -1,5 +1,8 @@
 """Project schemas."""
 
+import uuid
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -16,10 +19,10 @@ class ProjectResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: str
+    id: uuid.UUID
     name: str
     description: str | None = None
     client_name: str | None = None
     status: str
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
