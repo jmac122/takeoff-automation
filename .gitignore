@@ -94,6 +94,7 @@ yarn-error.log*
 .coverage
 .pytest_cache/
 .tox/
+**.pdf
 
 # Temporary files
 *.tmp
