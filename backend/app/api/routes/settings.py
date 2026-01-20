@@ -37,7 +37,7 @@ class LLMTaskConfigRequest(BaseModel):
 
 PROVIDER_INFO = {
     "anthropic": {
-        "display_name": "Anthropic (Claude)",
+        "display_name": "Anthropic (Claude Sonnet 4)",
         "model": "claude-sonnet-4-20250514",
     },
     "openai": {
@@ -45,11 +45,11 @@ PROVIDER_INFO = {
         "model": "gpt-4o",
     },
     "google": {
-        "display_name": "Google (Gemini 1.5 Pro)",
+        "display_name": "Google (Gemini 2.5 Flash)",
         "model": "gemini-2.5-flash",
     },
     "xai": {
-        "display_name": "xAI (Grok)",
+        "display_name": "xAI (Grok 2 Vision)",
         "model": "grok-2-vision-latest",
     },
 }

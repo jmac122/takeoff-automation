@@ -3,7 +3,7 @@
 Supports:
 - Anthropic (Claude 3.5 Sonnet)
 - OpenAI (GPT-4o)
-- Google (Gemini 1.5 Pro)
+- Google (Gemini 2.5 Flash)
 - xAI (Grok Vision)
 """
 
@@ -386,8 +386,37 @@ class LLMClient:
 
         response = model.generate_content(
             [full_prompt, image],
-            generation_config={"max_output_tokens": max_tokens},
+            generation_config={
+                "max_output_tokens": max_tokens,
+                "temperature": 0.1,  # Lower temperature for more deterministic JSON
+            },
         )
+
+        # Log response details for debugging
+        logger.debug(
+            "Gemini response details",
+            candidates_count=len(response.candidates) if response.candidates else 0,
+            finish_reason=response.candidates[0].finish_reason
+            if response.candidates
+            else None,
+            text_length=len(response.text) if response.text else 0,
+        )
+
+        # Check if response was truncated or blocked
+        if response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, "finish_reason"):
+                finish_reason = str(candidate.finish_reason)
+                if "SAFETY" in finish_reason or "BLOCKED" in finish_reason:
+                    logger.warning(
+                        "Gemini response blocked or filtered",
+                        finish_reason=finish_reason,
+                    )
+                elif "MAX_TOKENS" in finish_reason:
+                    logger.warning(
+                        "Gemini response truncated due to max tokens",
+                        finish_reason=finish_reason,
+                    )
 
         # Gemini doesn't provide token counts directly in all cases
         input_tokens = 0

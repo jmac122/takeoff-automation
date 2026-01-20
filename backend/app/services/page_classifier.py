@@ -115,7 +115,7 @@ class PageClassifier:
                 image_bytes=image_bytes,
                 prompt=prompt,
                 system_prompt=CLASSIFICATION_SYSTEM_PROMPT,
-                max_tokens=512,
+                max_tokens=1024,  # Increased for Gemini which may need more tokens
             )
 
             return ClassificationResult(
