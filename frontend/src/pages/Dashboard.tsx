@@ -54,6 +54,8 @@ interface PageClassification {
 interface ClassificationHistoryEntry {
   id: string;
   page_id: string;
+  status: string; // success, failed, truncated
+  error_message: string | null;
   classification: string | null;
   classification_confidence: number | null;
   discipline: string | null;
@@ -67,6 +69,10 @@ interface ClassificationHistoryEntry {
   llm_model: string;
   llm_latency_ms: number | null;
   created_at: string;
+  // Page context (from all-history endpoint)
+  page_number?: number;
+  sheet_number?: string | null;
+  document_id?: string;
 }
 
 interface ClassificationHistoryResponse {
@@ -93,6 +99,19 @@ export default function Dashboard() {
   const [classificationProvider, setClassificationProvider] = useState<string>("default");
   const [showProviderSettings, setShowProviderSettings] = useState(false);
   const [showExistingDocs, setShowExistingDocs] = useState(true);
+  const [expandedHistoryIds, setExpandedHistoryIds] = useState<Set<string>>(new Set());
+
+  const toggleHistoryExpanded = (id: string) => {
+    setExpandedHistoryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   // For Phase 2A testing, use the actual project ID we created
   const demoProjectId = "fb5df285-615c-40e7-875c-4639c9ea0706";
@@ -165,6 +184,18 @@ export default function Dashboard() {
     enabled: !!selectedPageId,
     staleTime: 0,
     gcTime: 0,
+  });
+
+  // Fetch ALL classification history (for global timeline)
+  const { data: allHistoryData, refetch: refetchAllHistory } = useQuery({
+    queryKey: ["all-classification-history"],
+    queryFn: async () => {
+      const response = await axios.get("/api/v1/classification/history?limit=100");
+      return response.data as ClassificationHistoryResponse;
+    },
+    staleTime: 0,
+    gcTime: 0,
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
   // Classify document mutation
@@ -517,14 +548,34 @@ export default function Dashboard() {
                 className={`border rounded-lg p-3 cursor-pointer transition-all hover:shadow-md ${selectedPageId === page.id ? "ring-2 ring-purple-500 border-purple-300" : "border-gray-200"
                   }`}
               >
-                {/* Thumbnail */}
-                <div className="aspect-[8.5/11] bg-gray-100 rounded mb-2 overflow-hidden">
+                {/* Thumbnail - clickable to open full image */}
+                <div className="aspect-[8.5/11] bg-gray-100 rounded mb-2 overflow-hidden relative group">
                   {page.thumbnail_url ? (
-                    <img
-                      src={page.thumbnail_url}
-                      alt={`Page ${page.page_number}`}
-                      className="w-full h-full object-contain"
-                    />
+                    <a
+                      href={page.thumbnail_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="block w-full h-full"
+                      title="Click to open full image in new tab"
+                    >
+                      <img
+                        src={page.thumbnail_url}
+                        alt={`Page ${page.page_number}`}
+                        className="w-full h-full object-contain"
+                      />
+                      {/* Hover overlay with icon */}
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                        <svg
+                          className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </div>
+                    </a>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400">
                       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -689,59 +740,93 @@ export default function Dashboard() {
                         className={`relative pl-6 pb-3 ${idx < historyData.history.length - 1 ? "border-l-2 border-gray-200" : ""
                           }`}
                       >
-                        {/* Timeline dot */}
+                        {/* Timeline dot - red for failed, purple for current success, gray for old */}
                         <div
-                          className={`absolute left-0 top-0 w-3 h-3 rounded-full -translate-x-1.5 ${idx === 0
+                          className={`absolute left-0 top-0 w-3 h-3 rounded-full -translate-x-1.5 ${entry.status === "failed"
+                            ? "bg-red-500 ring-4 ring-red-100"
+                            : idx === 0 && entry.status === "success"
                               ? "bg-purple-500 ring-4 ring-purple-100"
-                              : "bg-gray-300"
+                              : entry.status === "success"
+                                ? "bg-green-400"
+                                : "bg-gray-300"
                             }`}
                         />
 
                         {/* Entry content */}
-                        <div className={`rounded-lg p-3 ${idx === 0 ? "bg-purple-50 border border-purple-200" : "bg-gray-50"}`}>
+                        <div className={`rounded-lg p-3 ${entry.status === "failed"
+                          ? "bg-red-50 border border-red-200"
+                          : idx === 0 && entry.status === "success"
+                            ? "bg-purple-50 border border-purple-200"
+                            : "bg-gray-50"
+                          }`}>
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.llm_provider === "anthropic" ? "bg-orange-100 text-orange-800" :
-                                    entry.llm_provider === "openai" ? "bg-green-100 text-green-800" :
-                                      entry.llm_provider === "google" ? "bg-blue-100 text-blue-800" :
-                                        entry.llm_provider === "xai" ? "bg-purple-100 text-purple-800" :
-                                          "bg-gray-100 text-gray-800"
+                                  entry.llm_provider === "openai" ? "bg-green-100 text-green-800" :
+                                    entry.llm_provider === "google" ? "bg-blue-100 text-blue-800" :
+                                      entry.llm_provider === "xai" ? "bg-purple-100 text-purple-800" :
+                                        "bg-gray-100 text-gray-800"
                                   }`}>
                                   {entry.llm_provider}
                                 </span>
                                 <span className="text-xs text-gray-500">{entry.llm_model}</span>
-                                {idx === 0 && (
+                                {entry.status === "failed" && (
+                                  <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs rounded">
+                                    Failed
+                                  </span>
+                                )}
+                                {idx === 0 && entry.status === "success" && (
                                   <span className="px-1.5 py-0.5 bg-purple-600 text-white text-xs rounded">
                                     Current
                                   </span>
                                 )}
+                                {entry.status === "success" && idx !== 0 && (
+                                  <span className="px-1.5 py-0.5 bg-green-600 text-white text-xs rounded">
+                                    Success
+                                  </span>
+                                )}
                               </div>
-                              <div className="mt-1 text-sm">
-                                <span className="font-medium text-gray-900">
-                                  {entry.discipline}:{entry.page_type}
-                                </span>
-                                <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${entry.concrete_relevance === "high" ? "bg-red-100 text-red-800" :
-                                    entry.concrete_relevance === "medium" ? "bg-yellow-100 text-yellow-800" :
-                                      entry.concrete_relevance === "low" ? "bg-green-100 text-green-800" :
-                                        "bg-gray-100 text-gray-600"
-                                  }`}>
-                                  {entry.concrete_relevance || "none"}
-                                </span>
-                              </div>
-                              {entry.concrete_elements && entry.concrete_elements.length > 0 && (
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {entry.concrete_elements.slice(0, 5).map((el, i) => (
-                                    <span key={i} className="text-xs text-gray-500 bg-gray-200 px-1 rounded">
-                                      {el}
-                                    </span>
-                                  ))}
-                                  {entry.concrete_elements.length > 5 && (
-                                    <span className="text-xs text-gray-400">
-                                      +{entry.concrete_elements.length - 5} more
-                                    </span>
-                                  )}
+
+                              {/* Show error message for failed attempts */}
+                              {entry.status === "failed" && entry.error_message && (
+                                <div className="mt-1 text-xs text-red-700 bg-red-100 p-2 rounded max-h-20 overflow-y-auto">
+                                  {entry.error_message.length > 200
+                                    ? entry.error_message.substring(0, 200) + "..."
+                                    : entry.error_message}
                                 </div>
+                              )}
+
+                              {/* Show classification for successful attempts */}
+                              {entry.status === "success" && (
+                                <>
+                                  <div className="mt-1 text-sm">
+                                    <span className="font-medium text-gray-900">
+                                      {entry.discipline}:{entry.page_type}
+                                    </span>
+                                    <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${entry.concrete_relevance === "high" ? "bg-red-100 text-red-800" :
+                                      entry.concrete_relevance === "medium" ? "bg-yellow-100 text-yellow-800" :
+                                        entry.concrete_relevance === "low" ? "bg-green-100 text-green-800" :
+                                          "bg-gray-100 text-gray-600"
+                                      }`}>
+                                      {entry.concrete_relevance || "none"}
+                                    </span>
+                                  </div>
+                                  {entry.concrete_elements && entry.concrete_elements.length > 0 && (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {entry.concrete_elements.slice(0, 5).map((el, i) => (
+                                        <span key={i} className="text-xs text-gray-500 bg-gray-200 px-1 rounded">
+                                          {el}
+                                        </span>
+                                      ))}
+                                      {entry.concrete_elements.length > 5 && (
+                                        <span className="text-xs text-gray-400">
+                                          +{entry.concrete_elements.length - 5} more
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                             <div className="text-right flex-shrink-0">
@@ -756,7 +841,7 @@ export default function Dashboard() {
                                   {entry.llm_latency_ms.toFixed(0)}ms
                                 </div>
                               )}
-                              {entry.classification_confidence && (
+                              {entry.status === "success" && entry.classification_confidence && (
                                 <div className="text-xs font-medium text-gray-600">
                                   {(entry.classification_confidence * 100).toFixed(0)}%
                                 </div>
@@ -785,6 +870,224 @@ export default function Dashboard() {
           )}
         </div>
       )}
+
+      {/* Global Classification History Timeline - Always Visible */}
+      <div className="bg-white shadow rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">
+            Classification History
+            {allHistoryData && (
+              <span className="ml-2 text-sm font-normal text-gray-500">
+                ({allHistoryData.total} total runs)
+              </span>
+            )}
+          </h3>
+          <button
+            onClick={() => refetchAllHistory()}
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-md"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {allHistoryData && allHistoryData.history.length > 0 ? (
+          <div className="space-y-3 max-h-[500px] overflow-y-auto">
+            {allHistoryData.history.map((entry, idx) => (
+              <div
+                key={entry.id}
+                className={`relative pl-6 pb-3 ${idx < allHistoryData.history.length - 1 ? "border-l-2 border-gray-200" : ""}`}
+              >
+                {/* Timeline dot */}
+                <div
+                  className={`absolute left-0 top-0 w-3 h-3 rounded-full -translate-x-1.5 ${entry.status === "failed"
+                    ? "bg-red-500 ring-4 ring-red-100"
+                    : idx === 0 && entry.status === "success"
+                      ? "bg-purple-500 ring-4 ring-purple-100"
+                      : entry.status === "success"
+                        ? "bg-green-400"
+                        : "bg-gray-300"
+                    }`}
+                />
+
+                {/* Entry content - clickable to expand */}
+                <div
+                  className={`rounded-lg p-3 cursor-pointer transition-all ${entry.status === "failed"
+                    ? "bg-red-50 border border-red-200 hover:bg-red-100"
+                    : idx === 0 && entry.status === "success"
+                      ? "bg-purple-50 border border-purple-200 hover:bg-purple-100"
+                      : "bg-gray-50 hover:bg-gray-100"
+                    }`}
+                  onClick={() => toggleHistoryExpanded(entry.id)}
+                >
+                  {/* Header row - always visible */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      {/* Page/Document context */}
+                      <div className="text-xs text-gray-500 mb-1">
+                        Page {entry.page_number || "?"}
+                        {entry.sheet_number && <span> ({entry.sheet_number})</span>}
+                        {entry.document_id && (
+                          <span className="ml-1 text-gray-400">
+                            • Doc: {entry.document_id.substring(0, 8)}...
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.llm_provider === "anthropic" ? "bg-orange-100 text-orange-800" :
+                          entry.llm_provider === "openai" ? "bg-green-100 text-green-800" :
+                            entry.llm_provider === "google" ? "bg-blue-100 text-blue-800" :
+                              entry.llm_provider === "xai" ? "bg-purple-100 text-purple-800" :
+                                "bg-gray-100 text-gray-800"
+                          }`}>
+                          {entry.llm_provider}
+                        </span>
+                        <span className="text-xs text-gray-500">{entry.llm_model}</span>
+                        {entry.status === "failed" && (
+                          <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs rounded">
+                            Failed
+                          </span>
+                        )}
+                        {idx === 0 && entry.status === "success" && (
+                          <span className="px-1.5 py-0.5 bg-purple-600 text-white text-xs rounded">
+                            Latest
+                          </span>
+                        )}
+                        {/* Expand indicator */}
+                        <svg
+                          className={`w-4 h-4 text-gray-400 transition-transform ${expandedHistoryIds.has(entry.id) ? "rotate-180" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+
+                      {/* Classification summary - always visible for success */}
+                      {entry.status === "success" && (
+                        <div className="mt-1 text-sm">
+                          <span className="font-medium text-gray-900">
+                            {entry.discipline}:{entry.page_type}
+                          </span>
+                          <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${entry.concrete_relevance === "high" ? "bg-red-100 text-red-800" :
+                            entry.concrete_relevance === "medium" ? "bg-yellow-100 text-yellow-800" :
+                              entry.concrete_relevance === "low" ? "bg-green-100 text-green-800" :
+                                "bg-gray-100 text-gray-600"
+                            }`}>
+                            {entry.concrete_relevance || "none"}
+                          </span>
+                          {entry.concrete_elements && entry.concrete_elements.length > 0 && !expandedHistoryIds.has(entry.id) && (
+                            <span className="ml-2 text-xs text-gray-500">
+                              ({entry.concrete_elements.length} elements)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-xs text-gray-500">
+                        {new Date(entry.created_at).toLocaleDateString()}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {new Date(entry.created_at).toLocaleTimeString()}
+                      </div>
+                      {entry.llm_latency_ms && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {entry.llm_latency_ms.toFixed(0)}ms
+                        </div>
+                      )}
+                      {entry.status === "success" && entry.classification_confidence && (
+                        <div className="text-xs font-medium text-gray-600">
+                          {(entry.classification_confidence * 100).toFixed(0)}%
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded details */}
+                  {expandedHistoryIds.has(entry.id) && (
+                    <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                      {/* Error message for failed */}
+                      {entry.status === "failed" && entry.error_message && (
+                        <div>
+                          <p className="text-xs font-medium text-red-700 mb-1">Error Message:</p>
+                          <div className="text-xs text-red-700 bg-red-100 p-2 rounded whitespace-pre-wrap max-h-40 overflow-y-auto">
+                            {entry.error_message}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Full details for success */}
+                      {entry.status === "success" && (
+                        <>
+                          {/* Concrete elements - ALL of them */}
+                          {entry.concrete_elements && entry.concrete_elements.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-gray-700 mb-1">
+                                Concrete Elements ({entry.concrete_elements.length}):
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {entry.concrete_elements.map((el, i) => (
+                                  <span key={i} className="text-xs bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded">
+                                    {el}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Description */}
+                          {entry.description && (
+                            <div>
+                              <p className="text-xs font-medium text-gray-700 mb-1">AI Description:</p>
+                              <p className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+                                {entry.description}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Confidence breakdown */}
+                          <div>
+                            <p className="text-xs font-medium text-gray-700 mb-1">Confidence Breakdown:</p>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="bg-gray-100 p-1.5 rounded">
+                                <span className="text-gray-500">Discipline:</span>{" "}
+                                <span className="font-medium">{entry.discipline}</span>{" "}
+                                <span className="text-gray-400">
+                                  ({entry.discipline_confidence ? (entry.discipline_confidence * 100).toFixed(0) : "?"}%)
+                                </span>
+                              </div>
+                              <div className="bg-gray-100 p-1.5 rounded">
+                                <span className="text-gray-500">Page Type:</span>{" "}
+                                <span className="font-medium">{entry.page_type}</span>{" "}
+                                <span className="text-gray-400">
+                                  ({entry.page_type_confidence ? (entry.page_type_confidence * 100).toFixed(0) : "?"}%)
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Full IDs for debugging */}
+                      <div className="text-[10px] text-gray-400 pt-1 border-t border-gray-100">
+                        Entry ID: {entry.id} | Page ID: {entry.page_id}
+                        {entry.document_id && <> | Doc ID: {entry.document_id}</>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>No classification history yet.</p>
+            <p className="text-sm mt-1">Run classifications on pages to see the history here.</p>
+          </div>
+        )}
+      </div>
 
       {/* Instructions */}
       {!uploadedDocumentId && (
