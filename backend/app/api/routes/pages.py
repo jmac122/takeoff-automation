@@ -16,10 +16,13 @@ from app.schemas.page import (
     PageListResponse,
     PageOCRResponse,
     PageSummaryResponse,
+    ScaleUpdateRequest,
 )
 from app.utils.storage import get_storage_service
 from app.workers.ocr_tasks import process_page_ocr_task
 from app.workers.classification_tasks import classify_page_task, classify_document_pages
+from app.workers.scale_tasks import detect_page_scale_task
+from app.services.scale_detector import get_scale_detector
 from app.config import get_settings
 from pydantic import BaseModel
 
@@ -500,4 +503,183 @@ async def get_classification_stats(
             for row in rows
         ],
         "total_classifications": sum(row[2] for row in rows),
+    }
+
+
+# ============================================================================
+# Scale Detection and Calibration endpoints
+# ============================================================================
+
+
+@router.post("/pages/{page_id}/detect-scale", status_code=status.HTTP_202_ACCEPTED)
+async def detect_page_scale(
+    page_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Trigger automatic scale detection for a page."""
+    result = await db.execute(select(Page.id).where(Page.id == page_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Page not found",
+        )
+
+    detect_page_scale_task.delay(str(page_id))
+
+    return {"status": "queued", "page_id": str(page_id)}
+
+
+@router.put("/pages/{page_id}/scale")
+async def update_page_scale(
+    page_id: uuid.UUID,
+    request: ScaleUpdateRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Manually set or update page scale."""
+    result = await db.execute(select(Page).where(Page.id == page_id))
+    page = result.scalar_one_or_none()
+
+    if not page:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Page not found",
+        )
+
+    page.scale_value = request.scale_value
+    page.scale_unit = request.scale_unit
+    page.scale_calibrated = True
+
+    if request.scale_text:
+        page.scale_text = request.scale_text
+
+    # Store calibration source
+    if not page.scale_calibration_data:
+        page.scale_calibration_data = {}
+    page.scale_calibration_data["manual_calibration"] = {
+        "scale_value": request.scale_value,
+        "scale_unit": request.scale_unit,
+        "scale_text": request.scale_text,
+    }
+
+    await db.commit()
+
+    return {
+        "status": "success",
+        "page_id": str(page_id),
+        "scale_value": page.scale_value,
+        "scale_unit": page.scale_unit,
+        "scale_calibrated": page.scale_calibrated,
+    }
+
+
+@router.post("/pages/{page_id}/calibrate")
+async def calibrate_page_scale(
+    page_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    pixel_distance: float,
+    real_distance: float,
+    real_unit: str = "foot",
+):
+    """Calibrate page scale using a known distance.
+
+    The user draws a line on the page and specifies the real-world distance.
+    """
+    result = await db.execute(select(Page).where(Page.id == page_id))
+    page = result.scalar_one_or_none()
+
+    if not page:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Page not found",
+        )
+
+    detector = get_scale_detector()
+
+    try:
+        calibration = detector.calculate_scale_from_calibration(
+            pixel_distance=pixel_distance,
+            real_distance=real_distance,
+            real_unit=real_unit,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Update page
+    page.scale_value = calibration["pixels_per_foot"]
+    page.scale_unit = "foot"
+    page.scale_calibrated = True
+
+    # Store calibration data
+    if not page.scale_calibration_data:
+        page.scale_calibration_data = {}
+    page.scale_calibration_data["calibration"] = calibration
+    page.scale_calibration_data["calibration_input"] = {
+        "pixel_distance": pixel_distance,
+        "real_distance": real_distance,
+        "real_unit": real_unit,
+    }
+
+    await db.commit()
+
+    return {
+        "status": "success",
+        "page_id": str(page_id),
+        "pixels_per_foot": calibration["pixels_per_foot"],
+        "estimated_scale_ratio": calibration["estimated_ratio"],
+    }
+
+
+@router.post("/pages/{page_id}/copy-scale-from/{source_page_id}")
+async def copy_scale_from_page(
+    page_id: uuid.UUID,
+    source_page_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Copy scale settings from another page."""
+    # Get source page
+    result = await db.execute(select(Page).where(Page.id == source_page_id))
+    source = result.scalar_one_or_none()
+
+    if not source:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Source page not found",
+        )
+
+    if not source.scale_calibrated:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Source page is not calibrated",
+        )
+
+    # Get target page
+    result = await db.execute(select(Page).where(Page.id == page_id))
+    target = result.scalar_one_or_none()
+
+    if not target:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Target page not found",
+        )
+
+    # Copy scale
+    target.scale_value = source.scale_value
+    target.scale_unit = source.scale_unit
+    target.scale_text = source.scale_text
+    target.scale_calibrated = True
+
+    if not target.scale_calibration_data:
+        target.scale_calibration_data = {}
+    target.scale_calibration_data["copied_from"] = str(source_page_id)
+
+    await db.commit()
+
+    return {
+        "status": "success",
+        "page_id": str(page_id),
+        "scale_value": target.scale_value,
+        "copied_from": str(source_page_id),
     }
