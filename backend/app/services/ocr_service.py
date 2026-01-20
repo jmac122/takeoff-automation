@@ -279,15 +279,24 @@ class TitleBlockParser:
         title_block_text = " ".join(b.text for b in title_block_blocks)
 
         # Extract fields using patterns
+        # Note: These patterns search ONLY in the title block region (bottom-right 30%)
         patterns = {
             "sheet_number": [
-                r"SHEET\s*(?:NO\.?)?[:\s]*([A-Z]?\d+(?:\.\d+)?)",
-                r"DWG\.?\s*(?:NO\.?)?[:\s]*([A-Z0-9.-]+)",
-                r"\b([A-Z]\d{1,2}\.\d{2})\b",
+                # Standard formats: S0.04, S1.01, A-101, 03200-FL-COVER-02
+                r"SHEET[:\s]+([A-Z]\d+\.\d+)",  # SHEET: S0.04, SHEET S1.01
+                r"SHEET\s*(?:NO\.?|NUMBER|#)?[:\s]*([A-Z0-9][-A-Z0-9.]+)",
+                r"DWG\.?\s*(?:NO\.?|NUMBER)?[:\s]*([A-Z0-9][-A-Z0-9.]+)",
+                r"\b(\d{5}-[A-Z]{2}-[A-Z]+-\d{2})\b",  # 03200-FL-COVER-02
+                r"\b([A-Z]\d{1,2}\.\d{1,2})\b",  # S0.04, S1.01, A2.03
+                r"\b([A-Z]-\d{3})\b",  # S-101, A-201
+            ],
+            "sheet_title": [
+                r"SHEET\s*TITLE[:\s]+([A-Z][A-Z\s]+(?:AND|OR|OF|FOR)?[A-Z\s]+)",
+                r"TITLE[:\s]+([A-Z][A-Z\s]+)",
             ],
             "project_number": [
-                r"PROJECT\s*(?:NO\.?|NUMBER)?[:\s]*(\d+[-\d]*)",
-                r"JOB\s*(?:NO\.?)?[:\s]*(\d+[-\d]*)",
+                r"PROJECT\s*(?:NO\.?|NUMBER)?[:\s]*([\d-]+)",
+                r"JOB\s*(?:NO\.?)?[:\s]*([\d-]+)",
             ],
             "date": [
                 r"DATE[:\s]*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
@@ -297,7 +306,11 @@ class TitleBlockParser:
                 r"REV(?:ISION)?\.?[:\s]*([A-Z0-9]+)",
             ],
             "scale": [
-                r"SCALE[:\s]*([^,\n]+)",
+                r"SCALE[:\s]*(NO\s*SCALE|NTS|NOT\s*TO\s*SCALE)",  # No scale first
+                r"SCALE[:\s]*(\d+/\d+\"\s*=\s*\d+'-\d+\")",  # 1/4" = 1'-0"
+                r"SCALE[:\s]*(\d+\"\s*=\s*\d+')",  # 1" = 10'
+                r"SCALE[:\s]*(1:\d+)",  # 1:100
+                r"SCALE[:\s]*([^,\n]+)",  # Catch-all
             ],
         }
 
