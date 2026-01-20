@@ -39,6 +39,10 @@ docker/.env
 .env.local
 .env.*.local
 
+# Google Cloud credentials
+credentials/
+*.json
+
 # Database files
 *.db
 *.sqlite

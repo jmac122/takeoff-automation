@@ -32,5 +32,12 @@ DEFAULT_LLM_PROVIDER=anthropic
 LLM_FALLBACK_PROVIDERS=
 
 # Google Cloud Vision (OCR - Required for Phase 1B)
-# Path to service account JSON key file
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+# Path to service account JSON key file (inside container)
+# The credentials/ folder is mounted from project root
+GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/google-cloud-key.json
+
+# Setup Instructions:
+# 1. Create GCP service account: gcloud iam service-accounts create takeoff-ocr
+# 2. Generate key: gcloud iam service-accounts keys create credentials/google-cloud-key.json --iam-account=takeoff-ocr@PROJECT_ID.iam.gserviceaccount.com
+# 3. Enable Cloud Vision API: gcloud services enable vision.googleapis.com
+# 4. The credentials/ folder is automatically mounted to /app/credentials in containers

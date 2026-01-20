@@ -69,6 +69,8 @@ services:
       - XAI_API_KEY=${XAI_API_KEY}
       - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-anthropic}
       - LLM_FALLBACK_PROVIDERS=${LLM_FALLBACK_PROVIDERS:-}
+      # Google Cloud Vision credentials
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}
     ports:
       - "8000:8000"
     depends_on:
@@ -80,6 +82,7 @@ services:
         condition: service_healthy
     volumes:
       - ../backend:/app
+      - ../credentials:/app/credentials
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   worker:
@@ -102,6 +105,8 @@ services:
       - XAI_API_KEY=${XAI_API_KEY}
       - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-anthropic}
       - LLM_FALLBACK_PROVIDERS=${LLM_FALLBACK_PROVIDERS:-}
+      # Google Cloud Vision credentials
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}
     depends_on:
       db:
         condition: service_healthy
@@ -109,6 +114,7 @@ services:
         condition: service_healthy
     volumes:
       - ../backend:/app
+      - ../credentials:/app/credentials
     command: celery -A app.workers.celery_app worker --loglevel=info
 
   frontend:

@@ -14,6 +14,7 @@ Complete documentation for the ForgeX Takeoffs platform.
 | [OCR API](./api/OCR_API.md) | OCR and text extraction endpoints |
 | [Database Schema](./database/DATABASE_SCHEMA.md) | Database structure and relationships |
 | [OCR Service](./services/OCR_SERVICE.md) | OCR service implementation guide |
+| [Google Cloud Setup](./deployment/GOOGLE_CLOUD_SETUP.md) | Google Cloud Platform configuration |
 | [Phase 1B Complete](./phase-guides/PHASE_1B_COMPLETE.md) | Phase 1B completion status |
 
 ---
@@ -31,6 +32,7 @@ Complete documentation for the ForgeX Takeoffs platform.
 ### `/deployment/` - Deployment & Operations
 - **DEPLOYMENT_SETUP.md** - Production deployment guide
 - **DOCKER_GUIDE.md** - Docker configuration and commands
+- **GOOGLE_CLOUD_SETUP.md** - Google Cloud Platform setup (Cloud Vision API)
 
 ### `/development/` - Development Workflow
 - **DOCKER_WORKFLOW.md** - ⭐ **Docker-first development guide** (start here!)
