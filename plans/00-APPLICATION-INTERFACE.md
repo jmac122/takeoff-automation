@@ -7,6 +7,46 @@
 
 ---
 
+## ⚠️ CRITICAL: Docker-Based Development
+
+**ALL development happens in Docker containers. NEVER install packages locally.**
+
+This project uses Docker Compose to orchestrate all services. The frontend, backend, database, Redis, MinIO, and Celery worker all run in separate containers.
+
+### Quick Start
+
+```bash
+# Start all services
+cd docker && docker compose up -d
+
+# View status
+docker compose ps
+
+# View logs
+docker compose logs -f frontend
+```
+
+### Key Commands
+
+```bash
+# Rebuild frontend after package.json changes
+docker compose down frontend
+docker compose up -d --build frontend
+
+# Fresh start (removes all data)
+docker compose down -v
+docker compose up -d
+
+# Stop all services
+docker compose down
+```
+
+**Frontend URL:** http://localhost:5173  
+**Backend API:** http://localhost:8000  
+**API Docs:** http://localhost:8000/docs  
+
+---
+
 ## Overview
 
 This phase implements the **foundational user interface** that was missing from the original implementation plan. It provides a complete project management system that allows users to:
@@ -41,6 +81,9 @@ Users need a proper application where they can:
 - Database models for Project, Document, Page
 - TakeoffViewer page (Phase 3A+) at `/documents/:documentId/pages/:pageId`
 - Basic Dashboard with document upload (testing interface only)
+- Docker-based development environment (ALL services run in containers)
+- Design system documentation (`@docs/design/DESIGN-SYSTEM.md`)
+- Component library documentation (`@docs/design/COMPONENT_LIBRARY.md`)
 
 **What's Missing:**
 - Projects list page
@@ -49,6 +92,49 @@ Users need a proper application where they can:
 - Proper navigation/header
 - Document management within projects
 - Breadcrumb navigation
+
+### Tech Stack & Infrastructure
+
+**⚠️ CRITICAL: All development happens in Docker containers**
+
+```
+Project Structure:
+takeoff-automation/
+├── docker/
+│   ├── docker-compose.yml       # Orchestrates all services
+│   ├── Dockerfile.frontend      # React app container
+│   ├── Dockerfile.api          # FastAPI container
+│   └── Dockerfile.worker       # Celery worker container
+├── frontend/                    # React source (mounted in container)
+│   ├── src/
+│   ├── package.json
+│   └── vite.config.ts
+├── backend/                     # Python source (mounted in container)
+│   ├── app/
+│   ├── requirements.txt
+│   └── alembic/
+└── tests/                      # Test files (PDFs, etc.)
+```
+
+**Services (all in Docker):**
+- **frontend**: React 18 + Vite (port 5173)
+- **api**: FastAPI + Python 3.11 (port 8000)
+- **db**: PostgreSQL 15 (port 5432)
+- **redis**: Redis 7 (port 6379)
+- **minio**: S3-compatible storage (port 9000)
+- **worker**: Celery background tasks
+
+**Frontend Stack:**
+- React 18 + TypeScript (strict mode)
+- Vite for build tooling
+- React Router for navigation
+- TanStack Query (React Query) for data fetching
+- shadcn/ui components (already installed)
+- Tailwind CSS for styling
+- Lucide React for icons
+- Konva.js for canvas drawing
+
+**NEVER install npm packages locally - always rebuild Docker container!**
 
 ---
 
@@ -96,6 +182,37 @@ Users need a proper application where they can:
 ## Design System Requirements
 
 **CRITICAL:** Follow the established design system from `@docs/design/DESIGN-SYSTEM.md` and `@docs/design/COMPONENT_LIBRARY.md`.
+
+### MANDATORY Reading Before Implementation
+
+**1. Read `@docs/design/DESIGN-SYSTEM.md` (870 lines)**
+   - Complete color system with HSL tokens
+   - Measurement colors for drawing (`MEASUREMENT_COLORS`)
+   - Typography scale and usage rules
+   - Spacing patterns and tokens
+   - Component patterns and layouts
+   - Accessibility checklist
+   - File organization
+
+**2. Read `@docs/design/COMPONENT_LIBRARY.md` (1099 lines)**
+   - All shadcn/ui components with full examples
+   - Button variants and sizes
+   - Card composition pattern
+   - Dialog/Modal patterns
+   - Form components (Input, Label, Select)
+   - Badge, Skeleton, Alert, Progress
+   - Common patterns (forms, loading, errors)
+   - Utility functions (`cn()`)
+
+**Key Principles:**
+- ✅ Use semantic color tokens (e.g., `bg-primary`, `text-muted-foreground`)
+- ✅ Import components from `@/components/ui/`
+- ✅ Use Lucide React icons exclusively
+- ✅ Follow typography scale (`text-sm`, `text-lg`, `text-2xl`)
+- ✅ Use consistent spacing (`gap-2`, `gap-4`, `p-4`)
+- ❌ NEVER hardcode colors (use design tokens)
+- ❌ NEVER use raw hex values
+- ❌ NEVER import from external UI libraries
 
 ### Key UI Patterns
 
@@ -1007,6 +1124,51 @@ export interface Document {
 
 ---
 
+## Task 0.11: Final Integration & Testing
+
+### Pre-Deployment Checklist
+
+Before testing, ensure:
+
+1. **Design system followed:**
+   - [ ] All colors use semantic tokens (no hardcoded hex)
+   - [ ] Typography follows scale (`text-sm`, `text-lg`, etc.)
+   - [ ] Spacing uses tokens (`gap-2`, `gap-4`, `p-4`)
+   - [ ] All components imported from `@/components/ui/`
+   - [ ] Lucide React icons used exclusively
+
+2. **Docker workflow used:**
+   - [ ] No `node_modules/` in local `frontend/` directory
+   - [ ] All packages added via package.json + container rebuild
+   - [ ] Frontend container rebuilt after any package changes
+
+3. **TypeScript strict mode:**
+   - [ ] No `any` types used
+   - [ ] All props have explicit interfaces
+   - [ ] No TypeScript compilation errors
+
+4. **Code quality:**
+   - [ ] Components follow SOLID principles
+   - [ ] No duplicate code (DRY)
+   - [ ] Simple, clear implementations (KISS)
+
+### Rebuild and Test
+
+```bash
+# Rebuild frontend container with all changes
+cd docker
+docker compose down frontend
+docker compose up -d --build frontend
+
+# Wait for build to complete (watch logs)
+docker compose logs -f frontend
+
+# Once ready, test in browser
+# Frontend will be at: http://localhost:5173
+```
+
+---
+
 ## Verification Checklist
 
 After completing all tasks, verify:
@@ -1057,17 +1219,101 @@ After completing all tasks, verify:
 
 ---
 
+## Docker Development Workflow
+
+### Starting Development Environment
+
+```bash
+# Navigate to docker directory
+cd D:\Repos\takeoff-automation\docker
+
+# Start all services
+docker compose up -d
+
+# Verify services are running
+docker compose ps
+
+# View logs (optional)
+docker compose logs -f frontend
+docker compose logs -f api
+```
+
+**Services will be available at:**
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+### Making Code Changes
+
+**Frontend changes (automatic hot reload):**
+1. Edit files in `frontend/src/` directory
+2. Vite automatically reloads changes in browser
+3. No rebuild needed for code changes
+
+**Adding new npm packages:**
+```bash
+# 1. Edit frontend/package.json to add dependency
+# 2. Rebuild frontend container:
+cd docker
+docker compose down frontend
+docker compose up -d --build frontend
+```
+
+**⚠️ NEVER run `npm install` locally - always rebuild container!**
+
+### Rebuilding Frontend Container
+
+**When to rebuild:**
+- After adding/removing npm packages
+- After changing package.json
+- After TypeScript configuration changes
+- If hot reload stops working
+
+**How to rebuild:**
+```bash
+cd docker
+docker compose down frontend
+docker compose up -d --build frontend
+```
+
+**Full rebuild (if issues persist):**
+```bash
+cd docker
+docker compose down
+docker compose up -d --build
+```
+
+### Verifying Changes
+
+```bash
+# Check TypeScript compilation
+docker compose exec frontend npm run build
+
+# Check for linter errors
+docker compose exec frontend npm run lint
+
+# View container logs
+docker compose logs -f frontend
+```
+
 ## Testing Workflow
 
 ### Manual Testing Steps
 
-1. **Start with empty database:**
+1. **Start with fresh database:**
    ```bash
-   cd docker && docker compose down -v
-   docker compose up -d
+   cd docker
+   docker compose down -v  # Remove volumes
+   docker compose up -d    # Start fresh
    ```
 
-2. **Test project creation:**
+2. **Verify services are running:**
+   ```bash
+   docker compose ps
+   # All services should show "Up" status
+   ```
+
+3. **Test project creation:**
    - Open http://localhost:5173
    - Should redirect to /projects
    - See empty state
@@ -1075,13 +1321,13 @@ After completing all tasks, verify:
    - Fill form and submit
    - Verify navigation to project detail
 
-3. **Test document upload:**
+4. **Test document upload:**
    - On project detail page, click "Upload Documents"
    - Upload a test PDF from `tests/` folder
    - Verify document appears in grid
    - Wait for processing to complete
 
-4. **Test navigation:**
+5. **Test navigation:**
    - Click document card
    - Verify pages appear
    - Click "Open Takeoff" on a page
@@ -1089,37 +1335,113 @@ After completing all tasks, verify:
    - Click "Back" button
    - Verify return to document page
 
-5. **Test breadcrumbs:**
+6. **Test breadcrumbs:**
    - Navigate deep: Projects > Project > Document
    - Click each breadcrumb level
    - Verify correct navigation
 
-6. **Test search/filter:**
+7. **Test search/filter:**
    - Create multiple projects
    - Use search bar on projects page
    - Verify filtering works
+
+### Using Cursor Browser Tools
+
+```typescript
+// Navigate to app
+browser_navigate("http://localhost:5173")
+
+// Take snapshot
+browser_snapshot()
+
+// Click elements
+browser_click("button:has-text('Create Project')")
+
+// Type in inputs
+browser_type("input[name='name']", "Test Project")
+
+// Submit forms
+browser_click("button[type='submit']")
+```
 
 ---
 
 ## Common Issues & Solutions
 
-### Issue: Projects not loading
-**Solution:** Check backend API is running and `/api/v1/projects` endpoint works:
+### Issue: Changes not appearing in browser
+**Cause:** Frontend container not rebuilt after package changes  
+**Solution:**
 ```bash
-curl http://localhost:8000/api/v1/projects
+cd docker
+docker compose down frontend
+docker compose up -d --build frontend
+```
+
+### Issue: "Cannot find module" errors
+**Cause:** New npm package not installed in container  
+**Solution:**
+1. Add package to `frontend/package.json`
+2. Rebuild container (see above)
+3. **DO NOT run `npm install` locally**
+
+### Issue: Projects not loading
+**Cause:** Backend API not running or database not initialized  
+**Solution:**
+```bash
+# Check API is running
+curl http://localhost:8000/api/v1/health
+
+# Check all services
+cd docker && docker compose ps
+
+# View API logs
+docker compose logs -f api
+```
+
+### Issue: Port already in use
+**Cause:** Previous containers still running  
+**Solution:**
+```bash
+cd docker
+docker compose down
+docker compose up -d
+```
+
+### Issue: TypeScript compilation errors
+**Cause:** Type mismatches or missing imports  
+**Solution:**
+```bash
+# Check compilation in container
+docker compose exec frontend npm run build
+
+# View detailed errors
+docker compose logs frontend
 ```
 
 ### Issue: Document upload fails
-**Solution:** Verify project_id is being sent in FormData and backend accepts it
+**Cause:** project_id not sent or MinIO not running  
+**Solution:**
+1. Verify FormData includes project_id
+2. Check MinIO container: `docker compose ps minio`
+3. Check backend logs: `docker compose logs -f api`
 
 ### Issue: Breadcrumbs show wrong path
-**Solution:** Ensure all parent data is fetched (project name for document page, etc.)
+**Cause:** Parent data not fetched  
+**Solution:** Ensure all parent entities are fetched (project name for document page, etc.)
 
-### Issue: TypeScript errors on navigation
-**Solution:** Ensure all route params are properly typed in useParams hooks
+### Issue: Images/thumbnails not loading
+**Cause:** MinIO URL misconfigured or CORS issues  
+**Solution:**
+1. Check MinIO is running: `docker compose ps minio`
+2. Verify MinIO URL in backend config
+3. Check browser console for CORS errors
 
-### Issue: Images not loading
-**Solution:** Check CORS settings and MinIO URL configuration
+### Issue: Hot reload not working
+**Cause:** Vite HMR connection lost  
+**Solution:**
+1. Refresh browser
+2. Restart frontend container: `docker compose restart frontend`
+3. Check no firewall blocking port 5173
 
 ---
 

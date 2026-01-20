@@ -47,14 +47,66 @@ You will implement a **complete project management interface** that serves as th
 ✅ **TakeoffViewer page exists**: Phase 3A+ manual drawing tools  
 ✅ **Document upload component exists**: DocumentUploader.tsx  
 
-## Tech Stack
+## Tech Stack & Development Environment
 
-- React 18 + TypeScript (strict mode)
-- React Router for navigation
-- TanStack Query (React Query) for data fetching
-- shadcn/ui components (already installed)
-- Tailwind CSS for styling
-- Lucide React for icons
+### ⚠️ CRITICAL: Docker-Based Development
+
+**ALL development happens in Docker containers. NEVER install packages locally.**
+
+```bash
+# Project structure
+takeoff-automation/
+├── docker/
+│   ├── docker-compose.yml       # Service orchestration
+│   ├── Dockerfile.frontend      # Frontend container
+│   ├── Dockerfile.api          # Backend API container
+│   └── Dockerfile.worker       # Celery worker container
+├── frontend/                    # React app (runs in container)
+├── backend/                     # FastAPI app (runs in container)
+└── tests/                      # Test files (PDFs, etc.)
+```
+
+### Frontend Stack (Docker Container)
+- **React 18** + TypeScript (strict mode)
+- **Vite** for build tooling
+- **React Router** for navigation
+- **TanStack Query** (React Query) for data fetching
+- **shadcn/ui** components (already installed)
+- **Tailwind CSS** for styling
+- **Lucide React** for icons
+- **Konva.js** for canvas drawing (Phase 3A+)
+
+### Backend Stack (Docker Container)
+- **Python 3.11+** with FastAPI
+- **PostgreSQL 15+** database
+- **Redis 7+** for caching/Celery
+- **MinIO** (S3-compatible storage)
+- **Celery** for background tasks
+
+### Design System (MANDATORY READING)
+
+**BEFORE writing any UI code, read these files:**
+
+1. **`@docs/design/DESIGN-SYSTEM.md`** (870 lines)
+   - Complete color system (HSL tokens, measurement colors)
+   - Typography scale and usage rules
+   - Spacing patterns
+   - Component patterns
+   - Accessibility guidelines
+
+2. **`@docs/design/COMPONENT_LIBRARY.md`** (1099 lines)
+   - All shadcn/ui components with examples
+   - Button, Card, Dialog, Input, Select, Badge, etc.
+   - Usage patterns and best practices
+   - Common patterns (forms, loading states, errors)
+   - Accessibility guidelines
+
+**Key Design Principles:**
+- Use semantic color tokens (never hardcode colors)
+- Follow typography scale (`text-sm`, `text-lg`, `text-2xl`)
+- Use consistent spacing (`gap-2`, `gap-4`, `p-4`)
+- Import shadcn/ui from `@/components/ui/`
+- Use Lucide React icons exclusively
 
 ## Pages to Build
 
@@ -342,6 +394,90 @@ If anything is unclear about the existing codebase:
 
 ---
 
+## Docker Workflow (CRITICAL)
+
+### Starting Development
+
+```bash
+# Navigate to docker directory
+cd D:\Repos\takeoff-automation\docker
+
+# Start all services (API, frontend, database, redis, minio, worker)
+docker compose up -d
+
+# Check service status
+docker compose ps
+
+# View logs
+docker compose logs -f frontend  # Frontend logs
+docker compose logs -f api       # Backend logs
+```
+
+### Making Code Changes
+
+**Frontend changes:**
+1. Edit files in `frontend/src/` directory
+2. Changes are hot-reloaded automatically (Vite HMR)
+3. If you add NEW dependencies or change package.json:
+   ```bash
+   cd docker
+   docker compose down frontend
+   docker compose up -d --build frontend
+   ```
+
+**NEVER run `npm install` locally - always rebuild container!**
+
+### Installing New Packages
+
+```bash
+# WRONG ❌ - Do NOT do this
+cd frontend && npm install package-name
+
+# CORRECT ✅ - Add to package.json, then rebuild
+# 1. Edit frontend/package.json to add dependency
+# 2. Rebuild container:
+cd docker
+docker compose up -d --build frontend
+```
+
+### Testing Changes
+
+```bash
+# Frontend runs at: http://localhost:5173
+# Backend API at: http://localhost:8000
+# API docs at: http://localhost:8000/docs
+
+# Use Cursor's browser tools to test:
+browser_navigate("http://localhost:5173")
+browser_snapshot()
+browser_click()
+```
+
+### Troubleshooting
+
+**Issue: Changes not appearing**
+```bash
+# Rebuild frontend container
+cd docker
+docker compose down frontend
+docker compose up -d --build frontend
+```
+
+**Issue: TypeScript errors**
+```bash
+# Check compilation in container
+docker compose exec frontend npm run build
+```
+
+**Issue: Port conflicts**
+```bash
+# Stop all containers
+docker compose down
+
+# Remove volumes (fresh start)
+docker compose down -v
+```
+
 ## Expected Completion Time
 
 - Type definitions & API client: 15-20 minutes
@@ -349,6 +485,7 @@ If anything is unclear about the existing codebase:
 - Pages (Projects, ProjectDetail, DocumentDetail): 60-90 minutes
 - Navigation components: 15-20 minutes
 - Routing & integration: 15-20 minutes
+- **Container rebuild**: 5-10 minutes
 - Testing & bug fixes: 30-45 minutes
 - **Total: 3-4 hours**
 
