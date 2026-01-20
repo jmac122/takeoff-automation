@@ -62,7 +62,7 @@ class LLMResponse:
 
 # Model configurations for each provider
 PROVIDER_MODELS = {
-    LLMProvider.ANTHROPIC: "claude-3-5-sonnet-20241022",
+    LLMProvider.ANTHROPIC: "claude-sonnet-4-20250514",
     LLMProvider.OPENAI: "gpt-4o",
     LLMProvider.GOOGLE: "gemini-1.5-pro",
     LLMProvider.XAI: "grok-vision-beta",
