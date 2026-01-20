@@ -8,7 +8,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        // Use Docker service name for container-to-container communication
+        target: process.env.VITE_API_URL || "http://api:8000",
         changeOrigin: true,
       },
     },
