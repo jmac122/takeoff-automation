@@ -3,8 +3,8 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, ForeignKey, Text, Float
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import String, Float, Integer, ForeignKey, Text
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class Condition(Base, UUIDMixin, TimestampMixin):
-    """Takeoff line item (e.g., "4" Concrete Slab")."""
+    """Takeoff condition (line item) that groups measurements."""
 
     __tablename__ = "conditions"
 
@@ -27,14 +27,38 @@ class Condition(Base, UUIDMixin, TimestampMixin):
     )
 
     # Condition info
-    name: Mapped[str] = mapped_column(
-        String(255), nullable=False
-    )  # e.g., "4" Concrete Slab"
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    unit: Mapped[str] = mapped_column(
-        String(50), nullable=False
-    )  # sq ft, linear ft, etc.
-    unit_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Scope/category
+    scope: Mapped[str] = mapped_column(String(100), default="concrete")
+    category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Measurement type
+    measurement_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )  # linear, area, volume, count
+
+    # Display
+    color: Mapped[str] = mapped_column(String(20), default="#3B82F6")  # Hex color
+    line_width: Mapped[int] = mapped_column(Integer, default=2)
+    fill_opacity: Mapped[float] = mapped_column(Float, default=0.3)
+
+    # Unit and modifiers
+    unit: Mapped[str] = mapped_column(String(50), default="LF")  # LF, SF, CY, EA
+    depth: Mapped[float | None] = mapped_column(Float, nullable=True)  # For volume calc
+    thickness: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Calculated totals (denormalized for performance)
+    total_quantity: Mapped[float] = mapped_column(Float, default=0.0)
+    measurement_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Sort order
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # Extra metadata
+    extra_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="conditions")
