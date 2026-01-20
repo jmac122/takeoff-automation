@@ -1,4 +1,11 @@
 # Docker Environment Configuration
+# 
+# IMPORTANT: Copy this file to docker/.env (NOT the project root!)
+#   cp docker-env.example docker/.env
+#
+# Then edit docker/.env with your actual values.
+# The .env file must be in the docker/ folder for Docker Compose to read it.
+
 APP_ENV=development
 SECRET_KEY=docker-secret-key-32-chars-for-development-only
 

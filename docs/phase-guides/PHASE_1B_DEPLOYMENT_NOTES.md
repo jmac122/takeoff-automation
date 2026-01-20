@@ -4,7 +4,9 @@
 
 **This project uses Docker for everything.** All commands should be run inside Docker containers, not on your local machine.
 
-**CRITICAL:** All docker commands must be run from the `docker/` folder!
+**CRITICAL:** 
+1. All docker commands must be run from the `docker/` folder!
+2. The `.env` file must be in `docker/.env` (NOT project root!)
 
 ```bash
 cd docker                                        # Navigate to docker folder
@@ -12,10 +14,12 @@ docker compose exec api python script.py        # Now this works
 ```
 
 ✅ **Correct:** `cd docker && docker compose exec api python script.py`  
+✅ **Correct:** Environment file at `docker/.env`  
 ❌ **Wrong:** `python script.py` (don't install Python locally)  
-❌ **Wrong:** `docker compose up -d` (from project root - won't work!)
+❌ **Wrong:** `docker compose up -d` (from project root - won't work!)  
+❌ **Wrong:** `.env` in project root (Docker Compose won't find it!)
 
-See [Docker Workflow Guide](docs/development/DOCKER_WORKFLOW.md) for complete instructions.
+See [Docker Workflow Guide](../development/DOCKER_WORKFLOW.md) for complete instructions.
 
 ---
 

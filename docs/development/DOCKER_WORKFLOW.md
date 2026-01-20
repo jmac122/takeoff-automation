@@ -349,12 +349,17 @@ services:
 
 ### Development (.env)
 
+**IMPORTANT:** The `.env` file must be in the `docker/` folder!
+
 ```bash
-# Copy example
-cp docker-env.example .env
+# Copy example to docker folder
+cp docker-env.example docker/.env
 
 # Edit as needed
-nano .env
+nano docker/.env
+
+# Or use your preferred editor
+code docker/.env
 ```
 
 ### Required Variables

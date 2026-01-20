@@ -37,10 +37,10 @@ Phase 1B has been fully implemented with Google Cloud Vision integration, automa
    cd takeoff-platform
    ```
 
-2. **Create environment file**
+2. **Create environment file in docker/ folder**
    ```bash
-   cp docker-env.example .env
-   # Edit .env if needed for LLM API keys (optional for Phase 1A)
+   cp docker-env.example docker/.env
+   # Edit docker/.env with your API keys
    ```
 
 3. **Navigate to docker folder and start services**

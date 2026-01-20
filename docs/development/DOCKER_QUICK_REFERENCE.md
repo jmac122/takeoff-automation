@@ -10,13 +10,24 @@
 
 ---
 
-## 📂 Important: Working Directory
+## 📂 Important: Working Directory & Environment
 
 **All docker commands must be run from the `docker/` folder:**
 
 ```bash
 cd docker                    # ALWAYS do this first!
 docker compose up -d         # Now this works
+```
+
+**Environment file location:**
+- ✅ `docker/.env` - Correct location
+- ❌ `.env` in project root - Won't work!
+
+```bash
+# Create .env file
+cp docker-env.example docker/.env
+# Edit with your API keys
+nano docker/.env
 ```
 
 ---
