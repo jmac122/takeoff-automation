@@ -44,6 +44,12 @@ class Page(Base, UUIDMixin, TimestampMixin):
     classification_confidence: Mapped[float | None] = mapped_column(
         Float, nullable=True
     )
+    concrete_relevance: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # high, medium, low, none
+    classification_metadata: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True
+    )  # Full classification result with LLM metadata
 
     # Page title/name (extracted via OCR)
     title: Mapped[str | None] = mapped_column(String(500), nullable=True)

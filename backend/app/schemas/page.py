@@ -19,6 +19,7 @@ class PageResponse(BaseModel):
     height: int
     classification: str | None = None
     classification_confidence: float | None = None
+    concrete_relevance: str | None = None
     title: str | None = None
     sheet_number: str | None = None
     scale_text: str | None = None
@@ -39,6 +40,7 @@ class PageSummaryResponse(BaseModel):
     width: int
     height: int
     classification: str | None = None
+    concrete_relevance: str | None = None
     title: str | None = None
     sheet_number: str | None = None
     scale_text: str | None = None
