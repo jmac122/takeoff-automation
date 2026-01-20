@@ -110,12 +110,14 @@ class PageClassifier:
             prompt += f"\n\nOCR text found on page (for context):\n{ocr_text[:1000]}"
 
         # Analyze image
+        # Use high token limit - future phases (AI takeoff) will need even more
+        # for returning element coordinates and measurements
         try:
             data, response = llm.analyze_image_json(
                 image_bytes=image_bytes,
                 prompt=prompt,
                 system_prompt=CLASSIFICATION_SYSTEM_PROMPT,
-                max_tokens=1024,  # Increased for Gemini which may need more tokens
+                max_tokens=8192,  # High limit for verbose models and future phases
             )
 
             return ClassificationResult(
