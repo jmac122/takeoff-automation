@@ -71,6 +71,32 @@ export interface PageSummary {
   thumbnail_url?: string | null;
 }
 
+export interface Page {
+  id: string;
+  document_id: string;
+  page_number: number;
+  page_label?: string | null;
+  classification?: string | null;
+  classification_confidence?: number | null;
+  detected_scale?: string | null;
+  scale_value?: number | null;
+  scale_unit?: string | null;
+  scale_calibrated: boolean;
+  scale_method?: string | null;
+  image_url?: string | null;
+  thumbnail_url?: string | null;
+  width?: number | null;
+  height?: number | null;
+  ocr_text?: string | null;
+  title_block_data?: Record<string, any> | null;
+  extra_metadata?: Record<string, any> | null;
+  created_at: string;
+  updated_at: string;
+  document?: {
+    project_id: string;
+  };
+}
+
 export interface Document {
   id: string;
   project_id: string;
