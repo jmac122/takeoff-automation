@@ -1,4 +1,4 @@
-# Database Schema - Phases 1A, 1B & 2A: Document Ingestion, OCR & Classification
+# Database Schema - Phases 1A, 1B, 2A & 2B: Document Ingestion, OCR, Classification & Scale Detection
 
 ## Overview
 
@@ -226,6 +226,74 @@ FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE;
 **Relationships:**
 - Many-to-one with Documents
 - One-to-many with Measurements
+
+#### Scale Fields (Phase 2B)
+
+The `pages` table includes comprehensive scale detection and calibration fields:
+
+**Field Details:**
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `scale_text` | VARCHAR(100) | Human-readable scale notation (e.g., "1/4\" = 1'-0\"") |
+| `scale_value` | FLOAT | Pixels per foot for measurement calculations |
+| `scale_unit` | VARCHAR(20) | Unit system: "foot", "inch", or "meter" |
+| `scale_calibrated` | BOOLEAN | True if manually calibrated or high-confidence auto-detection |
+| `scale_calibration_data` | JSONB | Full detection results and metadata |
+
+**scale_calibration_data Structure:**
+
+```json
+{
+  "parsed_scales": [
+    {
+      "text": "1/4\" = 1'-0\"",
+      "ratio": 48.0,
+      "pixels_per_foot": 3.125,
+      "confidence": 0.9
+    }
+  ],
+  "scale_bars": [
+    {
+      "x1": 120,
+      "y1": 2800,
+      "x2": 420,
+      "y2": 2800,
+      "length_pixels": 300
+    }
+  ],
+  "best_scale": {
+    "text": "1/4\" = 1'-0\"",
+    "ratio": 48.0,
+    "pixels_per_foot": 3.125,
+    "confidence": 0.9
+  },
+  "needs_calibration": false,
+  "calibration": {
+    "pixels_per_foot": 10.5,
+    "pixels_per_unit": 10.5,
+    "unit": "foot",
+    "estimated_ratio": 14.3,
+    "method": "manual_calibration"
+  },
+  "calibration_input": {
+    "pixel_distance": 100.0,
+    "real_distance": 10.0,
+    "real_unit": "foot"
+  },
+  "copied_from": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+**Detection Methods:**
+1. **OCR Pattern Matching**: Regex patterns detect scale notations in text
+2. **Visual Scale Bars**: OpenCV detects graphical scale bars
+3. **Manual Calibration**: User-specified pixel-to-distance mapping
+
+**Auto-Calibration Logic:**
+- If `best_scale.confidence >= 0.85` AND `pixels_per_foot` is valid
+- Then `scale_calibrated = TRUE` and `scale_value` is set
+- Otherwise, `needs_calibration = TRUE` (requires manual calibration)
 
 ### Conditions Table
 

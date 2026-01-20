@@ -1,4 +1,4 @@
-# API Reference - Phases 1A, 1B & 2A: Document Ingestion, OCR & Classification
+# API Reference - Phases 1A, 1B, 2A & 2B: Document Ingestion, OCR, Classification & Scale Detection
 
 ## Overview
 
@@ -763,15 +763,189 @@ List available LLM providers and their configuration.
 
 ---
 
+## Scale Detection & Calibration
+
+### POST /pages/{page_id}/detect-scale
+
+Trigger automatic scale detection for a page using OCR text analysis and pattern matching.
+
+**Parameters:**
+- `page_id` (path) - UUID of the page
+
+**Response:**
+```json
+{
+  "status": "queued",
+  "page_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Status Codes:**
+- `202` - Detection task queued successfully
+- `404` - Page not found
+
+**Process:**
+1. Queues a Celery task for async processing
+2. Analyzes OCR text for scale patterns (e.g., "1/4\" = 1'-0\"")
+3. Detects graphical scale bars using computer vision
+4. Updates page with detected scale if confidence >= 85%
+
+---
+
+### PUT /pages/{page_id}/scale
+
+Manually set or update the scale for a page.
+
+**Parameters:**
+- `page_id` (path) - UUID of the page
+
+**Request Body:**
+```json
+{
+  "scale_value": 10.5,
+  "scale_unit": "foot",
+  "scale_text": "1/4\" = 1'-0\""
+}
+```
+
+**Fields:**
+- `scale_value` (required) - Pixels per foot
+- `scale_unit` (optional) - Unit system (default: "foot")
+- `scale_text` (optional) - Human-readable scale notation
+
+**Response:**
+```json
+{
+  "status": "success",
+  "page_id": "550e8400-e29b-41d4-a716-446655440000",
+  "scale_value": 10.5,
+  "scale_unit": "foot",
+  "scale_calibrated": true
+}
+```
+
+**Status Codes:**
+- `200` - Scale updated successfully
+- `404` - Page not found
+- `422` - Validation error
+
+---
+
+### POST /pages/{page_id}/calibrate
+
+Calibrate page scale using a known distance measurement.
+
+**Parameters:**
+- `page_id` (path) - UUID of the page
+- `pixel_distance` (query) - Distance in pixels
+- `real_distance` (query) - Real-world distance
+- `real_unit` (query, optional) - Unit of measurement (default: "foot")
+
+**Example Request:**
+```
+POST /pages/{id}/calibrate?pixel_distance=100&real_distance=10&real_unit=foot
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "page_id": "550e8400-e29b-41d4-a716-446655440000",
+  "pixels_per_foot": 10.0,
+  "estimated_scale_ratio": 15.0
+}
+```
+
+**Status Codes:**
+- `200` - Calibration successful
+- `400` - Invalid distance values
+- `404` - Page not found
+
+**Workflow:**
+1. User draws a line on the plan
+2. Frontend calculates pixel distance
+3. User enters real-world distance
+4. Backend calculates pixels_per_foot
+5. Page marked as calibrated
+
+---
+
+### POST /pages/{page_id}/copy-scale-from/{source_page_id}
+
+Copy scale settings from another page.
+
+**Parameters:**
+- `page_id` (path) - Target page UUID
+- `source_page_id` (path) - Source page UUID
+
+**Response:**
+```json
+{
+  "status": "success",
+  "page_id": "550e8400-e29b-41d4-a716-446655440000",
+  "scale_value": 10.5,
+  "copied_from": "660e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+**Status Codes:**
+- `200` - Scale copied successfully
+- `400` - Source page not calibrated
+- `404` - Page not found
+
+**Use Case:**
+When multiple pages in a document have the same scale, calibrate one page and copy the scale to others instead of recalibrating each page individually.
+
+---
+
+## Scale Detection Details
+
+### Supported Scale Formats
+
+**Architectural Scales:**
+- `1/4" = 1'-0"` (1:48) - Common for floor plans
+- `1/8" = 1'-0"` (1:96) - Smaller buildings
+- `3/16" = 1'-0"` (1:64)
+- `1/2" = 1'-0"` (1:24) - Details
+- `1" = 1'-0"` (1:12) - Large scale details
+- `3" = 1'-0"` (1:4) - Full size
+
+**Engineering Scales:**
+- `1" = 10'` (1:120)
+- `1" = 20'` (1:240) - Site plans
+- `1" = 30'` (1:360)
+- `1" = 50'` (1:600)
+- `1" = 100'` (1:1200)
+
+**Metric Scales:**
+- `1:50`
+- `1:100`
+- `1:200`
+- `1:500`
+
+**Special:**
+- `N.T.S.` or `NOT TO SCALE`
+
+### Detection Methods
+
+1. **OCR Text Patterns**: Regex matching on extracted text
+2. **Visual Scale Bars**: OpenCV-based detection of graphical scales
+3. **Confidence Scoring**: Each detection receives a confidence score (0-1)
+4. **Auto-Calibration**: High confidence (≥0.85) automatically marks page as calibrated
+
+---
+
 ## Future Endpoints
 
-### Phase 2B
-- `POST /pages/{id}/calibrate` - Calibrate scale
-- `GET /pages/{id}/scale` - Get scale information
-
-### Phase 3A
+### Phase 3A - Measurement Engine
 - `POST /measurements` - Create measurements
 - `GET /measurements/{id}` - Get measurement details
+- `PUT /measurements/{id}` - Update measurements
+- `DELETE /measurements/{id}` - Delete measurements
+
+### Phase 3B - Condition Management
+- `POST /projects/{id}/conditions` - Create condition
+- `GET /conditions/{id}` - Get condition details
 
 This API reference will be updated as new endpoints are implemented in future phases.
 
