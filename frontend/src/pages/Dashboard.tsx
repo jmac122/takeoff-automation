@@ -29,7 +29,8 @@ interface PageData {
   scale_text: string | null;
   scale_calibrated: boolean;
   status: string;
-  thumbnail_url: string | null;
+  image_url: string | null;  // Full resolution image
+  thumbnail_url: string | null;  // Small preview
   concrete_relevance?: string | null;
 }
 
@@ -548,16 +549,16 @@ export default function Dashboard() {
                 className={`border rounded-lg p-3 cursor-pointer transition-all hover:shadow-md ${selectedPageId === page.id ? "ring-2 ring-purple-500 border-purple-300" : "border-gray-200"
                   }`}
               >
-                {/* Thumbnail - clickable to open full image */}
+                {/* Thumbnail - clickable to open full resolution image */}
                 <div className="aspect-[8.5/11] bg-gray-100 rounded mb-2 overflow-hidden relative group">
                   {page.thumbnail_url ? (
                     <a
-                      href={page.thumbnail_url}
+                      href={page.image_url || page.thumbnail_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
                       className="block w-full h-full"
-                      title="Click to open full image in new tab"
+                      title="Click to open full resolution image in new tab"
                     >
                       <img
                         src={page.thumbnail_url}

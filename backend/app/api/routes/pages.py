@@ -55,6 +55,7 @@ async def list_document_pages(
             scale_text=page.scale_text,
             scale_calibrated=page.scale_calibrated,
             status=page.status,
+            image_url=storage.get_presigned_url(page.image_key, 3600),
             thumbnail_url=storage.get_presigned_url(page.thumbnail_key, 3600)
             if page.thumbnail_key
             else None,

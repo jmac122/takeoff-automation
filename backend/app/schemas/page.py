@@ -46,7 +46,8 @@ class PageSummaryResponse(BaseModel):
     scale_text: str | None = None
     scale_calibrated: bool = False
     status: str
-    thumbnail_url: str | None = None
+    image_url: str | None = None  # Full resolution image
+    thumbnail_url: str | None = None  # Small preview
 
 
 class PageListResponse(BaseModel):
