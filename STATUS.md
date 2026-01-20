@@ -1,7 +1,7 @@
 # ForgeX Takeoffs - Project Status
 
-**Last Updated:** January 19, 2026  
-**Current Phase:** ✅ Phase 2A Complete - Ready for Phase 2B
+**Last Updated:** January 20, 2026  
+**Current Phase:** ✅ Phase 2B Complete - Ready for Phase 3A
 
 ---
 
@@ -81,25 +81,51 @@
 - [Phase 2A Complete Guide](docs/phase-guides/PHASE_2A_COMPLETE.md)
 - [Phase 2A Docker Testing](docs/phase-guides/PHASE_2A_DOCKER_TESTING.md)
 
+### Phase 2B: Scale Detection and Calibration (Weeks 10-12)
+**Status:** COMPLETE ✅  
+**Completed:** January 20, 2026
+
+- ✅ Scale parser service (15+ scale formats)
+- ✅ Pattern matching (architectural, engineering, ratio scales)
+- ✅ Visual scale bar detection (OpenCV)
+- ✅ Multi-strategy detection (OCR + CV + manual)
+- ✅ Automatic calibration (confidence ≥85%)
+- ✅ Manual calibration workflow
+- ✅ Scale copying between pages
+- ✅ Scale API endpoints (4 endpoints)
+- ✅ Frontend calibration component (shadcn/ui)
+- ✅ Database fields for scale storage
+
+**Key Features:**
+- **Supported Formats**: 1/4" = 1'-0", 1" = 20', 1:100, N.T.S., etc.
+- **Auto-Calibration**: High-confidence detections auto-calibrate pages
+- **Manual Fallback**: Draw line + enter distance for edge cases
+- **Scale Copying**: Copy calibrated scale between similar pages
+- **Unit Support**: Feet, inches, meters
+
+**Documentation:**
+- [Phase 2B Complete Guide](docs/phase-guides/PHASE_2B_COMPLETE.md)
+- [Scale Service Docs](docs/services/SCALE_SERVICE.md)
+
 ---
 
 ## ⏭️ Next Phase
 
-### Phase 2B: Scale Detection (Weeks 10-12)
+### Phase 3A: Measurement Engine (Weeks 13-16)
 **Status:** READY TO START
 
 **Requirements:**
-- Phase 2A complete (classification working)
-- LLM API keys configured
+- Phase 2B complete (scale detection working)
+- Pages have calibrated scales
 
 **Tasks:**
-- Detect scale indicators on pages
-- Parse scale text (e.g., "1/4" = 1'-0"")
-- Visual scale calibration interface
-- Store calibration data per page
-- Scale API endpoints
+- Implement measurement tools (line, polyline, polygon, area)
+- Geometry calculations with scale conversion
+- Real-world unit calculations (LF, SF, CY)
+- Measurement API endpoints
+- Interactive drawing tools (Konva.js)
 
-**See:** `plans/05-SCALE-DETECTION.md`
+**See:** `plans/06-MEASUREMENT-ENGINE.md`
 
 ---
 
@@ -163,13 +189,20 @@ projects        -- Main project container
     └── measurements -- Geometry and quantities
 ```
 
-### Phase 2A Additions to `pages` Table
+### Phase 2A & 2B Additions to `pages` Table
 ```sql
 -- Classification fields (Phase 2A)
 classification VARCHAR(100)           -- "Structural:Plan"
 classification_confidence FLOAT       -- 0.0 to 1.0
 concrete_relevance VARCHAR(20)        -- high/medium/low/none
 classification_metadata JSONB         -- Full LLM response data
+
+-- Scale detection fields (Phase 2B)
+scale_text VARCHAR(100)               -- "1/4\" = 1'-0\""
+scale_value FLOAT                     -- pixels per foot
+scale_unit VARCHAR(20)                -- "foot", "inch", "meter"
+scale_calibrated BOOLEAN              -- manual or high-confidence auto
+scale_calibration_data JSONB          -- detection results + metadata
 ```
 
 ---
@@ -229,6 +262,12 @@ docker compose up -d
 - `GET /pages/{id}/classification` - Get classification results
 - `GET /settings/llm/providers` - List available LLM providers
 
+### Phase 2B - Scale Detection
+- `POST /pages/{id}/detect-scale` - Auto-detect scale
+- `PUT /pages/{id}/scale` - Manually set scale
+- `POST /pages/{id}/calibrate` - Calibrate from measurement
+- `POST /pages/{id}/copy-scale-from/{source_id}` - Copy scale
+
 ---
 
 ## 📚 Documentation
@@ -238,8 +277,11 @@ docker compose up -d
 | [docs/README.md](docs/README.md) | Documentation index |
 | [docs/api/API_REFERENCE.md](docs/api/API_REFERENCE.md) | API endpoint reference |
 | [docs/database/DATABASE_SCHEMA.md](docs/database/DATABASE_SCHEMA.md) | Database schema |
+| [docs/services/OCR_SERVICE.md](docs/services/OCR_SERVICE.md) | OCR service implementation |
+| [docs/services/SCALE_SERVICE.md](docs/services/SCALE_SERVICE.md) | Scale detection service |
 | [docs/frontend/FRONTEND_IMPLEMENTATION.md](docs/frontend/FRONTEND_IMPLEMENTATION.md) | Frontend architecture |
 | [docs/phase-guides/PHASE_2A_COMPLETE.md](docs/phase-guides/PHASE_2A_COMPLETE.md) | Phase 2A guide |
+| [docs/phase-guides/PHASE_2B_COMPLETE.md](docs/phase-guides/PHASE_2B_COMPLETE.md) | Phase 2B guide |
 | [PHASE_PROMPTS.md](PHASE_PROMPTS.md) | Complete implementation prompts |
 
 ---
@@ -259,31 +301,33 @@ docker compose up -d
 ## 📊 Project Metrics
 
 ### Code Statistics
-- **Backend:** 35+ Python files
-- **Frontend:** 12+ TypeScript/TSX files
+- **Backend:** 40+ Python files
+- **Frontend:** 15+ TypeScript/TSX files
 - **Database:** 5 tables with relationships
-- **API Endpoints:** 15+ routes implemented
+- **API Endpoints:** 20+ routes implemented
 - **Docker Services:** 6 containers
 
 ### AI/LLM Stats
 - **Providers Supported:** 4 (Anthropic, OpenAI, Google, xAI)
 - **Classification Categories:** 8 disciplines, 8 page types
 - **Concrete Relevance Levels:** 4 (high, medium, low, none)
+- **Scale Formats Supported:** 15+ (architectural, engineering, metric)
 
 ---
 
 ## 🎯 Immediate Next Steps
 
-1. **Test Phase 2A:**
+1. **Test Phase 2B:**
    - Go to http://localhost:5173
-   - Upload a PDF document
-   - Click "Classify All Pages"
-   - View classification results
+   - Upload a PDF document with scale notations
+   - Click "Detect Scale" on a page
+   - Or manually calibrate: Draw line → Enter distance
+   - Verify scale is saved
 
-2. **Start Phase 2B:**
-   - Review `plans/05-SCALE-DETECTION.md`
-   - Implement scale detection service
-   - Add calibration UI
+2. **Start Phase 3A:**
+   - Review `plans/06-MEASUREMENT-ENGINE.md`
+   - Implement measurement tools (line, polygon, area)
+   - Create interactive drawing interface
 
 ---
 
@@ -296,11 +340,13 @@ docker compose up -d
 - [x] Can upload files
 - [x] OCR extracts text
 - [x] Classification works with LLM
+- [x] Scale detection parses 15+ formats
+- [x] Manual calibration workflow complete
 - [x] Documentation organized and complete
 
 ---
 
-**Your platform is ready for Phase 2B!** 🚀
+**Your platform is ready for Phase 3A - Measurement Engine!** 🚀
 
 For detailed implementation guides, see `PHASE_PROMPTS.md`  
-For Phase 2A testing, see `docs/phase-guides/PHASE_2A_DOCKER_TESTING.md`
+For Phase 2B testing, see `docs/phase-guides/PHASE_2B_COMPLETE.md`
