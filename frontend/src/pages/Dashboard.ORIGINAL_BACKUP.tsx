@@ -1,0 +1,1119 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import axios from "axios";
+import DocumentUploader from "../components/document/DocumentUploader";
+
+interface HealthResponse {
+  status: string;
+}
+
+interface LLMProvider {
+  name: string;
+  display_name: string;
+  model: string;
+  strengths: string;
+  cost_tier: string;
+  available: boolean;
+  is_default: boolean;
+}
+
+interface PageData {
+  id: string;
+  document_id: string;
+  page_number: number;
+  width: number;
+  height: number;
+  classification: string | null;
+  title: string | null;
+  sheet_number: string | null;
+  scale_text: string | null;
+  scale_calibrated: boolean;
+  status: string;
+  image_url: string | null;  // Full resolution image
+  thumbnail_url: string | null;  // Small preview
+  concrete_relevance?: string | null;
+}
+
+interface PageClassification {
+  page_id: string;
+  classification: string | null;
+  confidence: number | null;
+  concrete_relevance: string | null;
+  metadata: {
+    discipline?: string;
+    discipline_confidence?: number;
+    page_type?: string;
+    page_type_confidence?: number;
+    concrete_elements?: string[];
+    description?: string;
+    llm_provider?: string;
+    llm_model?: string;
+    llm_latency_ms?: number;
+  } | null;
+}
+
+interface ClassificationHistoryEntry {
+  id: string;
+  page_id: string;
+  status: string; // success, failed, truncated
+  error_message: string | null;
+  classification: string | null;
+  classification_confidence: number | null;
+  discipline: string | null;
+  discipline_confidence: number | null;
+  page_type: string | null;
+  page_type_confidence: number | null;
+  concrete_relevance: string | null;
+  concrete_elements: string[] | null;
+  description: string | null;
+  llm_provider: string;
+  llm_model: string;
+  llm_latency_ms: number | null;
+  created_at: string;
+  // Page context (from all-history endpoint)
+  page_number?: number;
+  sheet_number?: string | null;
+  document_id?: string;
+}
+
+interface ClassificationHistoryResponse {
+  page_id: string;
+  total: number;
+  history: ClassificationHistoryEntry[];
+}
+
+interface DocumentData {
+  id: string;
+  project_id: string;
+  filename: string;
+  original_filename: string;
+  file_type: string;
+  file_size: number;
+  page_count: number | null;
+  status: string;
+  created_at: string;
+}
+
+export default function Dashboard() {
+  const [uploadedDocumentId, setUploadedDocumentId] = useState<string | null>(null);
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [classificationProvider, setClassificationProvider] = useState<string>("default");
+  const [showProviderSettings, setShowProviderSettings] = useState(false);
+  const [showExistingDocs, setShowExistingDocs] = useState(true);
+  const [expandedHistoryIds, setExpandedHistoryIds] = useState<Set<string>>(new Set());
+
+  const toggleHistoryExpanded = (id: string) => {
+    setExpandedHistoryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // For Phase 2A testing, use the actual project ID we created
+  const demoProjectId = "fb5df285-615c-40e7-875c-4639c9ea0706";
+
+  // Fetch existing documents for the project
+  const { data: existingDocsData, refetch: refetchDocs } = useQuery({
+    queryKey: ["project-documents", demoProjectId],
+    queryFn: async () => {
+      const response = await axios.get(`/api/v1/projects/${demoProjectId}/documents`);
+      return response.data as { documents: DocumentData[]; total: number };
+    },
+  });
+
+  // Fetch available LLM providers
+  const { data: providersData } = useQuery({
+    queryKey: ["llm-providers"],
+    queryFn: async () => {
+      const response = await axios.get("/api/v1/settings/llm/providers");
+      return response.data as { providers: Record<string, LLMProvider> };
+    },
+  });
+
+  const availableProviders = providersData?.providers
+    ? Object.values(providersData.providers).filter((p) => p.available)
+    : [];
+
+  const { data: healthData, isLoading: healthLoading, error: healthError } = useQuery({
+    queryKey: ["health"],
+    queryFn: async (): Promise<HealthResponse> => {
+      const response = await axios.get("/api/v1/health");
+      return response.data;
+    },
+  });
+
+  // Fetch pages for uploaded document
+  const { data: pagesData, refetch: refetchPages } = useQuery({
+    queryKey: ["document-pages", uploadedDocumentId],
+    queryFn: async () => {
+      if (!uploadedDocumentId) return null;
+      const response = await axios.get(`/api/v1/documents/${uploadedDocumentId}/pages`);
+      return response.data as { pages: PageData[]; total: number };
+    },
+    enabled: !!uploadedDocumentId,
+    refetchInterval: uploadedDocumentId ? 3000 : false, // Poll while document is processing
+  });
+
+  // Fetch classification for selected page
+  const { data: classificationData, refetch: refetchClassification } = useQuery({
+    queryKey: ["page-classification", selectedPageId],
+    queryFn: async () => {
+      if (!selectedPageId) return null;
+      const response = await axios.get(`/api/v1/pages/${selectedPageId}/classification`);
+      return response.data as PageClassification;
+    },
+    enabled: !!selectedPageId,
+    staleTime: 0, // Always consider data stale to get fresh results
+    gcTime: 0, // Don't cache (formerly cacheTime)
+  });
+
+  // Fetch classification history for selected page
+  const { data: historyData, refetch: refetchHistory } = useQuery({
+    queryKey: ["page-classification-history", selectedPageId],
+    queryFn: async () => {
+      if (!selectedPageId) return null;
+      const response = await axios.get(
+        `/api/v1/pages/${selectedPageId}/classification/history`
+      );
+      return response.data as ClassificationHistoryResponse;
+    },
+    enabled: !!selectedPageId,
+    staleTime: 0,
+    gcTime: 0,
+  });
+
+  // Fetch ALL classification history (for global timeline)
+  const { data: allHistoryData, refetch: refetchAllHistory } = useQuery({
+    queryKey: ["all-classification-history"],
+    queryFn: async () => {
+      const response = await axios.get("/api/v1/classification/history?limit=100");
+      return response.data as ClassificationHistoryResponse;
+    },
+    staleTime: 0,
+    gcTime: 0,
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
+  });
+
+  // Classify document mutation
+  const classifyDocumentMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      const provider = classificationProvider !== "default" ? classificationProvider : undefined;
+      const response = await axios.post(`/api/v1/documents/${documentId}/classify`, {
+        provider,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      // Start polling for classification results
+      setTimeout(() => refetchPages(), 2000);
+    },
+  });
+
+  // Classify single page mutation
+  const classifyPageMutation = useMutation({
+    mutationFn: async (pageId: string) => {
+      const provider = classificationProvider !== "default" ? classificationProvider : undefined;
+      const response = await axios.post(`/api/v1/pages/${pageId}/classify`, {
+        provider,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      setTimeout(() => {
+        refetchPages();
+        refetchClassification();
+      }, 3000);
+    },
+  });
+
+  if (healthLoading) return <div>Loading...</div>;
+  if (healthError) return <div>Error loading dashboard</div>;
+
+  const getConcreteRelevanceColor = (relevance: string | null | undefined) => {
+    switch (relevance) {
+      case "high":
+        return "bg-red-100 text-red-800 border-red-300";
+      case "medium":
+        return "bg-yellow-100 text-yellow-800 border-yellow-300";
+      case "low":
+        return "bg-blue-100 text-blue-800 border-blue-300";
+      case "none":
+        return "bg-gray-100 text-gray-600 border-gray-300";
+      default:
+        return "bg-gray-50 text-gray-500 border-gray-200";
+    }
+  };
+
+  return (
+    <div className="px-4 py-6 sm:px-0">
+      <div className="mb-8">
+        <div className="bg-white shadow rounded-lg p-6">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+              ForgeX Takeoffs
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Upload construction plans and let AI generate accurate takeoffs
+            </p>
+            <div className="inline-flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              API Status: {healthData?.status || "Unknown"}
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 pt-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              Upload Plans (Phase 2A - Page Classification Test)
+            </h3>
+            <DocumentUploader
+              projectId={demoProjectId}
+              onUploadComplete={(documentId) => {
+                console.log("Document uploaded:", documentId);
+                setUploadedDocumentId(documentId);
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Phase 2A Info Box */}
+      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-sm text-purple-800 mb-6">
+        <p className="font-semibold mb-1">Phase 2A Testing Mode - Page Classification</p>
+        <p>Using project: <code className="bg-purple-100 px-2 py-1 rounded">Test Project</code></p>
+        <p className="mt-2 text-xs text-purple-600">
+          Select an existing document below OR upload a new PDF → Click "Classify All Pages" to test different LLMs!
+        </p>
+      </div>
+
+      {/* Existing Documents Browser */}
+      <div className="bg-white shadow rounded-lg mb-6 overflow-hidden">
+        <button
+          onClick={() => setShowExistingDocs(!showExistingDocs)}
+          className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+            </svg>
+            <span className="font-medium text-gray-900">Existing Documents</span>
+            <span className="text-sm text-gray-500">
+              ({existingDocsData?.total || 0} documents with OCR data ready)
+            </span>
+          </div>
+          <svg
+            className={`w-5 h-5 text-gray-400 transition-transform ${showExistingDocs ? "rotate-180" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showExistingDocs && (
+          <div className="px-6 pb-6 border-t border-gray-100">
+            <p className="text-sm text-gray-600 mt-4 mb-4">
+              💡 <strong>Save OCR credits!</strong> Select a previously uploaded document to re-classify with different LLM providers without re-running OCR.
+            </p>
+
+            {existingDocsData?.documents && existingDocsData.documents.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {existingDocsData.documents.map((doc) => (
+                  <button
+                    key={doc.id}
+                    onClick={() => {
+                      setUploadedDocumentId(doc.id);
+                      setSelectedPageId(null);
+                    }}
+                    className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${uploadedDocumentId === doc.id
+                      ? "border-purple-400 bg-purple-50 ring-2 ring-purple-300"
+                      : "border-gray-200 bg-gray-50 hover:border-purple-300"
+                      }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded ${doc.status === "ready" ? "bg-green-100" :
+                        doc.status === "processing" ? "bg-yellow-100" : "bg-gray-100"
+                        }`}>
+                        <svg className={`w-5 h-5 ${doc.status === "ready" ? "text-green-600" :
+                          doc.status === "processing" ? "text-yellow-600" : "text-gray-500"
+                          }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate" title={doc.original_filename}>
+                          {doc.original_filename}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                          <span>{doc.page_count || "?"} pages</span>
+                          <span>•</span>
+                          <span className={`px-1.5 py-0.5 rounded ${doc.status === "ready" ? "bg-green-100 text-green-700" :
+                            doc.status === "processing" ? "bg-yellow-100 text-yellow-700" :
+                              "bg-gray-100 text-gray-600"
+                            }`}>
+                            {doc.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(doc.created_at).toLocaleDateString()} {new Date(doc.created_at).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      {uploadedDocumentId === doc.id && (
+                        <svg className="w-5 h-5 text-purple-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p>No documents uploaded yet.</p>
+                <p className="text-sm">Upload a PDF above to get started.</p>
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => refetchDocs()}
+                className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                ↻ Refresh list
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* LLM Provider Settings */}
+      <div className="bg-white shadow rounded-lg mb-6 overflow-hidden">
+        <button
+          onClick={() => setShowProviderSettings(!showProviderSettings)}
+          className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="font-medium text-gray-900">LLM Provider Settings</span>
+            <span className="text-sm text-gray-500">
+              (Classification: {classificationProvider === "default" ? "Auto" : availableProviders.find(p => p.name === classificationProvider)?.display_name || classificationProvider})
+            </span>
+          </div>
+          <svg
+            className={`w-5 h-5 text-gray-400 transition-transform ${showProviderSettings ? "rotate-180" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showProviderSettings && (
+          <div className="px-6 pb-6 border-t border-gray-100">
+            <p className="text-sm text-gray-600 mt-4 mb-4">
+              Select which AI provider to use for each task. This helps you evaluate and compare different LLMs.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Classification Provider */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Page Classification Provider
+                </label>
+                <select
+                  value={classificationProvider}
+                  onChange={(e) => setClassificationProvider(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                >
+                  <option value="default">🤖 Auto (Use Default)</option>
+                  {availableProviders.map((provider) => (
+                    <option key={provider.name} value={provider.name}>
+                      {provider.display_name} {provider.is_default && "(Default)"}
+                    </option>
+                  ))}
+                </select>
+                {classificationProvider !== "default" && (
+                  <div className="mt-2 text-xs text-gray-500">
+                    {availableProviders.find(p => p.name === classificationProvider)?.strengths}
+                  </div>
+                )}
+              </div>
+
+              {/* Provider Info Cards */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Available Providers
+                </label>
+                <div className="space-y-2">
+                  {availableProviders.map((provider) => (
+                    <div
+                      key={provider.name}
+                      className={`p-3 rounded-lg border text-sm ${classificationProvider === provider.name
+                        ? "border-purple-300 bg-purple-50"
+                        : "border-gray-200 bg-gray-50"
+                        }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-900">{provider.display_name}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${provider.cost_tier === "low" ? "bg-green-100 text-green-700" :
+                          provider.cost_tier === "medium" ? "bg-yellow-100 text-yellow-700" :
+                            provider.cost_tier === "medium-high" ? "bg-orange-100 text-orange-700" :
+                              "bg-red-100 text-red-700"
+                          }`}>
+                          {provider.cost_tier}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{provider.model}</p>
+                    </div>
+                  ))}
+                  {availableProviders.length === 0 && (
+                    <p className="text-sm text-gray-500 italic">No providers configured. Add API keys to enable.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Evaluation Tips */}
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm font-medium text-blue-800 mb-2">💡 Evaluation Tips</p>
+              <ul className="text-xs text-blue-700 space-y-1">
+                <li>• Upload the same document and classify with different providers to compare accuracy</li>
+                <li>• Check the "LLM Details" section in classification results to see latency and model used</li>
+                <li>• Consider both accuracy and cost when choosing your primary provider</li>
+                <li>• Claude (Anthropic) typically excels at technical document analysis</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Document Pages Section */}
+      {uploadedDocumentId && (
+        <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">
+              Document Pages ({pagesData?.total || 0})
+            </h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => refetchPages()}
+                className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-md"
+              >
+                Refresh
+              </button>
+              <button
+                onClick={() => classifyDocumentMutation.mutate(uploadedDocumentId)}
+                disabled={classifyDocumentMutation.isPending}
+                className="px-4 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md disabled:opacity-50 flex items-center gap-2"
+              >
+                {classifyDocumentMutation.isPending ? "Starting..." : (
+                  <>
+                    Classify All Pages
+                    {classificationProvider !== "default" && (
+                      <span className="text-purple-200 text-xs">
+                        ({availableProviders.find(p => p.name === classificationProvider)?.display_name?.split(" ")[0] || classificationProvider})
+                      </span>
+                    )}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {classifyDocumentMutation.isSuccess && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-sm text-green-800">
+              Classification started! Results will appear as pages are processed (refresh to see updates).
+            </div>
+          )}
+
+          {/* Pages Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {pagesData?.pages.map((page) => (
+              <div
+                key={page.id}
+                onClick={() => setSelectedPageId(page.id)}
+                className={`border rounded-lg p-3 cursor-pointer transition-all hover:shadow-md ${selectedPageId === page.id ? "ring-2 ring-purple-500 border-purple-300" : "border-gray-200"
+                  }`}
+              >
+                {/* Thumbnail - clickable to open full resolution image */}
+                <div className="aspect-[8.5/11] bg-gray-100 rounded mb-2 overflow-hidden relative group">
+                  {page.thumbnail_url ? (
+                    <a
+                      href={page.image_url || page.thumbnail_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="block w-full h-full"
+                      title="Click to open full resolution image in new tab"
+                    >
+                      <img
+                        src={page.thumbnail_url}
+                        alt={`Page ${page.page_number}`}
+                        className="w-full h-full object-contain"
+                      />
+                      {/* Hover overlay with icon */}
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                        <svg
+                          className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </div>
+                    </a>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+
+                {/* Page Info */}
+                <div className="text-xs">
+                  <p className="font-medium text-gray-900">
+                    Page {page.page_number}
+                    {page.sheet_number && <span className="text-gray-500 ml-1">({page.sheet_number})</span>}
+                  </p>
+                  {page.classification && (
+                    <p className="text-purple-600 truncate">{page.classification}</p>
+                  )}
+                  {page.concrete_relevance && (
+                    <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${getConcreteRelevanceColor(page.concrete_relevance)}`}>
+                      Concrete: {page.concrete_relevance}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {pagesData?.pages.length === 0 && (
+            <p className="text-center text-gray-500 py-8">No pages found. Document may still be processing.</p>
+          )}
+        </div>
+      )}
+
+      {/* Selected Page Classification Details */}
+      {selectedPageId && (
+        <div className="bg-white shadow rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">
+              Classification Details
+            </h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => refetchClassification()}
+                className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-md"
+              >
+                Refresh
+              </button>
+              <button
+                onClick={() => classifyPageMutation.mutate(selectedPageId)}
+                disabled={classifyPageMutation.isPending}
+                className="px-4 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md disabled:opacity-50 flex items-center gap-2"
+              >
+                {classifyPageMutation.isPending ? "Classifying..." : (
+                  <>
+                    Re-classify Page
+                    {classificationProvider !== "default" && (
+                      <span className="text-purple-200 text-xs">
+                        ({availableProviders.find(p => p.name === classificationProvider)?.display_name?.split(" ")[0] || classificationProvider})
+                      </span>
+                    )}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {classificationData ? (
+            <div className="space-y-4">
+              {/* Main Classification */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Discipline</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {classificationData.metadata?.discipline || "—"}
+                  </p>
+                  {classificationData.metadata?.discipline_confidence && (
+                    <p className="text-xs text-gray-500">
+                      {(classificationData.metadata.discipline_confidence * 100).toFixed(0)}% confidence
+                    </p>
+                  )}
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Page Type</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {classificationData.metadata?.page_type || "—"}
+                  </p>
+                  {classificationData.metadata?.page_type_confidence && (
+                    <p className="text-xs text-gray-500">
+                      {(classificationData.metadata.page_type_confidence * 100).toFixed(0)}% confidence
+                    </p>
+                  )}
+                </div>
+                <div className={`rounded-lg p-3 ${getConcreteRelevanceColor(classificationData.concrete_relevance)}`}>
+                  <p className="text-xs uppercase tracking-wide opacity-75">Concrete Relevance</p>
+                  <p className="text-lg font-semibold">
+                    {classificationData.concrete_relevance || "—"}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Overall Confidence</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {classificationData.confidence ? `${(classificationData.confidence * 100).toFixed(0)}%` : "—"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Description */}
+              {classificationData.metadata?.description && (
+                <div className="bg-blue-50 rounded-lg p-3">
+                  <p className="text-xs text-blue-600 uppercase tracking-wide mb-1">AI Description</p>
+                  <p className="text-sm text-blue-900">{classificationData.metadata.description}</p>
+                </div>
+              )}
+
+              {/* Concrete Elements */}
+              {classificationData.metadata?.concrete_elements && classificationData.metadata.concrete_elements.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Detected Concrete Elements</p>
+                  <div className="flex flex-wrap gap-2">
+                    {classificationData.metadata.concrete_elements.map((element, idx) => (
+                      <span key={idx} className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-sm">
+                        {element}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* LLM Metadata */}
+              {classificationData.metadata?.llm_provider && (
+                <div className="border-t pt-4 mt-4">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">LLM Details</p>
+                  <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                    <span>Provider: <strong>{classificationData.metadata.llm_provider}</strong></span>
+                    <span>Model: <strong>{classificationData.metadata.llm_model}</strong></span>
+                    {classificationData.metadata.llm_latency_ms && (
+                      <span>Latency: <strong>{classificationData.metadata.llm_latency_ms.toFixed(0)}ms</strong></span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Classification History Timeline */}
+              {historyData && historyData.history.length > 0 && (
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">
+                      Classification History ({historyData.total} runs)
+                    </p>
+                    <button
+                      onClick={() => refetchHistory()}
+                      className="text-xs text-purple-600 hover:text-purple-800"
+                    >
+                      Refresh History
+                    </button>
+                  </div>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {historyData.history.map((entry, idx) => (
+                      <div
+                        key={entry.id}
+                        className={`relative pl-6 pb-3 ${idx < historyData.history.length - 1 ? "border-l-2 border-gray-200" : ""
+                          }`}
+                      >
+                        {/* Timeline dot - red for failed, purple for current success, gray for old */}
+                        <div
+                          className={`absolute left-0 top-0 w-3 h-3 rounded-full -translate-x-1.5 ${entry.status === "failed"
+                            ? "bg-red-500 ring-4 ring-red-100"
+                            : idx === 0 && entry.status === "success"
+                              ? "bg-purple-500 ring-4 ring-purple-100"
+                              : entry.status === "success"
+                                ? "bg-green-400"
+                                : "bg-gray-300"
+                            }`}
+                        />
+
+                        {/* Entry content */}
+                        <div className={`rounded-lg p-3 ${entry.status === "failed"
+                          ? "bg-red-50 border border-red-200"
+                          : idx === 0 && entry.status === "success"
+                            ? "bg-purple-50 border border-purple-200"
+                            : "bg-gray-50"
+                          }`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.llm_provider === "anthropic" ? "bg-orange-100 text-orange-800" :
+                                  entry.llm_provider === "openai" ? "bg-green-100 text-green-800" :
+                                    entry.llm_provider === "google" ? "bg-blue-100 text-blue-800" :
+                                      entry.llm_provider === "xai" ? "bg-purple-100 text-purple-800" :
+                                        "bg-gray-100 text-gray-800"
+                                  }`}>
+                                  {entry.llm_provider}
+                                </span>
+                                <span className="text-xs text-gray-500">{entry.llm_model}</span>
+                                {entry.status === "failed" && (
+                                  <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs rounded">
+                                    Failed
+                                  </span>
+                                )}
+                                {idx === 0 && entry.status === "success" && (
+                                  <span className="px-1.5 py-0.5 bg-purple-600 text-white text-xs rounded">
+                                    Current
+                                  </span>
+                                )}
+                                {entry.status === "success" && idx !== 0 && (
+                                  <span className="px-1.5 py-0.5 bg-green-600 text-white text-xs rounded">
+                                    Success
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Show error message for failed attempts */}
+                              {entry.status === "failed" && entry.error_message && (
+                                <div className="mt-1 text-xs text-red-700 bg-red-100 p-2 rounded max-h-20 overflow-y-auto">
+                                  {entry.error_message.length > 200
+                                    ? entry.error_message.substring(0, 200) + "..."
+                                    : entry.error_message}
+                                </div>
+                              )}
+
+                              {/* Show classification for successful attempts */}
+                              {entry.status === "success" && (
+                                <>
+                                  <div className="mt-1 text-sm">
+                                    <span className="font-medium text-gray-900">
+                                      {entry.discipline}:{entry.page_type}
+                                    </span>
+                                    <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${entry.concrete_relevance === "high" ? "bg-red-100 text-red-800" :
+                                      entry.concrete_relevance === "medium" ? "bg-yellow-100 text-yellow-800" :
+                                        entry.concrete_relevance === "low" ? "bg-green-100 text-green-800" :
+                                          "bg-gray-100 text-gray-600"
+                                      }`}>
+                                      {entry.concrete_relevance || "none"}
+                                    </span>
+                                  </div>
+                                  {entry.concrete_elements && entry.concrete_elements.length > 0 && (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {entry.concrete_elements.slice(0, 5).map((el, i) => (
+                                        <span key={i} className="text-xs text-gray-500 bg-gray-200 px-1 rounded">
+                                          {el}
+                                        </span>
+                                      ))}
+                                      {entry.concrete_elements.length > 5 && (
+                                        <span className="text-xs text-gray-400">
+                                          +{entry.concrete_elements.length - 5} more
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <div className="text-xs text-gray-500">
+                                {new Date(entry.created_at).toLocaleDateString()}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                {new Date(entry.created_at).toLocaleTimeString()}
+                              </div>
+                              {entry.llm_latency_ms && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {entry.llm_latency_ms.toFixed(0)}ms
+                                </div>
+                              )}
+                              {entry.status === "success" && entry.classification_confidence && (
+                                <div className="text-xs font-medium text-gray-600">
+                                  {(entry.classification_confidence * 100).toFixed(0)}%
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* No classification yet */}
+              {!classificationData.classification && !classificationData.metadata && (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No classification data yet.</p>
+                  <p className="text-sm">Click "Re-classify Page" to run AI classification.</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <p>Loading classification data...</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Global Classification History Timeline - Always Visible */}
+      <div className="bg-white shadow rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">
+            Classification History
+            {allHistoryData && (
+              <span className="ml-2 text-sm font-normal text-gray-500">
+                ({allHistoryData.total} total runs)
+              </span>
+            )}
+          </h3>
+          <button
+            onClick={() => refetchAllHistory()}
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-md"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {allHistoryData && allHistoryData.history.length > 0 ? (
+          <div className="space-y-3 max-h-[500px] overflow-y-auto">
+            {allHistoryData.history.map((entry, idx) => (
+              <div
+                key={entry.id}
+                className={`relative pl-6 pb-3 ${idx < allHistoryData.history.length - 1 ? "border-l-2 border-gray-200" : ""}`}
+              >
+                {/* Timeline dot */}
+                <div
+                  className={`absolute left-0 top-0 w-3 h-3 rounded-full -translate-x-1.5 ${entry.status === "failed"
+                    ? "bg-red-500 ring-4 ring-red-100"
+                    : idx === 0 && entry.status === "success"
+                      ? "bg-purple-500 ring-4 ring-purple-100"
+                      : entry.status === "success"
+                        ? "bg-green-400"
+                        : "bg-gray-300"
+                    }`}
+                />
+
+                {/* Entry content - clickable to expand */}
+                <div
+                  className={`rounded-lg p-3 cursor-pointer transition-all ${entry.status === "failed"
+                    ? "bg-red-50 border border-red-200 hover:bg-red-100"
+                    : idx === 0 && entry.status === "success"
+                      ? "bg-purple-50 border border-purple-200 hover:bg-purple-100"
+                      : "bg-gray-50 hover:bg-gray-100"
+                    }`}
+                  onClick={() => toggleHistoryExpanded(entry.id)}
+                >
+                  {/* Header row - always visible */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      {/* Page/Document context */}
+                      <div className="text-xs text-gray-500 mb-1">
+                        Page {entry.page_number || "?"}
+                        {entry.sheet_number && <span> ({entry.sheet_number})</span>}
+                        {entry.document_id && (
+                          <span className="ml-1 text-gray-400">
+                            • Doc: {entry.document_id.substring(0, 8)}...
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${entry.llm_provider === "anthropic" ? "bg-orange-100 text-orange-800" :
+                          entry.llm_provider === "openai" ? "bg-green-100 text-green-800" :
+                            entry.llm_provider === "google" ? "bg-blue-100 text-blue-800" :
+                              entry.llm_provider === "xai" ? "bg-purple-100 text-purple-800" :
+                                "bg-gray-100 text-gray-800"
+                          }`}>
+                          {entry.llm_provider}
+                        </span>
+                        <span className="text-xs text-gray-500">{entry.llm_model}</span>
+                        {entry.status === "failed" && (
+                          <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs rounded">
+                            Failed
+                          </span>
+                        )}
+                        {idx === 0 && entry.status === "success" && (
+                          <span className="px-1.5 py-0.5 bg-purple-600 text-white text-xs rounded">
+                            Latest
+                          </span>
+                        )}
+                        {/* Expand indicator */}
+                        <svg
+                          className={`w-4 h-4 text-gray-400 transition-transform ${expandedHistoryIds.has(entry.id) ? "rotate-180" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+
+                      {/* Classification summary - always visible for success */}
+                      {entry.status === "success" && (
+                        <div className="mt-1 text-sm">
+                          <span className="font-medium text-gray-900">
+                            {entry.discipline}:{entry.page_type}
+                          </span>
+                          <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${entry.concrete_relevance === "high" ? "bg-red-100 text-red-800" :
+                            entry.concrete_relevance === "medium" ? "bg-yellow-100 text-yellow-800" :
+                              entry.concrete_relevance === "low" ? "bg-green-100 text-green-800" :
+                                "bg-gray-100 text-gray-600"
+                            }`}>
+                            {entry.concrete_relevance || "none"}
+                          </span>
+                          {entry.concrete_elements && entry.concrete_elements.length > 0 && !expandedHistoryIds.has(entry.id) && (
+                            <span className="ml-2 text-xs text-gray-500">
+                              ({entry.concrete_elements.length} elements)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-xs text-gray-500">
+                        {new Date(entry.created_at).toLocaleDateString()}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {new Date(entry.created_at).toLocaleTimeString()}
+                      </div>
+                      {entry.llm_latency_ms && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {entry.llm_latency_ms.toFixed(0)}ms
+                        </div>
+                      )}
+                      {entry.status === "success" && entry.classification_confidence && (
+                        <div className="text-xs font-medium text-gray-600">
+                          {(entry.classification_confidence * 100).toFixed(0)}%
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded details */}
+                  {expandedHistoryIds.has(entry.id) && (
+                    <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                      {/* Error message for failed */}
+                      {entry.status === "failed" && entry.error_message && (
+                        <div>
+                          <p className="text-xs font-medium text-red-700 mb-1">Error Message:</p>
+                          <div className="text-xs text-red-700 bg-red-100 p-2 rounded whitespace-pre-wrap max-h-40 overflow-y-auto">
+                            {entry.error_message}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Full details for success */}
+                      {entry.status === "success" && (
+                        <>
+                          {/* Concrete elements - ALL of them */}
+                          {entry.concrete_elements && entry.concrete_elements.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-gray-700 mb-1">
+                                Concrete Elements ({entry.concrete_elements.length}):
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {entry.concrete_elements.map((el, i) => (
+                                  <span key={i} className="text-xs bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded">
+                                    {el}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Description */}
+                          {entry.description && (
+                            <div>
+                              <p className="text-xs font-medium text-gray-700 mb-1">AI Description:</p>
+                              <p className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+                                {entry.description}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Confidence breakdown */}
+                          <div>
+                            <p className="text-xs font-medium text-gray-700 mb-1">Confidence Breakdown:</p>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="bg-gray-100 p-1.5 rounded">
+                                <span className="text-gray-500">Discipline:</span>{" "}
+                                <span className="font-medium">{entry.discipline}</span>{" "}
+                                <span className="text-gray-400">
+                                  ({entry.discipline_confidence ? (entry.discipline_confidence * 100).toFixed(0) : "?"}%)
+                                </span>
+                              </div>
+                              <div className="bg-gray-100 p-1.5 rounded">
+                                <span className="text-gray-500">Page Type:</span>{" "}
+                                <span className="font-medium">{entry.page_type}</span>{" "}
+                                <span className="text-gray-400">
+                                  ({entry.page_type_confidence ? (entry.page_type_confidence * 100).toFixed(0) : "?"}%)
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Full IDs for debugging */}
+                      <div className="text-[10px] text-gray-400 pt-1 border-t border-gray-100">
+                        Entry ID: {entry.id} | Page ID: {entry.page_id}
+                        {entry.document_id && <> | Doc ID: {entry.document_id}</>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p>No classification history yet.</p>
+            <p className="text-sm mt-1">Run classifications on pages to see the history here.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Instructions */}
+      {!uploadedDocumentId && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+          <h4 className="text-lg font-medium text-gray-900 mb-2">How to Test Phase 2A</h4>
+          <ol className="text-left text-sm text-gray-600 space-y-2 max-w-md mx-auto">
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-6 h-6 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-xs font-bold">1</span>
+              <span>Upload a PDF construction plan document above</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-6 h-6 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-xs font-bold">2</span>
+              <span>Wait for document processing to complete (pages will appear)</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-6 h-6 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-xs font-bold">3</span>
+              <span>Click "Classify All Pages" to run AI classification</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-6 h-6 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-xs font-bold">4</span>
+              <span>Click on any page to see detailed classification results</span>
+            </li>
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
