@@ -17,6 +17,7 @@ class StorageService:
     """Service for interacting with S3-compatible storage (MinIO)."""
 
     def __init__(self):
+        # Internal client for API operations (uploads, downloads)
         self.client = boto3.client(
             "s3",
             endpoint_url=f"{'https' if settings.storage_use_ssl else 'http'}://{settings.storage_endpoint}",
@@ -24,6 +25,18 @@ class StorageService:
             aws_secret_access_key=settings.storage_secret_key,
             config=Config(signature_version="s3v4"),
         )
+
+        # Public client for generating browser-accessible presigned URLs
+        # Uses public endpoint so signature matches the URL hostname
+        public_endpoint = settings.storage_public_endpoint or settings.storage_endpoint
+        self.public_client = boto3.client(
+            "s3",
+            endpoint_url=f"{'https' if settings.storage_use_ssl else 'http'}://{public_endpoint}",
+            aws_access_key_id=settings.storage_access_key,
+            aws_secret_access_key=settings.storage_secret_key,
+            config=Config(signature_version="s3v4"),
+        )
+
         self.bucket = settings.storage_bucket
         self._ensure_bucket_exists()
 
@@ -110,21 +123,15 @@ class StorageService:
             expires_in: URL expiration time in seconds
 
         Returns:
-            Presigned URL (using public endpoint if configured)
+            Presigned URL using public endpoint for browser access
         """
-        url = self.client.generate_presigned_url(
+        # Use public_client so signature is computed with public hostname
+        # This ensures the signature matches when browser accesses via localhost
+        return self.public_client.generate_presigned_url(
             "get_object",
             Params={"Bucket": self.bucket, "Key": key},
             ExpiresIn=expires_in,
         )
-
-        # Replace internal endpoint with public endpoint for browser access
-        if settings.storage_public_endpoint:
-            internal_endpoint = f"{'https' if settings.storage_use_ssl else 'http'}://{settings.storage_endpoint}"
-            public_endpoint = f"{'https' if settings.storage_use_ssl else 'http'}://{settings.storage_public_endpoint}"
-            url = url.replace(internal_endpoint, public_endpoint)
-
-        return url
 
     def file_exists(self, key: str) -> bool:
         """Check if a file exists in storage."""
