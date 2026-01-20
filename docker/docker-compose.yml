@@ -65,6 +65,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       # Storage (MinIO)
       - STORAGE_ENDPOINT=minio:9000
+      - STORAGE_PUBLIC_ENDPOINT=localhost:9000
       - STORAGE_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
       - STORAGE_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
       # LLM API Keys - passed from host .env file

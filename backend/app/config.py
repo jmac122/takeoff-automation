@@ -31,7 +31,8 @@ class Settings(BaseSettings):
     celery_result_backend: RedisDsn
 
     # Storage
-    storage_endpoint: str
+    storage_endpoint: str  # Internal endpoint (for API to connect to MinIO)
+    storage_public_endpoint: str | None = None  # Public endpoint (for browser URLs)
     storage_access_key: str
     storage_secret_key: str
     storage_bucket: str = "takeoff-documents"

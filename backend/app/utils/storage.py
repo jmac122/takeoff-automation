@@ -110,13 +110,21 @@ class StorageService:
             expires_in: URL expiration time in seconds
 
         Returns:
-            Presigned URL
+            Presigned URL (using public endpoint if configured)
         """
-        return self.client.generate_presigned_url(
+        url = self.client.generate_presigned_url(
             "get_object",
             Params={"Bucket": self.bucket, "Key": key},
             ExpiresIn=expires_in,
         )
+
+        # Replace internal endpoint with public endpoint for browser access
+        if settings.storage_public_endpoint:
+            internal_endpoint = f"{'https' if settings.storage_use_ssl else 'http'}://{settings.storage_endpoint}"
+            public_endpoint = f"{'https' if settings.storage_use_ssl else 'http'}://{settings.storage_public_endpoint}"
+            url = url.replace(internal_endpoint, public_endpoint)
+
+        return url
 
     def file_exists(self, key: str) -> bool:
         """Check if a file exists in storage."""
