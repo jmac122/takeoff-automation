@@ -14,6 +14,15 @@ class ProjectCreate(BaseModel):
     client_name: str | None = None
 
 
+class ProjectUpdate(BaseModel):
+    """Project update schema."""
+
+    name: str | None = None
+    description: str | None = None
+    client_name: str | None = None
+    status: str | None = None
+
+
 class ProjectResponse(BaseModel):
     """Project response schema."""
 
@@ -26,3 +35,10 @@ class ProjectResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+
+
+class ProjectListResponse(BaseModel):
+    """Response for listing projects."""
+    
+    projects: list[ProjectResponse]
+    total: int

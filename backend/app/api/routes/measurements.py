@@ -1,11 +1,193 @@
-"""Measurement routes."""
+"""Measurement endpoints."""
 
-from fastapi import APIRouter
+import uuid
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.api.deps import get_db
+from app.models.measurement import Measurement
+from app.schemas.measurement import (
+    MeasurementCreate,
+    MeasurementUpdate,
+    MeasurementResponse,
+    MeasurementListResponse,
+)
+from app.services.measurement_engine import get_measurement_engine
 
 router = APIRouter()
 
 
-@router.get("/")
-async def list_measurements() -> dict:
-    """List all measurements."""
-    return {"measurements": []}
+@router.get("/conditions/{condition_id}/measurements", response_model=MeasurementListResponse)
+async def list_condition_measurements(
+    condition_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """List all measurements for a condition."""
+    result = await db.execute(
+        select(Measurement)
+        .where(Measurement.condition_id == condition_id)
+        .order_by(Measurement.created_at)
+    )
+    measurements = result.scalars().all()
+    
+    return MeasurementListResponse(
+        measurements=[MeasurementResponse.model_validate(m) for m in measurements],
+        total=len(measurements),
+    )
+
+
+@router.get("/pages/{page_id}/measurements", response_model=MeasurementListResponse)
+async def list_page_measurements(
+    page_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """List all measurements on a page."""
+    result = await db.execute(
+        select(Measurement)
+        .options(selectinload(Measurement.condition))
+        .where(Measurement.page_id == page_id)
+    )
+    measurements = result.scalars().all()
+    
+    return MeasurementListResponse(
+        measurements=[MeasurementResponse.model_validate(m) for m in measurements],
+        total=len(measurements),
+    )
+
+
+@router.post(
+    "/conditions/{condition_id}/measurements",
+    response_model=MeasurementResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_measurement(
+    condition_id: uuid.UUID,
+    request: MeasurementCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Create a new measurement."""
+    engine = get_measurement_engine()
+    
+    try:
+        measurement = await engine.create_measurement(
+            session=db,
+            condition_id=condition_id,
+            page_id=request.page_id,
+            geometry_type=request.geometry_type,
+            geometry_data=request.geometry_data,
+            notes=request.notes,
+        )
+        return MeasurementResponse.model_validate(measurement)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.get("/measurements/{measurement_id}", response_model=MeasurementResponse)
+async def get_measurement(
+    measurement_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Get measurement details."""
+    result = await db.execute(
+        select(Measurement).where(Measurement.id == measurement_id)
+    )
+    measurement = result.scalar_one_or_none()
+    
+    if not measurement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Measurement not found",
+        )
+    
+    return MeasurementResponse.model_validate(measurement)
+
+
+@router.put("/measurements/{measurement_id}", response_model=MeasurementResponse)
+async def update_measurement(
+    measurement_id: uuid.UUID,
+    request: MeasurementUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Update a measurement."""
+    engine = get_measurement_engine()
+    
+    try:
+        measurement = await engine.update_measurement(
+            session=db,
+            measurement_id=measurement_id,
+            geometry_data=request.geometry_data,
+            notes=request.notes,
+        )
+        return MeasurementResponse.model_validate(measurement)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.delete("/measurements/{measurement_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_measurement(
+    measurement_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Delete a measurement."""
+    engine = get_measurement_engine()
+    
+    try:
+        await engine.delete_measurement(db, measurement_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+
+@router.post("/measurements/{measurement_id}/recalculate", response_model=MeasurementResponse)
+async def recalculate_measurement(
+    measurement_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Recalculate a measurement (e.g., after scale change)."""
+    engine = get_measurement_engine()
+    
+    try:
+        measurement = await engine.recalculate_measurement(db, measurement_id)
+        return MeasurementResponse.model_validate(measurement)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.post("/pages/{page_id}/recalculate-all")
+async def recalculate_page_measurements(
+    page_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Recalculate all measurements on a page (after scale change)."""
+    result = await db.execute(
+        select(Measurement.id).where(Measurement.page_id == page_id)
+    )
+    measurement_ids = [row[0] for row in result.all()]
+    
+    engine = get_measurement_engine()
+    
+    for mid in measurement_ids:
+        try:
+            await engine.recalculate_measurement(db, mid)
+        except ValueError:
+            pass  # Skip measurements that can't be recalculated
+    
+    return {
+        "status": "success",
+        "recalculated_count": len(measurement_ids),
+    }
