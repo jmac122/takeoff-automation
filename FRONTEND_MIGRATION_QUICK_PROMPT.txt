@@ -1,0 +1,58 @@
+Update the entire React frontend to use shadcn/ui design system following @docs/design/DESIGN-SYSTEM.md
+
+CONTEXT:
+- ForgeX Takeoffs construction platform (Phase 2B complete)
+- React 18 + TypeScript + Vite + TailwindCSS
+- Docker Desktop running at D:\Repos\takeoff-automation
+- Frontend at http://localhost:5173
+- NO shadcn/ui installed yet - needs full migration
+
+READ THESE FIRST:
+1. @docs/design/DESIGN-SYSTEM.md (complete design system spec)
+2. @FRONTEND_SHADCN_MIGRATION_PROMPT.md (detailed implementation guide)
+3. @docs/frontend/SHADCN_UI_MIGRATION.md (migration plan)
+
+WHAT TO DO:
+1. Install dependencies IN DOCKER:
+   - class-variance-authority, clsx, tailwind-merge, lucide-react
+   - @radix-ui/react-dialog, react-label, react-select, react-slot, react-progress
+
+2. Configure:
+   - Update tailwind.config.js with HSL design tokens
+   - Create src/lib/utils.ts with cn() helper
+
+3. Create shadcn/ui components in src/components/ui/:
+   - button.tsx, card.tsx, input.tsx, label.tsx, select.tsx
+   - badge.tsx, skeleton.tsx, alert.tsx, progress.tsx
+
+4. Refactor these 5 components (IN ORDER):
+   - src/components/document/DocumentUploader.tsx (use Button, Badge, Progress, Lucide icons)
+   - src/components/document/PageBrowser.tsx (use Select, Label, Badge, Skeleton)
+   - src/components/LLMProviderSelector.tsx (use Select, Label)
+   - src/pages/Dashboard.tsx (LARGE - 1100 lines, use Card, Button, Badge, Alert)
+   - src/App.tsx (minor header updates)
+
+DOCKER WORKFLOW:
+- Install: docker compose exec frontend npm install <package>
+- Rebuild: docker compose build frontend && docker compose up -d frontend
+- Logs: docker logs forgex-frontend -f
+- Test: http://localhost:5173
+
+CRITICAL RULES:
+❌ NO raw colors (bg-blue-600) → ✅ Use tokens (bg-primary)
+❌ NO raw HTML (<button>) → ✅ Use components (<Button>)
+❌ NO custom SVGs → ✅ Use Lucide React icons
+✅ ALWAYS use cn() for conditional classes
+✅ Follow EXACT patterns from DESIGN-SYSTEM.md
+
+EXAMPLE (ScaleCalibration.tsx already done correctly):
+@frontend/src/components/viewer/ScaleCalibration.tsx
+
+VERIFY:
+- All pages load and work
+- No raw Tailwind colors
+- All icons are Lucide React
+- Keyboard navigation works
+- Focus states visible
+
+Start with Phase 1 (setup) and work through systematically. Reference the detailed prompt for specifics.
