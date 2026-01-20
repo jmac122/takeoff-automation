@@ -58,6 +58,12 @@ class ClassificationHistory(Base):
     # Full raw response for debugging/analysis
     raw_response: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
+    # Status tracking
+    status: Mapped[str] = mapped_column(
+        String(20), default="success", nullable=False
+    )  # success, failed, truncated
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -73,6 +79,8 @@ class ClassificationHistory(Base):
         return {
             "id": str(self.id),
             "page_id": str(self.page_id),
+            "status": self.status,
+            "error_message": self.error_message,
             "classification": self.classification,
             "classification_confidence": self.classification_confidence,
             "discipline": self.discipline,

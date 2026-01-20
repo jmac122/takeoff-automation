@@ -7,6 +7,7 @@ database connections (asyncpg) cause InterfaceError.
 FastAPI routes use ASYNC SQLAlchemy - this is the correct pattern.
 """
 
+import time
 import uuid
 
 import structlog
@@ -17,6 +18,7 @@ from app.config import get_settings
 from app.models.page import Page
 from app.models.classification_history import ClassificationHistory
 from app.services.page_classifier import classify_page
+from app.services.llm_client import get_llm_client, PROVIDER_MODELS
 from app.utils.storage import get_storage_service
 from app.workers.celery_app import celery_app
 
@@ -34,7 +36,48 @@ sync_engine = create_engine(
 SyncSession = sessionmaker(bind=sync_engine)
 
 
-@celery_app.task(bind=True, max_retries=3)
+def _save_failed_classification(
+    db,
+    page_id: str,
+    provider: str | None,
+    error: str,
+    latency_ms: float | None = None,
+) -> None:
+    """Save a failed classification attempt to history for BI tracking."""
+    # Determine provider and model
+    from app.services.llm_client import LLMProvider
+
+    if provider:
+        try:
+            llm_provider = LLMProvider(provider)
+        except ValueError:
+            llm_provider = LLMProvider.ANTHROPIC
+    else:
+        llm_provider = LLMProvider.ANTHROPIC  # Default
+
+    model = PROVIDER_MODELS.get(llm_provider, "unknown")
+
+    history_entry = ClassificationHistory(
+        page_id=uuid.UUID(page_id),
+        llm_provider=provider or "anthropic",
+        llm_model=model,
+        llm_latency_ms=latency_ms,
+        status="failed",
+        error_message=error[:2000] if error else None,  # Truncate long errors
+        raw_response={"error": error},
+    )
+    db.add(history_entry)
+    db.commit()
+
+    logger.info(
+        "Saved failed classification to history",
+        page_id=page_id,
+        provider=provider,
+        history_id=str(history_entry.id),
+    )
+
+
+@celery_app.task(bind=True, max_retries=0)  # No retries - save failures instead
 def classify_page_task(
     self,
     page_id: str,
@@ -50,6 +93,7 @@ def classify_page_task(
         Classification result dict
     """
     logger.info("Starting page classification", page_id=page_id, provider=provider)
+    start_time = time.time()
 
     try:
         with SyncSession() as db:
@@ -66,11 +110,19 @@ def classify_page_task(
             image_bytes = storage.download_file(page.image_key)
 
             # Classify
-            result = classify_page(
-                image_bytes=image_bytes,
-                ocr_text=page.ocr_text,
-                provider=provider,
-            )
+            try:
+                result = classify_page(
+                    image_bytes=image_bytes,
+                    ocr_text=page.ocr_text,
+                    provider=provider,
+                )
+            except Exception as classify_error:
+                # Save failed attempt to history for BI
+                latency_ms = (time.time() - start_time) * 1000
+                _save_failed_classification(
+                    db, page_id, provider, str(classify_error), latency_ms
+                )
+                raise
 
             # Update page record with latest classification
             page.classification = f"{result.discipline}:{result.page_type}"
@@ -99,6 +151,7 @@ def classify_page_task(
                 llm_provider=result.llm_provider,
                 llm_model=result.llm_model,
                 llm_latency_ms=result.llm_latency_ms,
+                status="success",
                 raw_response=result.to_dict(),
             )
             db.add(history_entry)
@@ -120,7 +173,8 @@ def classify_page_task(
 
     except Exception as e:
         logger.error("Page classification failed", page_id=page_id, error=str(e))
-        raise self.retry(exc=e, countdown=60)
+        # Don't retry - we've already saved the failure to history
+        raise
 
 
 @celery_app.task
