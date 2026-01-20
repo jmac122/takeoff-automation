@@ -22,9 +22,44 @@ export interface LLMSettings {
 // Measurement Types
 export interface Measurement {
   id: string;
-  conditionId: string;
-  geometryType: "polygon" | "polyline" | "line" | "point";
+  condition_id: string;
+  page_id: string;
+  geometry_type: "line" | "polyline" | "polygon" | "rectangle" | "circle" | "point";
+  geometry_data: Record<string, any>;
   quantity: number;
+  unit: string;
+  pixel_length?: number | null;
+  pixel_area?: number | null;
+  is_ai_generated: boolean;
+  ai_confidence?: number | null;
+  is_modified: boolean;
+  is_verified: boolean;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Condition Types
+export interface Condition {
+  id: string;
+  project_id: string;
+  name: string;
+  description?: string | null;
+  scope: string;
+  category?: string | null;
+  measurement_type: "linear" | "area" | "volume" | "count";
+  color: string;
+  line_width: number;
+  fill_opacity: number;
+  unit: string;
+  depth?: number | null;
+  thickness?: number | null;
+  total_quantity: number;
+  measurement_count: number;
+  sort_order: number;
+  extra_metadata?: Record<string, any> | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // Document Types
