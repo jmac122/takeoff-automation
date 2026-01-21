@@ -115,14 +115,13 @@ PDFs can contain embedded fonts, layers, transparency, and other elements that m
 3. **Eliminated compression artifacts** - LZW is lossless, unlike JPEG
 4. **Single coordinate system** - Fixed 1568px max dimension means no scale factor tracking
 
-### Changes from PNG Storage
+### Dual-Format Storage (Final Implementation)
 
-| Aspect | Previous (PNG) | Experimental (TIFF) |
-|--------|----------------|---------------------|
-| Storage format | `image.png` | `image.tiff` |
-| Content type | `image/png` | `image/tiff` |
-| Compression | PNG (lossless) | TIFF LZW (lossless) |
-| Thumbnail | PNG (unchanged) | PNG (unchanged) |
+| Format | Purpose | Storage Key |
+|--------|---------|-------------|
+| TIFF (LZW) | OCR, LLM vision analysis | `image.tiff` |
+| PNG | Frontend viewer (browser-compatible) | `image.png` |
+| PNG | Thumbnail | `thumbnail.png` |
 
 ### Updated Storage Structure
 
@@ -133,49 +132,54 @@ MinIO Bucket
         ├── original/
         │   └── {filename}.pdf          # Original uploaded file
         └── pages/{page_id}/
-            ├── image.tiff              # Full resolution (max 1568px) - TIFF with LZW
-            └── thumbnail.png           # 256px thumbnail (still PNG for web)
+            ├── image.tiff              # For OCR/LLM (flattened, consistent)
+            ├── image.png               # For frontend viewer (browser-compatible)
+            └── thumbnail.png           # 256px thumbnail
 ```
 
-### Processing Flow Change
+### Processing Flow
 
 ```mermaid
 flowchart TD
-    subgraph Processing["Page Processing (Experimental)"]
+    subgraph Processing["Page Processing"]
         A[PDF/TIFF uploaded] --> B[PyMuPDF or PIL extracts page]
         B --> C[Convert to RGB]
         C --> D[Resize to max 1568px]
-        D --> E[Save as TIFF with LZW compression]
-        E --> F[Store in MinIO as image.tiff]
+        D --> E[Save as TIFF with LZW]
+        E --> F[Store image.tiff in MinIO]
+        E --> G[Convert to PNG]
+        G --> H[Store image.png in MinIO]
     end
 
-    subgraph Benefits["Expected Benefits"]
-        G[No format conversion for LLM] 
-        H[Consistent pixel coordinates]
-        I[Lossless compression]
+    subgraph Usage["Usage"]
+        F --> I[OCR - Google Cloud Vision]
+        F --> J[LLM Vision - Claude/GPT/Gemini]
+        H --> K[Frontend Viewer]
     end
-
-    F --> G
-    F --> H
-    F --> I
 
     style Processing fill:#e8f5e9
-    style Benefits fill:#fff8e1
+    style Usage fill:#fff8e1
 ```
 
 ### Files Modified
 
 | File | Change |
 |------|--------|
-| `backend/app/utils/pdf_utils.py` | Default format changed to TIFF, added LZW compression |
-| `backend/app/services/document_processor.py` | Storage key `.png` → `.tiff`, content type updated |
+| `backend/app/utils/pdf_utils.py` | Added `convert_to_png()`, TIFF with LZW compression |
+| `backend/app/services/document_processor.py` | Stores both TIFF and PNG formats |
+| `backend/app/api/routes/pages.py` | Returns PNG URL for frontend via `get_viewer_image_key()` |
+
+### Why Dual Format?
+
+1. **TIFF for backend**: Flattens PDF layers/fonts into clean raster, consistent for OCR/LLM
+2. **PNG for frontend**: Browsers don't natively support TIFF, PNG is universally compatible
+3. **Same coordinates**: Both formats have identical pixel dimensions (1568px max), so coordinates match exactly
 
 ### Testing Checklist
 
-- [ ] Upload PDF → Verify `.tiff` storage
-- [ ] Upload multi-page TIFF → Verify re-normalized as `.tiff`
+- [ ] Upload PDF → Verify both `.tiff` and `.png` stored
 - [ ] OCR works on TIFF images
 - [ ] Scale detection returns accurate coordinates
 - [ ] LLM vision analysis works with TIFF
+- [ ] Frontend viewer displays PNG correctly
 - [ ] Thumbnails remain PNG for web display
-- [ ] Frontend viewer renders TIFF images correctly
