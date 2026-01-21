@@ -13,7 +13,12 @@ export function useMeasurements(pageId: string | undefined) {
 
     const createMeasurementMutation = useMutation({
         mutationFn: async (data: CreateMeasurementData) => {
-            const response = await apiClient.post('/measurements', data);
+            // Backend expects: POST /conditions/{conditionId}/measurements
+            const response = await apiClient.post(`/conditions/${data.conditionId}/measurements`, {
+                page_id: data.pageId,
+                geometry_type: data.geometryType,
+                geometry_data: data.geometryData,
+            });
             return response.data;
         },
         onSuccess: () => {

@@ -101,19 +101,34 @@ export function useCanvasEvents({
                     return;
                 }
 
-                // Start or continue drawing
+                // Rectangle and Circle: click-drag-release behavior
+                if (drawing.tool === 'rectangle' || drawing.tool === 'circle') {
+                    if (!drawing.isDrawing) {
+                        drawing.startDrawing(point);
+                    }
+                    // Don't add points on subsequent clicks for drag tools
+                    // Preview updates on mousemove, finish on mouseup
+                    return;
+                }
+
+                // Line, Polyline, Polygon: click-click behavior
                 if (!drawing.isDrawing) {
+                    // First click - start drawing
                     drawing.startDrawing(point);
                 } else {
-                    drawing.addPoint(point);
-
-                    // Auto-finish for line (2 points)
-                    if (drawing.tool === 'line' && drawing.points.length === 1) {
-                        const result = drawing.finishDrawing();
-                        // Type guard: only create measurement if tool is not 'select'
-                        if (result.tool !== 'select') {
-                            onMeasurementCreate(result as import('@/utils/measurementUtils').MeasurementResult);
-                        }
+                    // Subsequent clicks - add point
+                    // For line tool: auto-finish after second point
+                    if (drawing.tool === 'line') {
+                        // We have 1 point (start), add the end point and finish immediately
+                        // Create the measurement directly with both points
+                        onMeasurementCreate({
+                            tool: 'line',
+                            points: [drawing.points[0], point],
+                        });
+                        drawing.finishDrawing(); // Reset state
+                    } else {
+                        // For polyline/polygon: just add points, finish on double-click
+                        drawing.addPoint(point);
                     }
                 }
                 return;
@@ -170,17 +185,35 @@ export function useCanvasEvents({
             return;
         }
 
-        // Auto-finish for rectangle and circle on mouse up
+        // Auto-finish for rectangle and circle on mouse up (drag-release)
         if (drawing.tool === 'rectangle' || drawing.tool === 'circle') {
             if (drawing.isDrawing && drawing.points.length > 0) {
-                const result = drawing.finishDrawing();
-                // Type guard: only create measurement if tool is not 'select'
-                if (result.tool !== 'select') {
-                    onMeasurementCreate(result as import('@/utils/measurementUtils').MeasurementResult);
+                // Get final mouse position for the end point
+                const pointerPos = stage?.getPointerPosition();
+                if (pointerPos) {
+                    const endPoint = getImagePoint(pointerPos);
+                    
+                    // Check minimum size to avoid accidental clicks creating tiny shapes
+                    const startPoint = drawing.points[0];
+                    const dx = Math.abs(endPoint.x - startPoint.x);
+                    const dy = Math.abs(endPoint.y - startPoint.y);
+                    const minSize = 5; // Minimum 5 pixels
+                    
+                    if (dx >= minSize || dy >= minSize) {
+                        const result = drawing.finishDrawing();
+                        if (result.tool !== 'select' && result.previewShape) {
+                            onMeasurementCreate(result as import('@/utils/measurementUtils').MeasurementResult);
+                        }
+                    } else {
+                        // Too small, cancel the drawing
+                        drawing.finishDrawing(); // Just reset state without creating
+                    }
+                } else {
+                    drawing.finishDrawing(); // Reset state
                 }
             }
         }
-    }, [isPanning, drawing, onMeasurementCreate]);
+    }, [isPanning, drawing, getImagePoint, onMeasurementCreate]);
 
     const handleStageMouseLeave = useCallback(() => {
         if (isPanning) {
@@ -199,11 +232,12 @@ export function useCanvasEvents({
     }, [handleWheel]);
 
     const handleStageDoubleClick = useCallback(() => {
+        // Double-click finishes drawing for polyline and polygon
+        // (Line tool auto-finishes after 2 points, so no double-click needed)
         if (drawing.tool === 'polyline' || drawing.tool === 'polygon') {
             if (drawing.isDrawing && drawing.points.length >= 2) {
                 const result = drawing.finishDrawing();
-                // Type guard: only create measurement if tool is not 'select'
-                if (result.tool !== 'select') {
+                if (result.tool !== 'select' && result.points.length >= 2) {
                     onMeasurementCreate(result as import('@/utils/measurementUtils').MeasurementResult);
                 }
             }

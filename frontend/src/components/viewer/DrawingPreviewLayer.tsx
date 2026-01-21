@@ -1,4 +1,4 @@
-import { Layer, Line, Rect, Circle, Group } from 'react-konva';
+import { Layer, Line, Rect, Circle, Group, Text } from 'react-konva';
 import type { DrawingState } from '@/hooks/useDrawingState';
 
 interface DrawingPreviewLayerProps {
@@ -7,6 +7,31 @@ interface DrawingPreviewLayerProps {
     isDrawing: boolean;
     color: string;
     scale: number;
+    /** Pixels per real-world unit (e.g., pixels per foot) */
+    pixelsPerUnit?: number | null;
+    /** Unit label (e.g., "ft", "in", "m") */
+    unitLabel?: string;
+}
+
+/** Calculate pixel distance between two points */
+function getPixelDistance(start: { x: number; y: number }, end: { x: number; y: number }): number {
+    return Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
+}
+
+/** Format distance for display */
+function formatDistance(pixelDistance: number, pixelsPerUnit?: number | null, unitLabel?: string): string {
+    if (pixelsPerUnit && pixelsPerUnit > 0) {
+        const realDistance = pixelDistance / pixelsPerUnit;
+        // Format with appropriate precision
+        const formatted = realDistance < 1 
+            ? realDistance.toFixed(2) 
+            : realDistance < 10 
+                ? realDistance.toFixed(1) 
+                : Math.round(realDistance).toString();
+        return `${formatted} ${unitLabel || 'units'}`;
+    }
+    // No scale calibration - show pixels
+    return `${Math.round(pixelDistance)} px`;
 }
 
 export function DrawingPreviewLayer({
@@ -15,30 +40,52 @@ export function DrawingPreviewLayer({
     isDrawing,
     color,
     scale,
+    pixelsPerUnit,
+    unitLabel = 'ft',
 }: DrawingPreviewLayerProps) {
     if (!isDrawing) return null;
 
     const strokeWidth = 2 / scale;
     const pointRadius = 4 / scale;
+    const fontSize = 14 / scale;
 
     return (
         <Layer listening={false}>
             {/* Render preview shape */}
             {previewShape && (
                 <>
-                    {previewShape.type === 'line' && (
-                        <Line
-                            points={[
-                                previewShape.data.start.x,
-                                previewShape.data.start.y,
-                                previewShape.data.end.x,
-                                previewShape.data.end.y,
-                            ]}
-                            stroke={color}
-                            strokeWidth={strokeWidth}
-                            dash={[10 / scale, 5 / scale]}
-                        />
-                    )}
+                    {previewShape.type === 'line' && (() => {
+                        const start = previewShape.data.start;
+                        const end = previewShape.data.end;
+                        const pixelDist = getPixelDistance(start, end);
+                        const midX = (start.x + end.x) / 2;
+                        const midY = (start.y + end.y) / 2;
+                        const distanceText = formatDistance(pixelDist, pixelsPerUnit, unitLabel);
+                        
+                        return (
+                            <>
+                                <Line
+                                    points={[start.x, start.y, end.x, end.y]}
+                                    stroke={color}
+                                    strokeWidth={strokeWidth}
+                                    dash={[10 / scale, 5 / scale]}
+                                />
+                                {/* Distance label */}
+                                <Text
+                                    x={midX}
+                                    y={midY - fontSize - 4 / scale}
+                                    text={distanceText}
+                                    fontSize={fontSize}
+                                    fontFamily="monospace"
+                                    fill="#fff"
+                                    stroke="#000"
+                                    strokeWidth={0.5 / scale}
+                                    align="center"
+                                    offsetX={distanceText.length * fontSize * 0.3}
+                                />
+                            </>
+                        );
+                    })()}
 
                     {previewShape.type === 'polyline' && (
                         <Line
