@@ -196,17 +196,32 @@ async def reprocess_page_ocr(
     page_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Reprocess OCR for a page."""
-    result = await db.execute(select(Page.id).where(Page.id == page_id))
-    if not result.scalar_one_or_none():
+    """Reprocess OCR for a page.
+
+    Useful when OCR failed due to errors (e.g., database truncation) or
+    when OCR data needs to be refreshed with improved extraction logic.
+    """
+    result = await db.execute(select(Page).where(Page.id == page_id))
+    page = result.scalar_one_or_none()
+    if not page:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Page not found",
         )
 
+    # Set status to processing when reprocessing OCR (unless already processing)
+    if page.status != "processing":
+        page.status = "processing"
+        page.processing_error = None
+        await db.commit()
+
     process_page_ocr_task.delay(str(page_id))
 
-    return {"status": "queued", "page_id": str(page_id)}
+    return {
+        "status": "queued",
+        "page_id": str(page_id),
+        "message": "OCR reprocessing queued",
+    }
 
 
 @router.get("/projects/{project_id}/search")

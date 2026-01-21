@@ -326,7 +326,29 @@ class ScaleDetector:
                         if bbox:
                             # LLM provided a bbox, but it might be inaccurate
                             # Try to find the text in OCR blocks for more accurate bbox
-                            if ocr_blocks and "blocks" in ocr_blocks:
+                            if not ocr_blocks:
+                                logger.warning(
+                                    "⚠️ OCR blocks missing - cannot match for pixel-perfect bbox. "
+                                    "OCR may have failed during extraction. Consider re-running OCR.",
+                                )
+                            elif "blocks" not in ocr_blocks:
+                                logger.warning(
+                                    "⚠️ OCR blocks structure invalid - missing 'blocks' key. "
+                                    "Cannot match for pixel-perfect bbox.",
+                                    ocr_blocks_keys=list(ocr_blocks.keys())
+                                    if ocr_blocks
+                                    else None,
+                                )
+                            elif not ocr_blocks.get("blocks"):
+                                logger.warning(
+                                    "⚠️ OCR blocks empty - no blocks to match against. "
+                                    "Cannot match for pixel-perfect bbox.",
+                                )
+                            if (
+                                ocr_blocks
+                                and "blocks" in ocr_blocks
+                                and ocr_blocks["blocks"]
+                            ):
                                 # Normalize scale text for matching - more aggressive
                                 normalized_scale = (
                                     scale_text.lower()
@@ -344,9 +366,31 @@ class ScaleDetector:
                                     total_blocks=len(ocr_blocks["blocks"]),
                                 )
 
+                                # Log blocks that might contain scale text for debugging
+                                scale_related_blocks = [
+                                    {
+                                        "text": b.get("text", "")[:50],
+                                        "bbox": b.get("bounding_box", {}),
+                                    }
+                                    for b in ocr_blocks["blocks"]
+                                    if "scale" in b.get("text", "").lower()
+                                    or "1/8" in b.get("text", "")
+                                    or "1/4" in b.get("text", "")
+                                    or "1/2" in b.get("text", "")
+                                ]
+                                logger.debug(
+                                    "Scale-related OCR blocks found",
+                                    count=len(scale_related_blocks),
+                                    blocks=scale_related_blocks[
+                                        :10
+                                    ],  # First 10 matches
+                                )
+
                                 best_match_score = 0
                                 best_match_block = None
+                                best_match_combined = None
 
+                                # First, try matching individual blocks
                                 for block in ocr_blocks["blocks"]:
                                     block_text = (
                                         block.get("text", "")
@@ -384,9 +428,167 @@ class ScaleDetector:
                                             score=score,
                                         )
 
+                                # If no good single-block match, try combining nearby blocks
+                                if not best_match_block or best_match_score < 0.7:
+                                    logger.debug(
+                                        "No strong single-block match, trying combined blocks",
+                                        best_score=best_match_score,
+                                    )
+
+                                    # Look for blocks containing key scale words
+                                    scale_keywords = [
+                                        "scale",
+                                        "1/8",
+                                        "1/4",
+                                        "1/2",
+                                        "1",
+                                        "=",
+                                    ]
+                                    candidate_blocks = []
+
+                                    for block in ocr_blocks["blocks"]:
+                                        block_text_lower = block.get("text", "").lower()
+                                        if any(
+                                            keyword in block_text_lower
+                                            for keyword in scale_keywords
+                                        ):
+                                            candidate_blocks.append(block)
+
+                                    # Try combining nearby candidate blocks
+                                    if len(candidate_blocks) >= 2:
+                                        # Sort by position (top to bottom, left to right)
+                                        candidate_blocks.sort(
+                                            key=lambda b: (
+                                                b.get("bounding_box", {}).get("y", 0),
+                                                b.get("bounding_box", {}).get("x", 0),
+                                            )
+                                        )
+
+                                        # Try combining blocks that are close together
+                                        for i in range(len(candidate_blocks)):
+                                            combined_text = ""
+                                            combined_bbox = None
+
+                                            for j in range(
+                                                i, min(i + 5, len(candidate_blocks))
+                                            ):  # Try up to 5 blocks
+                                                block = candidate_blocks[j]
+                                                block_text = block.get("text", "")
+                                                combined_text += " " + block_text
+
+                                                # Combine bounding boxes
+                                                bbox = block.get("bounding_box", {})
+                                                if combined_bbox is None:
+                                                    combined_bbox = bbox.copy()
+                                                else:
+                                                    combined_bbox["x"] = min(
+                                                        combined_bbox.get("x", 0),
+                                                        bbox.get("x", 0),
+                                                    )
+                                                    combined_bbox["y"] = min(
+                                                        combined_bbox.get("y", 0),
+                                                        bbox.get("y", 0),
+                                                    )
+                                                    combined_bbox["width"] = (
+                                                        max(
+                                                            combined_bbox.get("x", 0)
+                                                            + combined_bbox.get(
+                                                                "width", 0
+                                                            ),
+                                                            bbox.get("x", 0)
+                                                            + bbox.get("width", 0),
+                                                        )
+                                                        - combined_bbox["x"]
+                                                    )
+                                                    combined_bbox["height"] = (
+                                                        max(
+                                                            combined_bbox.get("y", 0)
+                                                            + combined_bbox.get(
+                                                                "height", 0
+                                                            ),
+                                                            bbox.get("y", 0)
+                                                            + bbox.get("height", 0),
+                                                        )
+                                                        - combined_bbox["y"]
+                                                    )
+
+                                                # Normalize combined text
+                                                normalized_combined = (
+                                                    combined_text.lower()
+                                                    .replace(" ", "")
+                                                    .replace('"', "")
+                                                    .replace("'", "")
+                                                    .replace("=", "")
+                                                    .replace("-", "")
+                                                    .replace("/", "")
+                                                )
+
+                                                # Check if normalized scale is in combined text
+                                                # Also check if key parts match (e.g., "scale" + "18" or "scale" + "1810")
+                                                scale_parts = normalized_scale.replace(
+                                                    "scale", ""
+                                                ).strip(":")
+                                                has_scale_word = (
+                                                    "scale" in normalized_combined
+                                                )
+                                                has_scale_parts = (
+                                                    scale_parts
+                                                    and scale_parts
+                                                    in normalized_combined
+                                                )
+
+                                                if (
+                                                    normalized_scale
+                                                    in normalized_combined
+                                                    or (
+                                                        has_scale_word
+                                                        and has_scale_parts
+                                                    )
+                                                ):
+                                                    score = len(normalized_scale) / max(
+                                                        len(normalized_combined),
+                                                        len(normalized_scale),
+                                                    )
+                                                    if score > best_match_score:
+                                                        best_match_score = score
+                                                        best_match_block = block  # Use last block for reference
+                                                        best_match_combined = (
+                                                            combined_bbox
+                                                        )
+                                                        logger.debug(
+                                                            "Found combined block match",
+                                                            combined_text=combined_text[
+                                                                :100
+                                                            ],
+                                                            normalized_combined=normalized_combined[
+                                                                :50
+                                                            ],
+                                                            normalized_scale=normalized_scale,
+                                                            score=score,
+                                                        )
+                                                        break
+
+                                            if best_match_combined:
+                                                break
+
                                 if best_match_block:
-                                    # OCR blocks use 'bounding_box' with x, y, width, height
-                                    if "bounding_box" in best_match_block:
+                                    # Use combined bounding box if available, otherwise use single block
+                                    if best_match_combined:
+                                        final_bbox = {
+                                            "x": int(best_match_combined["x"]),
+                                            "y": int(best_match_combined["y"]),
+                                            "width": int(best_match_combined["width"]),
+                                            "height": int(
+                                                best_match_combined["height"]
+                                            ),
+                                        }
+                                        logger.info(
+                                            "✅ Using COMBINED OCR bbox for PIXEL-PERFECT accuracy",
+                                            scale_text=scale_text,
+                                            match_score=best_match_score,
+                                            bbox=final_bbox,
+                                        )
+                                    elif "bounding_box" in best_match_block:
                                         ocr_bbox = best_match_block["bounding_box"]
                                         final_bbox = {
                                             "x": int(ocr_bbox["x"]),
@@ -412,19 +614,30 @@ class ScaleDetector:
                             # If no OCR match found, fall back to LLM bbox
                             if not final_bbox:
                                 final_bbox = bbox
-                                logger.warning(
-                                    "Using LLM bbox (may be inaccurate)",
-                                    scale_text=scale_text,
-                                )
-                                # Log first 5 OCR blocks for debugging
-                                if ocr_blocks and "blocks" in ocr_blocks:
+                                if (
+                                    ocr_blocks
+                                    and "blocks" in ocr_blocks
+                                    and ocr_blocks["blocks"]
+                                ):
+                                    # OCR blocks exist but no match found - log for debugging
                                     sample_blocks = [
                                         block.get("text", "")[:30]
                                         for block in ocr_blocks["blocks"][:5]
                                     ]
-                                    logger.debug(
-                                        "OCR blocks sample (no match found)",
-                                        sample_blocks=sample_blocks,
+                                    logger.warning(
+                                        "⚠️ Using LLM bbox (no OCR match found)",
+                                        scale_text=scale_text,
+                                        normalized_scale=normalized_scale
+                                        if "normalized_scale" in locals()
+                                        else None,
+                                        ocr_blocks_sample=sample_blocks,
+                                    )
+                                else:
+                                    # OCR blocks missing entirely
+                                    logger.warning(
+                                        "⚠️ Using LLM bbox (OCR blocks missing - may be inaccurate). "
+                                        "Consider re-running OCR for pixel-perfect accuracy.",
+                                        scale_text=scale_text,
                                     )
 
                         if final_bbox:

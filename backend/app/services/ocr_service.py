@@ -275,24 +275,41 @@ class TitleBlockParser:
             )
         ]
 
-        # Combine all title block text
-        title_block_text = " ".join(b.text for b in title_block_blocks)
+        if not title_block_blocks:
+            return result
+
+        # Sort blocks by position (top to bottom, left to right) to process in order
+        title_block_blocks.sort(
+            key=lambda b: (b.bounding_box["y"], b.bounding_box["x"])
+        )
+
+        # Extract text from individual blocks (don't combine everything)
+        # This helps avoid matching across unrelated text blocks
+        title_block_text = "\n".join(b.text for b in title_block_blocks)
+
+        # Also create a combined version for patterns that might span blocks
+        title_block_text_combined = " ".join(b.text for b in title_block_blocks)
 
         # Extract fields using patterns
         # Note: These patterns search ONLY in the title block region (bottom-right 30%)
+        # Patterns are more restrictive to avoid matching notes/specifications
         patterns = {
             "sheet_number": [
                 # Standard formats: S0.04, S1.01, A-101, 03200-FL-COVER-02
                 r"SHEET[:\s]+([A-Z]\d+\.\d+)",  # SHEET: S0.04, SHEET S1.01
-                r"SHEET\s*(?:NO\.?|NUMBER|#)?[:\s]*([A-Z0-9][-A-Z0-9.]+)",
-                r"DWG\.?\s*(?:NO\.?|NUMBER)?[:\s]*([A-Z0-9][-A-Z0-9.]+)",
+                r"SHEET\s*(?:NO\.?|NUMBER|#)?[:\s]*([A-Z0-9][-A-Z0-9.]{1,20})",  # Limit length
+                r"DWG\.?\s*(?:NO\.?|NUMBER)?[:\s]*([A-Z0-9][-A-Z0-9.]{1,20})",  # Limit length
                 r"\b(\d{5}-[A-Z]{2}-[A-Z]+-\d{2})\b",  # 03200-FL-COVER-02
                 r"\b([A-Z]\d{1,2}\.\d{1,2})\b",  # S0.04, S1.01, A2.03
                 r"\b([A-Z]-\d{3})\b",  # S-101, A-201
             ],
             "sheet_title": [
-                r"SHEET\s*TITLE[:\s]+([A-Z][A-Z\s]+(?:AND|OR|OF|FOR)?[A-Z\s]+)",
-                r"TITLE[:\s]+([A-Z][A-Z\s]+)",
+                # Look for titles ending with common keywords (most reliable)
+                r"SHEET\s*TITLE[:\s]+([A-Z][A-Z\s]{1,80}(?:PLAN|ELEVATION|SECTION|DETAIL|SCHEDULE|NOTES|COVER|INDEX|DRAWING))",
+                r"TITLE[:\s]+([A-Z][A-Z\s]{1,80}(?:PLAN|ELEVATION|SECTION|DETAIL|SCHEDULE|NOTES|COVER|INDEX|DRAWING))",
+                # Match up to first sentence-ending punctuation (period, comma, semicolon) or newline
+                r"SHEET\s*TITLE[:\s]+([A-Z][A-Z\s]{1,80}?)(?=[.,;\n]|$)",
+                r"TITLE[:\s]+([A-Z][A-Z\s]{1,80}?)(?=[.,;\n]|$)",
             ],
             "project_number": [
                 r"PROJECT\s*(?:NO\.?|NUMBER)?[:\s]*([\d-]+)",
@@ -316,10 +333,40 @@ class TitleBlockParser:
 
         for field, field_patterns in patterns.items():
             for pattern in field_patterns:
-                match = re.search(pattern, title_block_text, re.IGNORECASE)
+                # Use combined text for patterns that might span blocks
+                text_to_search = (
+                    title_block_text_combined
+                    if field in ["sheet_number", "scale"]
+                    else title_block_text
+                )
+                match = re.search(pattern, text_to_search, re.IGNORECASE)
                 if match:
-                    result[field] = match.group(1).strip()
-                    break
+                    extracted_value = match.group(1).strip()
+
+                    # Clean up: remove extra whitespace and limit length
+                    extracted_value = re.sub(r"\s+", " ", extracted_value).strip()
+
+                    # Truncate to reasonable limits based on database constraints
+                    if field == "sheet_number":
+                        if len(extracted_value) > 50:
+                            extracted_value = extracted_value[:50]
+                    elif field == "sheet_title":
+                        # Limit to 100 chars, but try to truncate at word boundary
+                        if len(extracted_value) > 100:
+                            truncated = extracted_value[:100]
+                            last_space = truncated.rfind(" ")
+                            if last_space > 50:
+                                extracted_value = truncated[:last_space]
+                            else:
+                                extracted_value = truncated
+                        # Also limit to 500 chars (database max for title field)
+                        if len(extracted_value) > 500:
+                            extracted_value = extracted_value[:500]
+
+                    # Only set if we got a meaningful value (not just whitespace)
+                    if extracted_value and len(extracted_value) >= 2:
+                        result[field] = extracted_value
+                        break
 
         return result
 

@@ -531,10 +531,59 @@ assert response.status_code == 200
 
 ---
 
+## Recent Updates (January 21, 2026)
+
+### LLM Vision Integration - IMPLEMENTED ✅
+
+**Issue:** Scale detection was returning incomplete JSON responses and inaccurate bounding box coordinates.
+
+**Solutions Implemented:**
+
+1. **LLM Response Truncation Fix:**
+   - Increased `max_tokens` from 1024 to 8192 in `backend/app/services/llm_client.py`
+   - Prevents JSON truncation in scale detection responses
+   - Minimal cost impact as actual token usage determines billing
+
+2. **Image Compression Scale Factor Tracking:**
+   - Modified `_compress_image_if_needed()` to return `(compressed_bytes, scale_factor, original_dimensions)`
+   - Updated `LLMResponse` dataclass to include `image_scale_factor` and `original_image_dimensions`
+   - LLM-provided bounding boxes are now scaled back to original image dimensions
+   - Fixes inaccurate bbox placement caused by LLM analyzing compressed images
+
+3. **Pixel-Perfect OCR Bounding Box Integration:**
+   - Modified `detect_scale()` to accept `ocr_blocks` parameter
+   - Searches OCR blocks for detected scale text and uses OCR's precise bounding box
+   - Falls back to LLM bbox if no OCR match found
+   - Fixed OCR block structure access: `bounding_box` with `x, y, width, height` keys
+   - OCR provides pixel-perfect accuracy since it operates on full-resolution images
+
+4. **Scale Detection History Preservation:**
+   - Modified `scale_tasks.py` to only update `scale_calibration_data` if new detection has valid bbox
+   - Preserves historical successful detections when new auto-detect fails
+   - Prevents loss of good bbox data on failed re-runs
+
+5. **Frontend Scale Location Visualization:**
+   - Added "Show Scale Location" button in `ViewerHeader.tsx`
+   - Displays historical scale detection bounding box for evaluation
+   - Added collapsible "Scale Detection History" section in `ClassificationSidebar.tsx`
+   - Removed 5-second auto-clear of detection results for better UX
+
+**Impact:**
+- Pixel-perfect scale detection accuracy
+- Historical scale location tracking for evaluation
+- Robust handling of failed detections
+- Better user experience with persistent results
+
+### Markdown Code Fence Handling
+
+**Issue:** LLM was wrapping JSON responses in markdown code fences, causing parsing failures.
+
+**Solution:** Added logic in `backend/app/services/scale_detector.py` to strip markdown code fences (````json` and ` ````) before JSON parsing.
+
 ## Future Enhancements
 
 ### Short-term
-1. **LLM Vision Integration:** Use Claude/GPT-4V for scale detection when OCR fails
+1. ✅ **LLM Vision Integration:** COMPLETE - Use Claude/GPT-4V for scale detection when OCR fails
 2. **Scale Bar Value Extraction:** OCR the labels on graphical scale bars
 3. **Confidence Tuning:** ML model for improved confidence scoring
 

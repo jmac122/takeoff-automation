@@ -54,6 +54,18 @@ def process_page_ocr_task(self, page_id: str) -> dict:
             if not page:
                 raise ValueError(f"Page not found: {page_id}")
 
+            # Set status to processing when reprocessing OCR (unless already processing)
+            if page.status != "processing":
+                previous_status = page.status
+                page.status = "processing"
+                page.processing_error = None
+                session.commit()
+                logger.info(
+                    "Set page status to processing for OCR",
+                    page_id=page_id,
+                    previous_status=previous_status,
+                )
+
             # Download page image
             storage = get_storage_service()
             image_bytes = storage.download_file(page.image_key)
@@ -80,33 +92,46 @@ def process_page_ocr_task(self, page_id: str) -> dict:
                 "title_block": title_block_data,
             }
 
-            # Set sheet number, title, and scale - PRIORITIZE title block data
-            # Title blocks are more reliable than full-page pattern matching
+            # Set sheet number, title, and scale - ONLY use title block data
+            # Title blocks are in the bottom-right corner and are the authoritative source
+            # Full-page OCR text is used for content analysis, not for title/sheet number extraction
 
-            # Extract sheet number and title separately first
-            extracted_sheet_number = None
-            extracted_title = None
+            # Extract sheet number and title from title block ONLY
+            extracted_sheet_number = title_block_data.get("sheet_number")
+            extracted_title = title_block_data.get("sheet_title")
 
-            # Sheet number: title block first, then full-page patterns
-            if title_block_data.get("sheet_number"):
-                extracted_sheet_number = title_block_data["sheet_number"]
-            elif ocr_result.detected_sheet_numbers:
-                extracted_sheet_number = ocr_result.detected_sheet_numbers[0]
+            # Truncate to database constraints
+            # sheet_number field: String(50) - max 50 chars
+            # title field: String(500) - max 500 chars
 
-            # Title: title block first, then full-page patterns
-            if title_block_data.get("sheet_title"):
-                extracted_title = title_block_data["sheet_title"]
-            elif ocr_result.detected_titles:
-                extracted_title = ocr_result.detected_titles[0]
+            if extracted_sheet_number:
+                extracted_sheet_number = extracted_sheet_number[:50]
 
-            # Combine sheet number and title for display (e.g., "S0.01 - GENERAL NOTES")
+            if extracted_title:
+                extracted_title = extracted_title[:500]
+
+            # Store sheet number and title separately
+            # Only combine if both exist and combined length fits in sheet_number field (50 chars)
             if extracted_sheet_number and extracted_title:
-                page.sheet_number = f"{extracted_sheet_number} - {extracted_title}"
+                combined = f"{extracted_sheet_number} - {extracted_title}"
+                if len(combined) <= 50:
+                    page.sheet_number = combined
+                else:
+                    # If combined is too long, just use sheet number
+                    page.sheet_number = extracted_sheet_number
+                    page.title = extracted_title
             elif extracted_sheet_number:
                 page.sheet_number = extracted_sheet_number
+            elif extracted_title:
+                # If only title exists, try to fit it in sheet_number if short enough
+                if len(extracted_title) <= 50:
+                    page.sheet_number = extracted_title
+                else:
+                    page.title = extracted_title
 
-            # Store title separately for potential future use
-            page.title = extracted_title
+            # Store title separately (if not already set above)
+            if extracted_title and not page.title:
+                page.title = extracted_title
 
             # Scale: title block first, then full-page patterns
             if title_block_data.get("scale"):
@@ -114,7 +139,21 @@ def process_page_ocr_task(self, page_id: str) -> dict:
             elif ocr_result.detected_scale_texts:
                 page.scale_text = ocr_result.detected_scale_texts[0]
 
-            page.status = "completed"
+            # Keep status as "processing" until classification also completes
+            # Classification task will set it to "completed" when done
+            # Only set to completed if classification is not being queued
+            # (For now, we always queue classification, so keep it as processing)
+
+            # Capture values before committing (to avoid DetachedInstanceError)
+            result_data = {
+                "status": "success",
+                "page_id": page_id,
+                "text_length": len(ocr_result.full_text),
+                "sheet_number": page.sheet_number,
+                "title": page.title,
+                "scale_text": page.scale_text,
+            }
+
             session.commit()
 
             logger.info(
@@ -125,20 +164,14 @@ def process_page_ocr_task(self, page_id: str) -> dict:
             )
 
         # Automatically classify page after OCR completes (using fast OCR-based classification)
+        # Queue this AFTER session is closed to avoid DetachedInstanceError
         from app.workers.classification_tasks import classify_page_task
 
         classify_page_task.delay(page_id, provider=None, use_vision=False)
 
         logger.info("Queued automatic classification after OCR", page_id=page_id)
 
-        return {
-            "status": "success",
-            "page_id": page_id,
-            "text_length": len(ocr_result.full_text),
-            "sheet_number": page.sheet_number,
-            "title": page.title,
-            "scale_text": page.scale_text,
-        }
+        return result_data
 
     except Exception as e:
         logger.error("OCR processing failed", page_id=page_id, error=str(e))

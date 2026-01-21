@@ -916,12 +916,126 @@ All implementations follow industrial/tactical UI aesthetic:
 
 ---
 
+## Recent UI/UX Improvements (January 21, 2026)
+
+### TakeoffViewer Reorganization
+
+**Issue:** Vertical scrollbar issues and cluttered UI layout in the TakeoffViewer page.
+
+**Solution:** Complete UI reorganization with the following changes:
+
+1. **Consolidated Top Bar (70px tall):**
+   - Back button
+   - Sheet info section (sheet number bold, scale info smaller text)
+   - Drawing tools section (centered) with all tool icons
+   - "AUTO DETECT SCALE" and "SET SCALE" buttons
+   - "Show Scale Location" button (appears when scale bbox exists)
+   - Zoom controls section (right-aligned)
+
+2. **Collapsible Classification Sidebar (280-320px):**
+   - Classification summary with confidence bar
+   - Discipline and Page Type sections with confidence percentages
+   - Concrete Relevance badge (color-coded)
+   - Bulleted list of "Elements Detected"
+   - Full AI-generated "Description"
+   - Technical Details (provider, latency, link to AI Evaluation)
+   - **Classification History Timeline** (collapsible)
+   - **Scale Detection History** (collapsible)
+
+3. **Canvas/Page View:**
+   - Takes remaining space
+   - Expands when sidebar collapsed or in fullscreen
+   - No vertical scrollbar issues
+
+**Files Modified:**
+- `frontend/src/pages/TakeoffViewer.tsx`
+- `frontend/src/components/viewer/ViewerHeader.tsx`
+- `frontend/src/components/viewer/ClassificationSidebar.tsx` (new)
+
+### AI Evaluation Modal Fixes
+
+**Issue:** Image not loading and excessively tall top bar in classification timeline modal.
+
+**Solution:**
+- Fixed image loading by directly deriving `imageUrl` from `pageData?.image_url` instead of incorrect `useState` usage
+- Adjusted modal height to `max-h-[90vh]` and header padding
+- Added sheet name (`pageData?.title`) to `DialogTitle` alongside sheet number
+
+**Files Modified:**
+- `frontend/src/pages/AIEvaluation.tsx`
+
+### Multi-Step Re-Classification
+
+**Issue:** Hover-based re-classify was not user-friendly; needed deliberate multi-step process.
+
+**Solution:** Implemented multi-step checkbox selection:
+1. Click "Re-Classify Pages" button → all pages show unchecked checkboxes
+2. Select "Select All" or individual pages
+3. Click "Classify Selected (N)" button
+
+**Features:**
+- Selection mode with visual feedback (amber ring on selected pages)
+- "Select All" and "Cancel" buttons
+- Displays count of selected pages
+- Uses shadcn/ui `Checkbox` component
+
+**Files Modified:**
+- `frontend/src/pages/DocumentDetail.tsx`
+- `frontend/src/components/document/PageCard.tsx`
+- `frontend/src/components/ui/checkbox.tsx` (new)
+
+### PageCard Enhancements
+
+**Issue:** Sheet titles not showing, classification overlay layout issues.
+
+**Solution:**
+- Display both `page.sheet_number` and `page.title` in format: `S0.01 - STRUCTURAL NOTES`
+- Refactored overlay into separate, edge-to-edge sections:
+  - Top section: Sheet number and title
+  - Second section: Classification (XXX:YYY) with confidence bar
+- Removed nested component styling for cleaner layout
+
+**Files Modified:**
+- `frontend/src/components/document/PageCard.tsx`
+
+### Classification Sidebar Data Fix
+
+**Issue:** Sidebar missing "Elements Detected" and "Description" data despite AI Evaluation modal showing it.
+
+**Solution:**
+- Changed sidebar to use `latestClassification` from classification history API instead of `page` data directly
+- Ensures all detailed classification fields are displayed
+- Fixed `hasClassification` check to include `page.classification`
+
+**Files Modified:**
+- `frontend/src/components/viewer/ClassificationSidebar.tsx`
+
+### Scale Detection UX Improvements
+
+**Issue:** Auto-detect scale results auto-clearing after 5 seconds, no visual feedback for detection location.
+
+**Solution:**
+- Removed 5-second auto-clear timeout for `detectionResult` and `scaleHighlightBox`
+- Added success notification when scale detection completes
+- Added "Show Scale Location" button to view historical scale detection bbox
+- Added collapsible "Scale Detection History" section in sidebar
+- Scale location highlight only clears on page refresh
+
+**Files Modified:**
+- `frontend/src/hooks/useScaleDetection.ts`
+- `frontend/src/components/viewer/ViewerHeader.tsx`
+- `frontend/src/components/viewer/ClassificationSidebar.tsx`
+- `frontend/src/pages/TakeoffViewer.tsx`
+
+---
+
 ## Future Enhancements
 
 ### Phase 2B: Scale Calibration
 - ✅ Visual scale calibration interface (COMPLETE)
 - ✅ Measurement unit selection (COMPLETE)
 - ✅ Calibration validation (COMPLETE)
+- ✅ Historical scale location visualization (COMPLETE)
 
 ### Phase 3A: Measurement Tools
 - Canvas-based measurement interface
@@ -929,3 +1043,5 @@ All implementations follow industrial/tactical UI aesthetic:
 - Measurement history and undo/redo
 
 This frontend implementation provides a solid foundation for the document ingestion, OCR, classification workflows, and analytics with modern React patterns, comprehensive error handling, industrial/tactical UI design, and scalability for future phases.
+
+**Last Updated:** January 21, 2026 - TakeoffViewer reorganization, multi-step re-classification, and scale detection UX improvements

@@ -655,6 +655,22 @@ OCR Extraction → Sheet Number/Title Detected → Auto-Classification
 - Provides more detailed analysis for complex/non-standard sheets
 - See [Classification Optimization](../CLASSIFICATION_OPTIMIZATION.md) for details
 
+## Recent Updates (January 21, 2026)
+
+### OCR Extraction Refinement
+
+**Issue:** OCR service was extracting too much text for `title` and `sheet_number` fields, pulling data from the entire page instead of just the bottom-right corner where title blocks are typically located.
+
+**Solution:** Modified `_extract_sheet_numbers` and `_extract_titles` methods in `backend/app/services/ocr_service.py` to restrict extraction to the bottom-right 30% x 30% region of the page, where title blocks are standardly located on construction drawings.
+
+**Database Migration:** Created migration `d5b881957963_increase_ocr_field_lengths.py` to change `title` and `sheet_number` columns from `VARCHAR(500)` to `Text` type to accommodate longer extracted strings when needed.
+
+**Impact:**
+- More accurate sheet number and title extraction
+- Reduced false positives from body text
+- Maintains backward compatibility with existing data
+- Improved data quality for classification and search
+
 ## Related Documentation
 
 - [OCR API Reference](../api/OCR_API.md) - API endpoints
@@ -664,4 +680,4 @@ OCR Extraction → Sheet Number/Title Detected → Auto-Classification
 
 ---
 
-**Last Updated:** January 20, 2026 - OCR-based classification integration complete
+**Last Updated:** January 21, 2026 - OCR extraction refinement and database column size fixes

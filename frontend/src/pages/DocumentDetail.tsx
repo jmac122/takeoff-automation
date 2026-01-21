@@ -2,7 +2,7 @@
  * DocumentDetail page - displays document information and pages.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { PageCard } from '@/components/document/PageCard';
+import { LLMProviderSelector } from '@/components/LLMProviderSelector';
 import { apiClient } from '@/api/client';
 import { projectsApi } from '@/api/projects';
 import { Document, Page } from '@/types';
@@ -24,6 +25,7 @@ export default function DocumentDetail() {
     const [isClassifying, setIsClassifying] = useState(false);
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
+    const [selectedProvider, setSelectedProvider] = useState<string | undefined>(undefined);
 
     // Fetch project details for breadcrumb
     const { data: project } = useQuery({
@@ -55,27 +57,47 @@ export default function DocumentDetail() {
             return response.data;
         },
         enabled: !!documentId,
-        // Poll while document is processing OR while classifications are running
-        refetchInterval: document?.status === 'processing' || isClassifying ? 2000 : false,
+        // Poll while document is processing OR while classifications are running OR any page is processing
+        refetchInterval: (query) => {
+            // Use the latest query data
+            const data = query.state.data as { pages: Page[] } | undefined;
+            const hasProcessingPages = data?.pages?.some(page => {
+                const status = page.status?.toLowerCase();
+                return status === 'processing' || status === 'pending';
+            }) ?? false;
+
+            const shouldPoll = document?.status === 'processing' || isClassifying || hasProcessingPages;
+            return shouldPoll ? 2000 : false;
+        },
+        // Refetch on window focus to catch updates
+        refetchOnWindowFocus: true,
     });
 
     // Classify selected pages mutation
     const classifyMutation = useMutation({
-        mutationFn: async (pageIds: string[]) => {
+        mutationFn: async ({ pageIds, provider }: { pageIds: string[]; provider?: string }) => {
             if (pageIds.length === 0) throw new Error('No pages selected');
+
+            // If provider is selected, use vision models. Otherwise, use fast OCR-based classification
+            const requestBody: { provider?: string; use_vision: boolean } = {
+                use_vision: !!provider, // Use vision if provider is specified
+            };
+            if (provider) {
+                requestBody.provider = provider;
+            }
 
             // If all pages selected, use document endpoint
             if (pageIds.length === pages.length) {
                 const response = await axios.post(
                     `/api/v1/documents/${documentId}/classify`,
-                    { use_vision: false }
+                    requestBody
                 );
                 return response.data;
             }
 
             // Otherwise, classify individual pages
             const promises = pageIds.map(pageId =>
-                axios.post(`/api/v1/pages/${pageId}/classify`, { use_vision: false })
+                axios.post(`/api/v1/pages/${pageId}/classify`, requestBody)
             );
             await Promise.all(promises);
             return { success: true };
@@ -86,17 +108,21 @@ export default function DocumentDetail() {
             setIsSelectMode(false);
             setSelectedPageIds(new Set());
 
-            // Stop polling after 30 seconds (classifications should complete by then)
+            // Immediately refetch to get updated status
+            queryClient.refetchQueries({ queryKey: ['pages', documentId] });
+
+            // Fallback: Stop polling after 60 seconds max
             setTimeout(() => {
                 setIsClassifying(false);
                 queryClient.invalidateQueries({ queryKey: ['pages', documentId] });
-            }, 30000);
+            }, 60000);
         },
     });
 
     const handleToggleSelectMode = () => {
         setIsSelectMode(!isSelectMode);
         setSelectedPageIds(new Set());
+        setSelectedProvider(undefined); // Reset provider when exiting select mode
     };
 
     const handleTogglePage = (pageId: string) => {
@@ -119,11 +145,75 @@ export default function DocumentDetail() {
 
     const handleClassify = () => {
         if (selectedPageIds.size > 0) {
-            classifyMutation.mutate(Array.from(selectedPageIds));
+            classifyMutation.mutate({
+                pageIds: Array.from(selectedPageIds),
+                provider: selectedProvider,
+            });
+        }
+    };
+
+    // Re-run OCR for selected pages mutation
+    const reprocessOCRMutation = useMutation({
+        mutationFn: async (pageIds: string[]) => {
+            if (pageIds.length === 0) throw new Error('No pages selected');
+
+            // Reprocess OCR for each selected page
+            const promises = pageIds.map(pageId =>
+                axios.post(`/api/v1/pages/${pageId}/reprocess-ocr`)
+            );
+            await Promise.all(promises);
+            return { success: true };
+        },
+        onSuccess: () => {
+            // Start polling for updates
+            setIsClassifying(true);
+            setIsSelectMode(false);
+            setSelectedPageIds(new Set());
+
+            // Immediately refetch to get updated status
+            queryClient.refetchQueries({ queryKey: ['pages', documentId] });
+
+            // Fallback: Stop polling after 60 seconds max (OCR should complete by then)
+            setTimeout(() => {
+                setIsClassifying(false);
+                queryClient.invalidateQueries({ queryKey: ['pages', documentId] });
+            }, 60000);
+        },
+    });
+
+    const handleReprocessOCR = () => {
+        if (selectedPageIds.size > 0) {
+            reprocessOCRMutation.mutate(Array.from(selectedPageIds));
         }
     };
 
     const pages = pagesData?.pages || [];
+
+    // Check if any pages are still processing
+    const hasProcessingPages = pages.some(page => {
+        const status = page.status?.toLowerCase();
+        return status === 'processing' || status === 'pending';
+    });
+
+    // Auto-clear isClassifying when all pages are done processing
+    useEffect(() => {
+        if (isClassifying && pages.length > 0) {
+
+            // If no pages are processing anymore, clear the classifying state and reset mutations
+            if (!hasProcessingPages) {
+                console.log('All pages completed, clearing isClassifying state', {
+                    pages: pages.map(p => ({ id: p.id, status: p.status }))
+                });
+                setIsClassifying(false);
+                // Reset mutation states so alerts don't persist
+                classifyMutation.reset();
+                reprocessOCRMutation.reset();
+                // Force refetch to get latest data
+                queryClient.invalidateQueries({ queryKey: ['pages', documentId] });
+                queryClient.refetchQueries({ queryKey: ['pages', documentId] });
+            }
+        }
+    }, [pages, isClassifying, documentId, queryClient, classifyMutation, reprocessOCRMutation]);
 
     const statusColors: Record<string, string> = {
         pending: 'bg-yellow-100 text-yellow-800',
@@ -190,8 +280,8 @@ export default function DocumentDetail() {
                         </Label>
                         <div className="text-xs text-neutral-500 mb-2">
                             {isSelectMode
-                                ? 'Select pages to re-classify, then click "Classify Selected"'
-                                : 'Re-classify all pages or select specific pages'
+                                ? 'Select pages to re-classify or re-run OCR'
+                                : 'Re-classify pages or re-run OCR for selected pages'
                             }
                         </div>
                     </div>
@@ -206,7 +296,7 @@ export default function DocumentDetail() {
                             Re-Classify Pages
                         </Button>
                     ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                             <div className="flex gap-2">
                                 <Button
                                     onClick={handleSelectAll}
@@ -225,23 +315,55 @@ export default function DocumentDetail() {
                                     Cancel
                                 </Button>
                             </div>
-                            <Button
-                                onClick={handleClassify}
-                                disabled={selectedPageIds.size === 0 || classifyMutation.isPending}
-                                className="w-full bg-amber-500 hover:bg-amber-400 text-black font-mono uppercase tracking-wider"
-                            >
-                                {classifyMutation.isPending
-                                    ? 'Classifying...'
-                                    : `Classify Selected (${selectedPageIds.size})`
-                                }
-                            </Button>
+
+                            {/* Action Buttons */}
+                            <div className="space-y-2 pt-2 border-t border-neutral-700">
+                                {/* LLM Provider Selector - only show for classification */}
+                                <div>
+                                    <LLMProviderSelector
+                                        value={selectedProvider}
+                                        onChange={setSelectedProvider}
+                                        label="AI Provider (Optional)"
+                                        showDefault={true}
+                                    />
+                                </div>
+
+                                {/* Re-classify Button */}
+                                <Button
+                                    onClick={handleClassify}
+                                    disabled={selectedPageIds.size === 0 || classifyMutation.isPending || reprocessOCRMutation.isPending}
+                                    className="w-full bg-amber-500 hover:bg-amber-400 text-black font-mono uppercase tracking-wider"
+                                >
+                                    {classifyMutation.isPending
+                                        ? 'Classifying...'
+                                        : `Re-Classify Selected (${selectedPageIds.size})`
+                                    }
+                                </Button>
+
+                                {/* Re-run OCR Button */}
+                                <Button
+                                    onClick={handleReprocessOCR}
+                                    disabled={selectedPageIds.size === 0 || reprocessOCRMutation.isPending || classifyMutation.isPending}
+                                    variant="outline"
+                                    className="w-full border-blue-500/50 hover:bg-blue-500/10 text-blue-400 font-mono uppercase tracking-wider"
+                                >
+                                    {reprocessOCRMutation.isPending
+                                        ? 'Re-running OCR...'
+                                        : `Re-Run OCR (${selectedPageIds.size})`
+                                    }
+                                </Button>
+                            </div>
                         </div>
                     )}
 
-                    {(classifyMutation.isSuccess || isClassifying) && (
+                    {(reprocessOCRMutation.isPending || classifyMutation.isPending || hasProcessingPages) && (
                         <Alert className="bg-blue-500/10 border-blue-500/50">
                             <AlertDescription className="text-blue-400 text-xs font-mono">
-                                {isClassifying ? 'Re-classification in progress...' : 'Re-classification started!'}
+                                {reprocessOCRMutation.isPending
+                                    ? 'OCR re-processing in progress...'
+                                    : classifyMutation.isPending
+                                        ? 'Re-classification in progress...'
+                                        : 'Processing in progress...'}
                             </AlertDescription>
                         </Alert>
                     )}

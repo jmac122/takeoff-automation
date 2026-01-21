@@ -779,6 +779,10 @@ LIMIT 50;
 
 ### Migration History
 
+**Recent Migrations (January 21, 2026):**
+- `d5b881957963_increase_ocr_field_lengths.py` - Changed `title` and `sheet_number` columns from `VARCHAR(500)` to `Text` type to accommodate longer OCR-extracted strings
+- `0f19e78be270_add_detailed_classification_fields_to_.py` - Added detailed classification fields (`discipline`, `discipline_confidence`, `page_type`, `page_type_confidence`, `concrete_elements`, `description`, `llm_provider`, `llm_latency_ms`) to `pages` table
+
 **Phase 2A Migrations:**
 - `576b3ce9ef71_add_classification_fields_to_pages.py` - Classification fields
 
@@ -797,8 +801,51 @@ alembic current
 alembic upgrade head
 ```
 
+### Recent Schema Updates (January 21, 2026)
+
+**OCR Field Length Increase:**
+- **Issue:** `StringDataRightTruncation` errors when OCR extracted long text for `title` and `sheet_number`
+- **Solution:** Changed columns from `VARCHAR(500)` to `Text` type
+- **Impact:** Accommodates any length of extracted text without truncation
+
+**Detailed Classification Fields:**
+- **Issue:** Frontend needed access to detailed classification data (elements, description, provider info)
+- **Solution:** Added explicit columns for all classification metadata
+- **New Columns:**
+  - `discipline` (VARCHAR)
+  - `discipline_confidence` (FLOAT)
+  - `page_type` (VARCHAR)
+  - `page_type_confidence` (FLOAT)
+  - `concrete_elements` (JSONB array)
+  - `description` (TEXT)
+  - `llm_provider` (VARCHAR)
+  - `llm_latency_ms` (FLOAT)
+
+**Scale Calibration Data:**
+- **Existing Column:** `scale_calibration_data` (JSONB)
+- **Enhancement:** Now stores image scale factor and OCR bounding boxes for pixel-perfect accuracy
+- **Structure:**
+```json
+{
+  "best_scale": {
+    "text": "1/4\" = 1'-0\"",
+    "ratio": 48.0,
+    "bbox": {
+      "x": 120,
+      "y": 2800,
+      "width": 300,
+      "height": 40
+    },
+    "confidence": 0.9,
+    "source": "ocr"
+  },
+  "image_scale_factor": 0.5,
+  "original_dimensions": [2550, 3300]
+}
+```
+
 ---
 
 This database schema provides a solid foundation for the construction takeoff platform, with proper normalization, indexing, full-text search capabilities, AI classification metadata, and extensibility for future phases.
 
-**Last Updated:** January 19, 2026 - Phase 2A Complete
+**Last Updated:** January 21, 2026 - OCR field length fixes and detailed classification fields

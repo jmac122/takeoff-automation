@@ -191,6 +191,9 @@ def classify_page_task(
             )
             page.concrete_relevance = result.concrete_relevance
             page.classification_metadata = result.to_dict()
+            # Set status to completed when classification finishes successfully
+            # (OCR keeps status as "processing" until classification completes)
+            page.status = "completed"
 
             # Save to classification history for BI tracking
             history_entry = ClassificationHistory(

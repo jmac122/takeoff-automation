@@ -135,6 +135,7 @@ export interface Page {
   thumbnail_url?: string | null;
   width?: number | null;
   height?: number | null;
+  status?: string | null; // pending, processing, completed, error
   ocr_text?: string | null;
   ocr_blocks?: {
     blocks: Array<{
