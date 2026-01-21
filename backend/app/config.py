@@ -61,6 +61,12 @@ class Settings(BaseSettings):
     # Google Cloud Vision (OCR - separate from Gemini)
     google_application_credentials: str | None = None
 
+    # ==========================================================================
+    # Image Processing Configuration
+    # ==========================================================================
+    # Max dimension for page images stored and sent to LLMs (1568px fits all LLM limits)
+    llm_image_max_dimension: int = 1568
+
     @field_validator("llm_fallback_providers", mode="before")
     @classmethod
     def parse_fallback_providers(cls, v: str) -> str:

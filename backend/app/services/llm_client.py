@@ -8,7 +8,6 @@ Supports:
 """
 
 import base64
-import io
 import json
 import time
 from dataclasses import dataclass
@@ -17,7 +16,6 @@ from typing import Any
 
 import anthropic
 import structlog
-from PIL import Image
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -29,9 +27,6 @@ from app.config import get_settings
 
 logger = structlog.get_logger()
 settings = get_settings()
-
-# Claude has a 5MB image limit
-MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
 class LLMProvider(str, Enum):
@@ -53,8 +48,6 @@ class LLMResponse:
     input_tokens: int
     output_tokens: int
     latency_ms: float
-    image_scale_factor: float = 1.0  # Scale factor if image was resized
-    original_image_dimensions: tuple[int, int] | None = None  # (width, height)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -64,8 +57,6 @@ class LLMResponse:
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "latency_ms": self.latency_ms,
-            "image_scale_factor": self.image_scale_factor,
-            "original_image_dimensions": self.original_image_dimensions,
         }
 
 
@@ -281,11 +272,6 @@ class LLMClient:
         client = self._clients[LLMProvider.ANTHROPIC]
         model = PROVIDER_MODELS[LLMProvider.ANTHROPIC]
 
-        # Compress image if needed (Claude has 5MB limit)
-        image_bytes, scale_factor, original_dims = self._compress_image_if_needed(
-            image_bytes
-        )
-
         image_data = base64.b64encode(image_bytes).decode("utf-8")
         media_type = self._detect_media_type(image_bytes)
 
@@ -321,8 +307,6 @@ class LLMClient:
             provider="anthropic",
             model=model,
             input_tokens=response.usage.input_tokens,
-            image_scale_factor=scale_factor,
-            original_image_dimensions=original_dims,
             output_tokens=response.usage.output_tokens,
             latency_ms=0,  # Set by caller
         )
@@ -338,11 +322,6 @@ class LLMClient:
         """Analyze using OpenAI GPT-4V or xAI Grok (OpenAI-compatible)."""
         client = self._clients[provider]
         model = PROVIDER_MODELS[provider]
-
-        # Compress image if needed
-        image_bytes, scale_factor, original_dims = self._compress_image_if_needed(
-            image_bytes
-        )
 
         image_data = base64.b64encode(image_bytes).decode("utf-8")
         media_type = self._detect_media_type(image_bytes)
@@ -379,8 +358,6 @@ class LLMClient:
             content=response.choices[0].message.content,
             provider=provider.value,
             model=model,
-            image_scale_factor=scale_factor,
-            original_image_dimensions=original_dims,
             input_tokens=response.usage.prompt_tokens if response.usage else 0,
             output_tokens=response.usage.completion_tokens if response.usage else 0,
             latency_ms=0,
@@ -399,11 +376,6 @@ class LLMClient:
 
         genai = self._clients[LLMProvider.GOOGLE]
         model_name = PROVIDER_MODELS[LLMProvider.GOOGLE]
-
-        # Compress image if needed and track scale factor
-        image_bytes, scale_factor, original_dims = self._compress_image_if_needed(
-            image_bytes
-        )
 
         image = PIL.Image.open(io.BytesIO(image_bytes))
         model = genai.GenerativeModel(model_name)
@@ -462,8 +434,6 @@ class LLMClient:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             latency_ms=0,
-            image_scale_factor=scale_factor,
-            original_image_dimensions=original_dims,
         )
 
     def _detect_media_type(self, image_bytes: bytes) -> str:
@@ -478,97 +448,6 @@ class LLMClient:
             return "image/tiff"
         else:
             return "image/png"  # Default
-
-    def _compress_image_if_needed(
-        self, image_bytes: bytes
-    ) -> tuple[bytes, float, tuple[int, int]]:
-        """Compress image if it exceeds size limits.
-
-        Args:
-            image_bytes: Original image bytes
-
-        Returns:
-            Tuple of (compressed_bytes, scale_factor, original_dimensions)
-            - scale_factor: 1.0 if no resize, <1.0 if resized
-            - original_dimensions: (width, height) of original image
-        """
-        # Get original dimensions
-        img = Image.open(io.BytesIO(image_bytes))
-        original_dimensions = (img.width, img.height)
-
-        if len(image_bytes) <= MAX_IMAGE_SIZE_BYTES:
-            return image_bytes, 1.0, original_dimensions
-
-        logger.info(
-            "Image exceeds size limit, compressing",
-            original_size_mb=round(len(image_bytes) / (1024 * 1024), 2),
-            limit_mb=5,
-        )
-
-        try:
-            # Convert RGBA to RGB if needed (for JPEG compatibility)
-            if img.mode == "RGBA":
-                # Create white background
-                background = Image.new("RGB", img.size, (255, 255, 255))
-                background.paste(img, mask=img.split()[3])  # Use alpha channel as mask
-                img = background
-            elif img.mode not in ("RGB", "L"):
-                img = img.convert("RGB")
-
-            # Try progressive quality reduction
-            for quality in [85, 75, 65, 55, 45]:
-                output = io.BytesIO()
-                img.save(output, format="JPEG", quality=quality, optimize=True)
-                compressed_bytes = output.getvalue()
-
-                if len(compressed_bytes) <= MAX_IMAGE_SIZE_BYTES:
-                    logger.info(
-                        "Image compressed successfully",
-                        final_size_mb=round(len(compressed_bytes) / (1024 * 1024), 2),
-                        quality=quality,
-                        compression_ratio=round(
-                            len(image_bytes) / len(compressed_bytes), 2
-                        ),
-                    )
-                    return compressed_bytes, 1.0, original_dimensions
-
-            # If still too large, resize the image
-            logger.warning("Quality reduction insufficient, resizing image")
-            scale_factor = 0.8
-            while len(compressed_bytes) > MAX_IMAGE_SIZE_BYTES and scale_factor > 0.3:
-                new_size = (
-                    int(img.width * scale_factor),
-                    int(img.height * scale_factor),
-                )
-                resized_img = img.resize(new_size, Image.Resampling.LANCZOS)
-
-                output = io.BytesIO()
-                resized_img.save(output, format="JPEG", quality=75, optimize=True)
-                compressed_bytes = output.getvalue()
-
-                if len(compressed_bytes) <= MAX_IMAGE_SIZE_BYTES:
-                    logger.info(
-                        "Image resized and compressed",
-                        final_size_mb=round(len(compressed_bytes) / (1024 * 1024), 2),
-                        scale_factor=scale_factor,
-                        new_dimensions=f"{new_size[0]}x{new_size[1]}",
-                    )
-                    return compressed_bytes, scale_factor, original_dimensions
-
-                scale_factor -= 0.1
-
-            # Return best effort
-            logger.warning(
-                "Could not compress below limit, using best effort",
-                final_size_mb=round(len(compressed_bytes) / (1024 * 1024), 2),
-            )
-            return compressed_bytes, scale_factor, original_dimensions
-
-        except Exception as e:
-            logger.error("Image compression failed, using original", error=str(e))
-            # Return original with scale factor 1.0
-            img = Image.open(io.BytesIO(image_bytes))
-            return image_bytes, 1.0, (img.width, img.height)
 
     def analyze_image_json(
         self,

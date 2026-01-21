@@ -5,6 +5,7 @@ from typing import BinaryIO
 
 import structlog
 
+from app.config import get_settings
 from app.models.document import Document
 from app.models.page import Page
 from app.utils.pdf_utils import (
@@ -19,6 +20,7 @@ from app.utils.pdf_utils import (
 from app.utils.storage import get_storage_service
 
 logger = structlog.get_logger()
+settings = get_settings()
 
 
 class DocumentProcessor:
@@ -107,27 +109,35 @@ class DocumentProcessor:
             "Processing document",
             document_id=str(document_id),
             file_type=file_type,
+            max_dimension=settings.llm_image_max_dimension,
         )
 
         pages_data = []
 
+        # Get max dimension from settings for LLM-ready images
+        max_dim = settings.llm_image_max_dimension
+
         # Get page iterator based on file type
         if file_type == "pdf":
-            page_iterator = extract_pdf_pages_as_images(file_bytes, dpi=dpi)
+            page_iterator = extract_pdf_pages_as_images(
+                file_bytes, dpi=dpi, max_dimension=max_dim
+            )
         elif file_type == "tiff":
-            page_iterator = extract_tiff_pages_as_images(file_bytes, target_dpi=dpi)
+            page_iterator = extract_tiff_pages_as_images(
+                file_bytes, target_dpi=dpi, max_dimension=max_dim
+            )
         else:
             raise ValueError(f"Unsupported file type: {file_type}")
 
         for page_num, img_bytes, width, height in page_iterator:
             page_id = uuid.uuid4()
 
-            # Store full-resolution image
+            # Store full-resolution image (TIFF for consistent OCR/LLM processing)
             image_key = (
                 f"projects/{project_id}/documents/{document_id}/"
-                f"pages/{page_id}/image.png"
+                f"pages/{page_id}/image.tiff"
             )
-            self.storage.upload_bytes(img_bytes, image_key, "image/png")
+            self.storage.upload_bytes(img_bytes, image_key, "image/tiff")
 
             # Create and store thumbnail
             thumb_bytes = create_thumbnail(img_bytes, max_size=256)

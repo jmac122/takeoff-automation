@@ -782,24 +782,6 @@ Return ONLY valid JSON, no other text."""
             result = json.loads(content)
 
             if result.get("scale_text") and result["scale_text"].upper() != "NONE":
-                # Scale bbox coordinates back to original image size if image was compressed
-                if result.get("bbox") and response.image_scale_factor != 1.0:
-                    bbox = result["bbox"]
-                    scale_factor = (
-                        1.0 / response.image_scale_factor
-                    )  # Inverse to scale up
-                    result["bbox"] = {
-                        "x": int(bbox["x"] * scale_factor),
-                        "y": int(bbox["y"] * scale_factor),
-                        "width": int(bbox["width"] * scale_factor),
-                        "height": int(bbox["height"] * scale_factor),
-                    }
-                    logger.info(
-                        "Scaled bbox coordinates to original image size",
-                        scale_factor=scale_factor,
-                        original_bbox=bbox,
-                        scaled_bbox=result["bbox"],
-                    )
                 return result
 
         except json.JSONDecodeError as e:
