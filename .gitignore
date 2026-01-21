@@ -102,3 +102,4 @@ yarn-error.log*
 .cache/
 
 # Local development files (already covered above)
+/.specstory/01-21-26-takeoff-automation.md
