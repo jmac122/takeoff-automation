@@ -82,14 +82,12 @@ export function PageCard({ page, documentId }: PageCardProps) {
 
                 {/* Page Info */}
                 <div className="space-y-1 mb-3">
-                    <div className="text-sm font-mono text-white">
+                    <div className="text-sm font-mono text-white font-semibold">
+                        {page.sheet_number || `Page ${page.page_number}`}
+                    </div>
+                    <div className="text-xs text-neutral-500 font-mono">
                         Page {page.page_number}
                     </div>
-                    {page.sheet_number && (
-                        <div className="text-xs text-neutral-500 font-mono">
-                            {page.sheet_number}
-                        </div>
-                    )}
                 </div>
 
                 {/* Open Takeoff Button */}

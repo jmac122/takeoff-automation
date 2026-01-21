@@ -1,5 +1,6 @@
 """Scale detection and parsing service."""
 
+import json
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -280,9 +281,10 @@ class ScaleDetector:
         """Detect scale from a page image.
 
         Uses multiple strategies:
-        1. Parse OCR-detected scale texts
-        2. Use LLM to analyze scale notation in image
-        3. Detect graphical scale bars
+        1. Use vision LLM to analyze scale notation in image (PRIMARY)
+        2. Parse OCR-detected scale texts (fallback)
+        3. Search OCR text for scale patterns (fallback)
+        4. Detect graphical scale bars
 
         Args:
             image_bytes: Page image
@@ -299,8 +301,39 @@ class ScaleDetector:
             "needs_calibration": True,
         }
 
-        # Strategy 1: Parse pre-detected scale texts
-        if detected_scale_texts:
+        # Strategy 1: Use vision LLM (PRIMARY - most accurate)
+        try:
+            llm_result = self._detect_scale_with_llm(image_bytes)
+            if llm_result:
+                scale_text = llm_result.get("scale_text")
+                bbox = llm_result.get("bbox")
+
+                if scale_text:
+                    parsed = self.parser.parse_scale_text(scale_text)
+                    if parsed and parsed.scale_ratio > 0:
+                        scale_data = {
+                            "text": scale_text,
+                            "ratio": parsed.scale_ratio,
+                            "pixels_per_foot": parsed.pixels_per_foot,
+                            "confidence": 0.95,  # High confidence for LLM
+                            "method": "vision_llm",
+                        }
+
+                        # Add bbox if provided
+                        if bbox:
+                            scale_data["bbox"] = bbox
+
+                        results["parsed_scales"].append(scale_data)
+                        logger.info(
+                            "LLM detected scale",
+                            scale_text=scale_text,
+                            has_bbox=bool(bbox),
+                        )
+        except Exception as e:
+            logger.warning("LLM scale detection failed", error=str(e))
+
+        # Strategy 2: Parse pre-detected scale texts (fallback if LLM fails)
+        if not results["parsed_scales"] and detected_scale_texts:
             for text in detected_scale_texts:
                 parsed = self.parser.parse_scale_text(text)
                 if parsed and parsed.scale_ratio > 0:
@@ -309,36 +342,18 @@ class ScaleDetector:
                             "text": text,
                             "ratio": parsed.scale_ratio,
                             "pixels_per_foot": parsed.pixels_per_foot,
-                            "confidence": parsed.confidence,
+                            "confidence": parsed.confidence * 0.85,  # Lower than LLM
+                            "method": "ocr_predetected",
                         }
                     )
-
-        # Strategy 2: Use vision LLM if OCR didn't find scales
-        if not results["parsed_scales"]:
-            try:
-                llm_scale = self._detect_scale_with_llm(image_bytes)
-                if llm_scale:
-                    parsed = self.parser.parse_scale_text(llm_scale)
-                    if parsed and parsed.scale_ratio > 0:
-                        results["parsed_scales"].append(
-                            {
-                                "text": llm_scale,
-                                "ratio": parsed.scale_ratio,
-                                "pixels_per_foot": parsed.pixels_per_foot,
-                                "confidence": parsed.confidence * 0.95,  # High confidence for LLM
-                            }
-                        )
-                        logger.info("LLM detected scale", scale_text=llm_scale)
-            except Exception as e:
-                logger.warning("LLM scale detection failed", error=str(e))
 
         # Strategy 3: Search OCR text for scale patterns (fallback)
         if ocr_text and not results["parsed_scales"]:
             # Look for scale patterns in full text
             scale_patterns = [
                 r"SCALE[:\s]*([^\n]+)",
-                r'(\d+/\d+["\']?\s*=\s*[^\n]+)',
-                r'(1["\']?\s*=\s*\d+[\'"][^\n]*)',
+                r'(\d+/\d+["\']?\s*=?\s*[^\n]+)',  # Made = optional
+                r'(1["\']?\s*=?\s*\d+[\'"][^\n]*)',  # Made = optional
             ]
 
             for pattern in scale_patterns:
@@ -352,7 +367,8 @@ class ScaleDetector:
                                 "ratio": parsed.scale_ratio,
                                 "pixels_per_foot": parsed.pixels_per_foot,
                                 "confidence": parsed.confidence
-                                * 0.8,  # Lower confidence
+                                * 0.7,  # Lowest confidence
+                                "method": "ocr_pattern_match",
                             }
                         )
 
@@ -375,17 +391,28 @@ class ScaleDetector:
 
         return results
 
-    def _detect_scale_with_llm(self, image_bytes: bytes) -> str | None:
-        """Use vision LLM to extract scale notation from image.
-        
+    def _detect_scale_with_llm(self, image_bytes: bytes) -> dict[str, Any] | None:
+        """Use vision LLM to extract scale notation and location from image.
+
         Args:
             image_bytes: Page image
-            
+
         Returns:
-            Scale text string or None
+            Dict with scale_text and bbox, or None
         """
-        prompt = """Look at this construction drawing and find the scale notation.
-        
+        # Get image dimensions for context
+        import cv2
+
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            logger.error("Failed to decode image for scale detection")
+            return None
+
+        height, width = img.shape[:2]
+
+        prompt = f"""Look at this construction drawing and find the scale notation.
+
 Common formats:
 - 1/4" = 1'-0"
 - 1/8" = 1'-0"
@@ -395,22 +422,55 @@ Common formats:
 
 The scale is usually near the drawing title or in the title block.
 
-Return ONLY the scale text exactly as shown, nothing else. If no scale is found, return "NONE"."""
+Image dimensions: {width}x{height} pixels
+
+Return JSON with the scale text AND its bounding box in pixel coordinates where (0,0) is top-left:
+{{
+    "scale_text": "1/4\\" = 1'-0\\"",
+    "bbox": {{
+        "x": 1200,
+        "y": 50,
+        "width": 150,
+        "height": 30
+    }}
+}}
+
+If no scale is found, return: {{"scale_text": "NONE", "bbox": null}}
+
+Return ONLY valid JSON, no other text."""
 
         try:
+            from app.services.llm_client import LLMProvider
+
             response = self.llm.analyze_image(
                 image_bytes=image_bytes,
                 prompt=prompt,
-                provider="gemini",  # Gemini 2.5 Flash is fast and cheap for this
+                provider=LLMProvider.GOOGLE,  # Gemini 2.5 Flash is fast and cheap for this
             )
-            
+
+            # Parse JSON response
+            result = json.loads(response.content.strip())
+
+            if result.get("scale_text") and result["scale_text"].upper() != "NONE":
+                return result
+
+        except json.JSONDecodeError as e:
+            logger.warning(
+                "LLM returned non-JSON response, trying to extract scale text",
+                error=str(e),
+                response=response.content[:200],
+            )
+            # Fallback: try to extract scale text from non-JSON response
             scale_text = response.content.strip()
-            if scale_text and scale_text.upper() != "NONE":
-                return scale_text
-                
+            if (
+                scale_text
+                and scale_text.upper() != "NONE"
+                and not scale_text.startswith("{")
+            ):
+                return {"scale_text": scale_text, "bbox": None}
         except Exception as e:
             logger.error("LLM scale detection error", error=str(e))
-            
+
         return None
 
     def calculate_scale_from_calibration(

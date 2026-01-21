@@ -98,13 +98,17 @@ export interface Page {
   document_id: string;
   page_number: number;
   page_label?: string | null;
+  sheet_number?: string | null;
+  title?: string | null;
   classification?: string | null;
   classification_confidence?: number | null;
   detected_scale?: string | null;
+  scale_text?: string | null;
   scale_value?: number | null;
   scale_unit?: string | null;
   scale_calibrated: boolean;
   scale_method?: string | null;
+  scale_detection_method?: string | null;
   image_url?: string | null;
   thumbnail_url?: string | null;
   width?: number | null;

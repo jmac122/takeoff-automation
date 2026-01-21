@@ -114,12 +114,21 @@ docker compose exec api alembic revision --autogenerate -m "description"
 # Apply migrations
 docker compose exec api alembic upgrade head
 
+# ⚠️ CRITICAL: Always restart worker after migrations!
+docker compose restart worker
+
 # Rollback
 docker compose exec api alembic downgrade -1
 
 # Connect to PostgreSQL
 docker compose exec db psql -U forgex -d forgex
 ```
+
+**⚠️ IMPORTANT:** After running migrations, **always restart the worker**:
+- Worker maintains long-lived DB connections
+- Old connections don't know about new schema changes
+- Causes errors like "column does not exist" or "operation in progress"
+- Restarting clears the connection pool
 
 ---
 

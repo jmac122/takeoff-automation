@@ -26,6 +26,7 @@ class PageResponse(BaseModel):
     scale_value: float | None = None
     scale_unit: str = "foot"
     scale_calibrated: bool = False
+    scale_detection_method: str | None = None
     status: str
     image_url: str | None = None
     thumbnail_url: str | None = None

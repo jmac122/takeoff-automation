@@ -66,6 +66,9 @@ class Page(Base, UUIDMixin, TimestampMixin):
     scale_unit: Mapped[str] = mapped_column(String(20), default="foot")
     scale_calibrated: Mapped[bool] = mapped_column(Boolean, default=False)
     scale_calibration_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    scale_detection_method: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # vision_llm, ocr_predetected, ocr_pattern_match, manual_calibration, scale_bar
 
     # OCR data
     ocr_text: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -85,6 +85,9 @@ async def _detect_page_scale(page_id: str) -> dict:
             best = detection["best_scale"]
             page.scale_text = best["text"]
             page.scale_value = best.get("pixels_per_foot")
+            page.scale_detection_method = best.get(
+                "method"
+            )  # vision_llm, ocr_predetected, etc.
 
             if best["confidence"] >= 0.85 and page.scale_value:
                 page.scale_calibrated = True
@@ -246,6 +249,7 @@ async def _calibrate_page_scale(
         page.scale_value = calibration["pixels_per_foot"]
         page.scale_unit = "foot"
         page.scale_calibrated = True
+        page.scale_detection_method = "manual_calibration"
 
         # Store calibration data
         if not page.scale_calibration_data:

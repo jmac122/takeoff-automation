@@ -65,6 +65,8 @@ Phase 2A has been fully implemented with multi-provider LLM support (Anthropic, 
    
    # Run migrations
    docker compose exec api alembic upgrade head
+   # ⚠️ CRITICAL: Always restart worker after migrations!
+   docker compose restart worker
    
    # Get a shell
    docker compose exec api bash
@@ -259,6 +261,8 @@ celery -A app.workers.celery_app worker --loglevel=info
 # Database migrations
 alembic revision --autogenerate -m "description"
 alembic upgrade head
+# ⚠️ CRITICAL: Restart worker after migrations!
+docker compose restart worker
 
 # Run tests
 python -m pytest

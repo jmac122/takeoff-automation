@@ -83,17 +83,30 @@ def process_page_ocr_task(self, page_id: str) -> dict:
             # Set sheet number, title, and scale - PRIORITIZE title block data
             # Title blocks are more reliable than full-page pattern matching
 
+            # Extract sheet number and title separately first
+            extracted_sheet_number = None
+            extracted_title = None
+
             # Sheet number: title block first, then full-page patterns
             if title_block_data.get("sheet_number"):
-                page.sheet_number = title_block_data["sheet_number"]
+                extracted_sheet_number = title_block_data["sheet_number"]
             elif ocr_result.detected_sheet_numbers:
-                page.sheet_number = ocr_result.detected_sheet_numbers[0]
+                extracted_sheet_number = ocr_result.detected_sheet_numbers[0]
 
             # Title: title block first, then full-page patterns
             if title_block_data.get("sheet_title"):
-                page.title = title_block_data["sheet_title"]
+                extracted_title = title_block_data["sheet_title"]
             elif ocr_result.detected_titles:
-                page.title = ocr_result.detected_titles[0]
+                extracted_title = ocr_result.detected_titles[0]
+
+            # Combine sheet number and title for display (e.g., "S0.01 - GENERAL NOTES")
+            if extracted_sheet_number and extracted_title:
+                page.sheet_number = f"{extracted_sheet_number} - {extracted_title}"
+            elif extracted_sheet_number:
+                page.sheet_number = extracted_sheet_number
+
+            # Store title separately for potential future use
+            page.title = extracted_title
 
             # Scale: title block first, then full-page patterns
             if title_block_data.get("scale"):

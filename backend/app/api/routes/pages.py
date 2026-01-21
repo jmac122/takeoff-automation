@@ -39,7 +39,24 @@ async def list_document_pages(
     result = await db.execute(
         select(Page).where(Page.document_id == document_id).order_by(Page.page_number)
     )
-    pages = result.scalars().all()
+    pages_list = result.scalars().all()
+
+    # Sort by sheet_number if available (natural sort), otherwise by page_number
+    def natural_sort_key(page):
+        """Natural sort key for sheet numbers like S0.01, S2.02, etc."""
+        if page.sheet_number:
+            import re
+
+            # Extract numbers from sheet_number for natural sorting
+            parts = re.split(r"(\d+\.?\d*)", page.sheet_number)
+            return [
+                float(p) if p.replace(".", "").isdigit() else p.lower()
+                for p in parts
+                if p
+            ]
+        return [page.page_number]
+
+    pages = sorted(pages_list, key=natural_sort_key)
 
     # Generate URLs for images
     storage = get_storage_service()

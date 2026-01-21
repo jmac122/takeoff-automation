@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Stage, Layer, Image as KonvaImage, Rect } from 'react-konva';
-import { ChevronLeft, ZoomIn, ZoomOut, Ruler, Maximize, Minimize, Loader2 } from 'lucide-react';
+import { ChevronLeft, ZoomIn, ZoomOut, Maximize2, Minimize, Maximize, Loader2, Ruler } from 'lucide-react';
 import Konva from 'konva';
 
 import { Button } from '@/components/ui/button';
@@ -506,6 +506,23 @@ export function TakeoffViewer() {
     const handleZoomIn = () => setZoom((z) => Math.min(z * 1.2, 5));
     const handleZoomOut = () => setZoom((z) => Math.max(z / 1.2, 0.1));
 
+    const handleFitToScreen = () => {
+        if (!image || !stageSize.width || !stageSize.height) return;
+
+        // Calculate zoom to fit entire image in viewport
+        const scaleX = stageSize.width / image.width;
+        const scaleY = stageSize.height / image.height;
+        const newZoom = Math.min(scaleX, scaleY) * 0.95; // 95% to add padding
+
+        setZoom(newZoom);
+        setPan({ x: 0, y: 0 });
+    };
+
+    const handleActualSize = () => {
+        setZoom(1);
+        setPan({ x: 0, y: 0 });
+    };
+
     // Auto-detect scale function
     const detectScale = async () => {
         setIsDetecting(true);
@@ -533,20 +550,55 @@ export function TakeoffViewer() {
                     console.log('Detection result:', status.detection);
                     setDetectionResult(status.detection);
 
-                    // Find bounding box for highlight
-                    if (status.detection?.best_scale && (page as any)?.ocr_blocks?.blocks) {
-                        const scaleText = status.detection.best_scale.text;
-                        const matchingBlock = (page as any).ocr_blocks.blocks.find(
-                            (block: any) => block.text && block.text.includes(scaleText)
-                        );
+                    // Auto-dismiss success message after 5 seconds
+                    if (status.detection?.best_scale) {
+                        setTimeout(() => {
+                            setDetectionResult(null);
+                            setScaleHighlightBox(null);
+                        }, 5000);
+                    }
 
-                        if (matchingBlock?.bbox) {
+                    // Find bounding box for highlight
+                    if (status.detection?.best_scale) {
+                        const detectionMethod = status.detection.best_scale.method;
+
+                        // Check if LLM provided bbox directly
+                        if (detectionMethod === 'vision_llm' && status.detection.best_scale.bbox) {
+                            const bbox = status.detection.best_scale.bbox;
                             setScaleHighlightBox({
-                                x: matchingBlock.bbox.x0,
-                                y: matchingBlock.bbox.y0,
-                                width: matchingBlock.bbox.x1 - matchingBlock.bbox.x0,
-                                height: matchingBlock.bbox.y1 - matchingBlock.bbox.y0,
+                                x: bbox.x,
+                                y: bbox.y,
+                                width: bbox.width,
+                                height: bbox.height,
                             });
+                        }
+                        // For OCR-based methods, try to match OCR blocks
+                        else if (detectionMethod !== 'vision_llm' && (page as any)?.ocr_blocks?.blocks) {
+                            const scaleText = status.detection.best_scale.text;
+
+                            // Try to find matching OCR block by comparing scale text
+                            // OCR might have spaces in the text, so normalize for comparison
+                            const normalizeText = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase();
+                            const normalizedScaleText = normalizeText(scaleText);
+
+                            const matchingBlock = (page as any).ocr_blocks.blocks.find(
+                                (block: any) => {
+                                    if (!block.text) return false;
+                                    const normalizedBlockText = normalizeText(block.text);
+                                    // Check if the block contains the scale text (or vice versa)
+                                    return normalizedBlockText.includes(normalizedScaleText) ||
+                                        normalizedScaleText.includes(normalizedBlockText);
+                                }
+                            );
+
+                            if (matchingBlock?.bounding_box) {
+                                setScaleHighlightBox({
+                                    x: matchingBlock.bounding_box.x,
+                                    y: matchingBlock.bounding_box.y,
+                                    width: matchingBlock.bounding_box.width,
+                                    height: matchingBlock.bounding_box.height,
+                                });
+                            }
                         }
                     }
 
@@ -588,22 +640,33 @@ export function TakeoffViewer() {
                 </Button>
 
                 <div className="flex-1">
-                    <h1 className="text-lg font-semibold text-white">{page?.page_label || 'Page'}</h1>
+                    <h1 className="text-lg font-semibold text-white">
+                        {page?.sheet_number || `Page ${page?.page_number || ''}`}
+                    </h1>
                     <p className="text-sm text-neutral-400 font-mono">
-                        {page?.scale_calibrated ? `Scale: ${page.scale_value} px/ft` : 'Scale not calibrated'}
+                        {page?.scale_text ? `Scale: ${page.scale_text}` : page?.scale_calibrated ? `Scale: ${page.scale_value?.toFixed(2)} px/ft` : 'Scale not calibrated'}
                     </p>
                 </div>
 
                 {/* Zoom controls */}
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handleZoomOut} className="border-neutral-700 text-white hover:bg-neutral-800">
+                    <Button variant="outline" size="sm" onClick={handleZoomOut} className="border-neutral-700 text-white hover:bg-neutral-800" title="Zoom Out">
                         <ZoomOut className="w-4 h-4" />
                     </Button>
                     <span className="text-sm font-medium w-16 text-center text-white font-mono">
                         {(zoom * 100).toFixed(0)}%
                     </span>
-                    <Button variant="outline" size="sm" onClick={handleZoomIn} className="border-neutral-700 text-white hover:bg-neutral-800">
+                    <Button variant="outline" size="sm" onClick={handleZoomIn} className="border-neutral-700 text-white hover:bg-neutral-800" title="Zoom In">
                         <ZoomIn className="w-4 h-4" />
+                    </Button>
+
+                    <div className="h-6 w-px bg-neutral-700 mx-1" />
+
+                    <Button variant="outline" size="sm" onClick={handleFitToScreen} className="border-neutral-700 text-white hover:bg-neutral-800" title="Fit to Screen">
+                        <Maximize2 className="w-4 h-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleActualSize} className="border-neutral-700 text-white hover:bg-neutral-800 text-xs px-2" title="Actual Size (100%)">
+                        1:1
                     </Button>
 
                     {/* Fullscreen toggle */}
@@ -688,18 +751,26 @@ export function TakeoffViewer() {
 
                     {/* Detection Result Display */}
                     {detectionResult && (
-                        <div className="px-4 py-2 bg-neutral-800 border-b border-neutral-700">
+                        <div className="px-4 py-3 bg-green-900/20 border-b border-green-700/50">
                             <div className="flex items-center gap-3">
                                 {detectionResult.best_scale ? (
                                     <>
-                                        <div className="text-xs font-mono text-amber-500 uppercase tracking-wider">
-                                            Detected:
+                                        <div className="text-xs font-mono text-green-400 uppercase tracking-wider font-bold">
+                                            ✓ Scale Updated:
                                         </div>
                                         <div className="text-sm font-mono text-white font-bold">
                                             {detectionResult.best_scale.text}
                                         </div>
                                         <div className="text-xs font-mono text-neutral-400">
                                             ({(detectionResult.best_scale.confidence * 100).toFixed(0)}% confidence)
+                                        </div>
+                                        {detectionResult.best_scale.method && (
+                                            <div className="text-xs font-mono text-neutral-500">
+                                                via {detectionResult.best_scale.method === 'vision_llm' ? 'AI Vision' : detectionResult.best_scale.method.replace(/_/g, ' ')}
+                                            </div>
+                                        )}
+                                        <div className="text-xs text-neutral-500">
+                                            • Ready for measurements
                                         </div>
                                     </>
                                 ) : (
@@ -714,6 +785,9 @@ export function TakeoffViewer() {
                                                     (Found {detectionResult.scale_bars.length} graphical scale bar{detectionResult.scale_bars.length > 1 ? 's' : ''}, but unable to parse)
                                                 </span>
                                             )}
+                                        </div>
+                                        <div className="text-xs text-neutral-500">
+                                            • Use "Set Scale" to calibrate manually
                                         </div>
                                     </>
                                 )}
@@ -884,14 +958,31 @@ export function TakeoffViewer() {
                             Set Scale
                         </DialogTitle>
                         <DialogDescription className="text-neutral-400 font-mono text-sm">
-                            Enter the scale from the drawing (e.g., "3/32" = 1'-0"" or "1/4" = 1'-0"")
+                            {page?.scale_text
+                                ? `Current scale: ${page.scale_text} • Enter a new scale to override`
+                                : 'Enter the scale from the drawing (e.g., "3/32" = 1\'-0"" or "1/4" = 1\'-0"")'
+                            }
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
+                        {page?.scale_text && (
+                            <div className="bg-green-900/20 border border-green-700/50 rounded p-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-green-400 font-mono text-xs">✓ Current Scale:</span>
+                                    <span className="text-white font-mono font-bold">{page.scale_text}</span>
+                                    {page.scale_detection_method && (
+                                        <span className="text-neutral-500 font-mono text-xs">
+                                            (via {page.scale_detection_method === 'vision_llm' ? 'AI Vision' : page.scale_detection_method.replace(/_/g, ' ')})
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="space-y-2">
                             <Label htmlFor="scale-text" className="text-neutral-400 font-mono text-xs uppercase">
-                                Scale Text
+                                {page?.scale_text ? 'New Scale (Optional)' : 'Scale Text'}
                             </Label>
                             <Input
                                 id="scale-text"
@@ -901,7 +992,7 @@ export function TakeoffViewer() {
                                     setScaleText(e.target.value);
                                     setScaleError(null);
                                 }}
-                                placeholder="e.g., 3/32 inch = 1 foot or 1/4 inch = 1 foot"
+                                placeholder={page?.scale_text || "e.g., 3/32 inch = 1 foot or 1/4 inch = 1 foot"}
                                 className="bg-neutral-800 border-neutral-700 text-white font-mono placeholder:text-neutral-600"
                             />
                             {scaleError && (

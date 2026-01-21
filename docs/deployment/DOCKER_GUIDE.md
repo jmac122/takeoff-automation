@@ -157,6 +157,11 @@ docker exec forgex-minio mc ls local/takeoff-documents
 # Run migrations
 docker exec -e DATABASE_URL=postgresql+psycopg2://forgex:forgex@db:5432/forgex forgex-api alembic upgrade head
 
+# ⚠️ CRITICAL: Always restart worker after migrations!
+docker compose restart worker
+# Or if using direct docker commands:
+docker restart forgex-worker
+
 # Check current version
 docker exec forgex-api alembic current
 
@@ -166,6 +171,30 @@ docker exec forgex-api alembic revision --autogenerate -m "description"
 # Rollback one version
 docker exec forgex-api alembic downgrade -1
 ```
+
+**⚠️ CRITICAL - Always Restart Worker After Migrations:**
+
+After running any database migration that adds or modifies columns, **you must restart the worker container**:
+
+```bash
+docker compose restart worker
+```
+
+**Why this is critical:**
+- Worker processes (Celery) maintain long-lived database connection pools
+- When you add new columns, existing connections don't know about schema changes
+- Attempting to update new columns with stale connections causes errors:
+  - `sqlalchemy.exc.InterfaceError: cannot perform operation: another operation is in progress`
+  - `asyncpg.exceptions.InterfaceError: another operation is in progress`
+  - `column "column_name" does not exist`
+- Restarting the worker clears the connection pool and picks up the new schema
+
+**This applies to:**
+- ✅ Adding new columns to tables
+- ✅ Modifying column types
+- ✅ Adding/removing constraints
+- ✅ Any ALTER TABLE operations
+- ❌ Not needed for data-only changes (INSERT/UPDATE/DELETE)
 
 ### Celery Task Management
 ```bash

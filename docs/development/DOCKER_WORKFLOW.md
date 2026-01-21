@@ -174,9 +174,20 @@ docker compose exec api alembic revision --autogenerate -m "description"
 # Apply migrations
 docker compose exec api alembic upgrade head
 
+# CRITICAL: Always restart worker after migrations!
+docker compose restart worker
+
 # Rollback one migration
 docker compose exec api alembic downgrade -1
 ```
+
+**⚠️ IMPORTANT:** After running database migrations that add/modify columns, **always restart the worker container**:
+
+```bash
+docker compose restart worker
+```
+
+**Why?** Worker processes maintain long-lived database connection pools. When you add new columns to the database, the worker's existing connections don't know about the schema changes, causing errors like "cannot perform operation: another operation is in progress" or "column does not exist". Restarting the worker clears the connection pool and picks up the new schema.
 
 ### Database Access
 
