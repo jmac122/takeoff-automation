@@ -30,6 +30,18 @@ router = APIRouter()
 settings = get_settings()
 
 
+def get_viewer_image_key(image_key: str) -> str:
+    """Get the PNG viewer image key from the TIFF storage key.
+
+    The document processor stores both formats:
+    - image.tiff for OCR/LLM (flattened, consistent)
+    - image.png for frontend viewer (browser-compatible)
+    """
+    if image_key.endswith(".tiff"):
+        return image_key.replace(".tiff", ".png")
+    return image_key
+
+
 @router.get("/documents/{document_id}/pages", response_model=PageListResponse)
 async def list_document_pages(
     document_id: uuid.UUID,
@@ -43,18 +55,29 @@ async def list_document_pages(
 
     # Sort by sheet_number if available (natural sort), otherwise by page_number
     def natural_sort_key(page):
-        """Natural sort key for sheet numbers like S0.01, S2.02, etc."""
+        """Natural sort key for sheet numbers like S0.01, S2.02, etc.
+        
+        Returns a tuple of (has_sheet_number, sort_key) to ensure pages
+        without sheet numbers sort after those with sheet numbers,
+        and to avoid comparing mixed types.
+        """
+        import re
+        
         if page.sheet_number:
-            import re
-
             # Extract numbers from sheet_number for natural sorting
             parts = re.split(r"(\d+\.?\d*)", page.sheet_number)
-            return [
-                float(p) if p.replace(".", "").isdigit() else p.lower()
-                for p in parts
-                if p
-            ]
-        return [page.page_number]
+            # Convert to tuple of (type_indicator, value) to avoid mixed type comparison
+            # Strings get type 0, numbers get type 1 - this keeps them grouped
+            key_parts = []
+            for p in parts:
+                if p:
+                    if p.replace(".", "", 1).isdigit():
+                        key_parts.append((1, float(p)))
+                    else:
+                        key_parts.append((0, p.lower()))
+            return (0, key_parts)  # 0 = has sheet number, sorts first
+        # Pages without sheet_number sort by page_number
+        return (1, [(1, float(page.page_number))])  # 1 = no sheet number, sorts after
 
     pages = sorted(pages_list, key=natural_sort_key)
 
@@ -75,7 +98,7 @@ async def list_document_pages(
             scale_text=page.scale_text,
             scale_calibrated=page.scale_calibrated,
             status=page.status,
-            image_url=storage.get_presigned_url(page.image_key, 3600),
+            image_url=storage.get_presigned_url(get_viewer_image_key(page.image_key), 3600),
             thumbnail_url=storage.get_presigned_url(page.thumbnail_key, 3600)
             if page.thumbnail_key
             else None,
@@ -126,7 +149,7 @@ async def get_page(
         scale_detection_method=page.scale_detection_method,
         scale_calibration_data=page.scale_calibration_data,
         status=page.status,
-        image_url=storage.get_presigned_url(page.image_key, 3600),
+        image_url=storage.get_presigned_url(get_viewer_image_key(page.image_key), 3600),
         thumbnail_url=storage.get_presigned_url(page.thumbnail_key, 3600)
         if page.thumbnail_key
         else None,
@@ -138,7 +161,7 @@ async def get_page_image(
     page_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Get redirect URL to page image."""
+    """Get redirect URL to page image (PNG for browser compatibility)."""
     result = await db.execute(select(Page.image_key).where(Page.id == page_id))
     row = result.one_or_none()
 
@@ -149,7 +172,9 @@ async def get_page_image(
         )
 
     storage = get_storage_service()
-    url = storage.get_presigned_url(row[0], 3600)
+    # Return PNG version for browser compatibility
+    viewer_key = get_viewer_image_key(row[0])
+    url = storage.get_presigned_url(viewer_key, 3600)
 
     return RedirectResponse(url=url)
 

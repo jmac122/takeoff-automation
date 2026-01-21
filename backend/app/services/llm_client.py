@@ -24,6 +24,7 @@ from tenacity import (
 )
 
 from app.config import get_settings
+from app.utils.pdf_utils import resize_image_for_llm
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -225,24 +226,42 @@ class LLMClient:
         """Analyze image with a specific provider."""
         self._init_client(provider)
 
+        # Resize image for LLM if needed (max 1568px on longest edge)
+        max_dim = settings.llm_image_max_dimension
+        resized_bytes, new_width, new_height = resize_image_for_llm(
+            image_bytes, max_dimension=max_dim, fmt="PNG"
+        )
+
+        # Log if resize occurred
+        from PIL import Image
+        import io
+        original_img = Image.open(io.BytesIO(image_bytes))
+        if (original_img.width, original_img.height) != (new_width, new_height):
+            logger.info(
+                "Resized image for LLM",
+                original_size=f"{original_img.width}x{original_img.height}",
+                new_size=f"{new_width}x{new_height}",
+                max_dimension=max_dim,
+            )
+
         start_time = time.time()
 
         if provider == LLMProvider.ANTHROPIC:
             result = self._analyze_anthropic(
-                image_bytes, prompt, system_prompt, max_tokens
+                resized_bytes, prompt, system_prompt, max_tokens
             )
         elif provider == LLMProvider.OPENAI:
             result = self._analyze_openai(
-                image_bytes, prompt, system_prompt, max_tokens, provider
+                resized_bytes, prompt, system_prompt, max_tokens, provider
             )
         elif provider == LLMProvider.GOOGLE:
             result = self._analyze_google(
-                image_bytes, prompt, system_prompt, max_tokens
+                resized_bytes, prompt, system_prompt, max_tokens
             )
         elif provider == LLMProvider.XAI:
             # xAI uses OpenAI-compatible API
             result = self._analyze_openai(
-                image_bytes, prompt, system_prompt, max_tokens, provider
+                resized_bytes, prompt, system_prompt, max_tokens, provider
             )
         else:
             raise ValueError(f"Unknown provider: {provider}")
