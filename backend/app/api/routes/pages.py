@@ -529,6 +529,53 @@ async def detect_page_scale(
     return {"status": "queued", "page_id": str(page_id)}
 
 
+@router.get("/pages/{page_id}/scale-detection-status")
+async def get_scale_detection_status(
+    page_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Get status of scale detection task.
+
+    Returns lightweight status without full page data.
+    """
+    result = await db.execute(
+        select(
+            Page.scale_calibration_data,
+            Page.scale_text,
+            Page.scale_value,
+            Page.scale_calibrated,
+        ).where(Page.id == page_id)
+    )
+    page_data = result.one_or_none()
+
+    if not page_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Page not found",
+        )
+
+    scale_calibration_data, scale_text, scale_value, scale_calibrated = page_data
+
+    # If no detection data yet, still processing
+    if not scale_calibration_data:
+        return {
+            "status": "processing",
+            "scale_text": None,
+            "scale_value": None,
+            "calibrated": False,
+            "detection": None,
+        }
+
+    # Detection complete
+    return {
+        "status": "complete",
+        "scale_text": scale_text,
+        "scale_value": scale_value,
+        "calibrated": scale_calibrated,
+        "detection": scale_calibration_data,
+    }
+
+
 @router.put("/pages/{page_id}/scale")
 async def update_page_scale(
     page_id: uuid.UUID,

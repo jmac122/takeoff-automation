@@ -34,8 +34,8 @@ export function Header() {
                                 key={item.path}
                                 to={item.path}
                                 className={`px-4 py-2 text-xs font-mono tracking-widest transition-colors ${isActive(item.path)
-                                        ? 'bg-amber-500/20 text-amber-500 border-b-2 border-amber-500'
-                                        : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                                    ? 'bg-amber-500/20 text-amber-500 border-b-2 border-amber-500'
+                                    : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
                                     }`}
                             >
                                 {item.label}

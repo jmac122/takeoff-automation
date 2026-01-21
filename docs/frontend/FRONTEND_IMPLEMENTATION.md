@@ -32,13 +32,29 @@ frontend/
 ├── src/
 │   ├── api/                 # API client and endpoints
 │   │   ├── client.ts       # Axios configuration
-│   │   └── documents.ts    # Document API functions
+│   │   ├── documents.ts    # Document API functions
+│   │   ├── projects.ts     # Project API functions
+│   │   └── classification.ts # Classification API functions
 │   ├── components/         # Reusable UI components
-│   │   └── document/       # Document-specific components
-│   │       └── DocumentUploader.tsx
+│   │   ├── ui/            # shadcn/ui components
+│   │   │   ├── button.tsx
+│   │   │   ├── card.tsx
+│   │   │   ├── table.tsx
+│   │   │   └── ...
+│   │   ├── document/       # Document-specific components
+│   │   │   ├── DocumentUploader.tsx
+│   │   │   └── PageCard.tsx
+│   │   ├── layout/         # Layout components
+│   │   │   └── Header.tsx
+│   │   └── viewer/         # Takeoff viewer components
 │   ├── hooks/              # Custom React hooks
 │   ├── pages/              # Page components
-│   │   └── Dashboard.tsx
+│   │   ├── Projects.tsx
+│   │   ├── ProjectDetail.tsx
+│   │   ├── DocumentDetail.tsx
+│   │   ├── Testing.tsx
+│   │   ├── AIEvaluation.tsx
+│   │   └── TakeoffViewer.tsx
 │   ├── stores/             # State management (future)
 │   ├── types/              # TypeScript type definitions
 │   │   └── index.ts
@@ -811,16 +827,97 @@ const getConcreteRelevanceColor = (relevance: string) => {
 
 ---
 
+## Phase 0 Enhancements (IMPLEMENTED ✅)
+
+### Overview
+
+Phase 0 Enhancements adds four critical improvements to the Application Interface:
+1. **Testing Tab** - Restored classification testing interface
+2. **AI Evaluation Tab** - Comprehensive LLM analytics dashboard
+3. **DocumentDetail Enhancements** - Classification controls and confidence display
+4. **TakeoffViewer Scale Calibration** - Fixed manual scale calibration
+
+### Navigation & Testing Tab
+
+**Header Component** (`src/components/layout/Header.tsx`)
+- Added navigation tabs: `PROJECTS`, `TESTING`, `AI EVALUATION`
+- Industrial/tactical styling with amber accents
+- Active tab highlighting using React Router
+
+**Testing Page** (`src/pages/Testing.tsx`)
+- Restored from Dashboard with modern UI styling
+- Document upload and classification testing
+- LLM provider selection
+- Page grid with classification results
+- Industrial/tactical aesthetic throughout
+
+### AI Evaluation Dashboard
+
+**Classification API Client** (`src/api/classification.ts`)
+- TypeScript interfaces for classification data
+- Endpoints for stats and history
+- Provider comparison data structures
+
+**AI Evaluation Page** (`src/pages/AIEvaluation.tsx`)
+- **Stats Overview Cards**: Total classifications, avg latency, avg confidence
+- **Provider Comparison Table**: Side-by-side performance metrics
+- **Classification Timeline**: Recent runs with filtering
+- Real-time data loading with React Query
+- Industrial UI styling
+
+**Table Component** (`src/components/ui/table.tsx`)
+- shadcn/ui-compatible table component
+- Used for provider comparison and data display
+
+### DocumentDetail Enhancements
+
+**Classification Controls** (`src/pages/DocumentDetail.tsx`)
+- LLM provider selector dropdown
+- "Classify All Pages" button
+- Success alerts for user feedback
+- Auto-refresh after classification starts
+
+**PageCard Enhancements** (`src/components/document/PageCard.tsx`)
+- Classification badge overlay with confidence bar
+- Concrete relevance badges
+- Enhanced industrial styling
+- Confidence percentage display
+
+### TakeoffViewer Scale Calibration
+
+**Calibration Mode** (`src/pages/TakeoffViewer.tsx`)
+- Click detection for two-point calibration
+- Visual feedback (amber circles and dashed line)
+- Calibration dialog for distance input
+- Proper event handling and state management
+- Fixed click detection issues
+
+### Design System
+
+All implementations follow industrial/tactical UI aesthetic:
+- Dark backgrounds (`bg-neutral-900`, `bg-neutral-950`)
+- Amber accent colors (`text-amber-500`, `bg-amber-500`)
+- Monospace fonts for data (`font-mono`)
+- Uppercase labels with wide tracking
+- Consistent border styling
+
+**Global Styles** (`src/index.css`)
+- Updated color tokens for dark theme
+- Industrial color palette
+- Optional scanline effects
+
+---
+
 ## Future Enhancements
 
 ### Phase 2B: Scale Calibration
-- Visual scale calibration interface
-- Measurement unit selection
-- Calibration validation
+- ✅ Visual scale calibration interface (COMPLETE)
+- ✅ Measurement unit selection (COMPLETE)
+- ✅ Calibration validation (COMPLETE)
 
 ### Phase 3A: Measurement Tools
 - Canvas-based measurement interface
 - Real-time quantity calculations
 - Measurement history and undo/redo
 
-This frontend implementation provides a solid foundation for the document ingestion, OCR, and classification workflows with modern React patterns, comprehensive error handling, and scalability for future phases.
+This frontend implementation provides a solid foundation for the document ingestion, OCR, classification workflows, and analytics with modern React patterns, comprehensive error handling, industrial/tactical UI design, and scalability for future phases.

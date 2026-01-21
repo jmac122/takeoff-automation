@@ -2,20 +2,27 @@
  * DocumentDetail page - displays document information and pages.
  */
 
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { PageCard } from '@/components/document/PageCard';
 import { apiClient } from '@/api/client';
 import { projectsApi } from '@/api/projects';
 import { Document, Page } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
+import axios from 'axios';
 
 export default function DocumentDetail() {
     const { projectId, documentId } = useParams<{ projectId: string; documentId: string }>();
+    const queryClient = useQueryClient();
+    const [classificationProvider, setClassificationProvider] = useState<string | undefined>(undefined);
 
     // Fetch project details for breadcrumb
     const { data: project } = useQuery({
@@ -48,6 +55,24 @@ export default function DocumentDetail() {
         },
         enabled: !!documentId,
         refetchInterval: document?.status === 'processing' ? 3000 : false,
+    });
+
+    // Classify document mutation
+    const classifyMutation = useMutation({
+        mutationFn: async () => {
+            if (!documentId) throw new Error('Document ID required');
+            const response = await axios.post(
+                `/api/v1/documents/${documentId}/classify`,
+                { provider: classificationProvider }
+            );
+            return response.data;
+        },
+        onSuccess: () => {
+            // Refetch pages after classification starts
+            setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ['pages', documentId] });
+            }, 2000);
+        },
     });
 
     const pages = pagesData?.pages || [];
@@ -99,6 +124,46 @@ export default function DocumentDetail() {
                         <span>•</span>
                         <span>Uploaded {formatDistanceToNow(new Date(document.created_at), { addSuffix: true })}</span>
                     </div>
+                </div>
+
+                {/* Classification Controls */}
+                <div className="flex flex-col gap-3 min-w-[250px]">
+                    <div className="space-y-2">
+                        <Label className="text-xs font-mono text-neutral-500 uppercase tracking-wider">
+                            LLM Provider
+                        </Label>
+                        <Select
+                            value={classificationProvider}
+                            onValueChange={setClassificationProvider}
+                        >
+                            <SelectTrigger className="bg-neutral-900 border-neutral-700 text-white">
+                                <SelectValue placeholder="Auto (default)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="auto">Auto (default)</SelectItem>
+                                <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+                                <SelectItem value="openai">OpenAI (GPT-4)</SelectItem>
+                                <SelectItem value="google">Google (Gemini)</SelectItem>
+                                <SelectItem value="xai">xAI (Grok)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <Button
+                        onClick={() => classifyMutation.mutate()}
+                        disabled={classifyMutation.isPending}
+                        className="bg-amber-500 hover:bg-amber-400 text-black font-mono uppercase tracking-wider"
+                    >
+                        {classifyMutation.isPending ? 'Starting...' : 'Classify All Pages'}
+                    </Button>
+
+                    {classifyMutation.isSuccess && (
+                        <Alert className="bg-green-500/10 border-green-500/50">
+                            <AlertDescription className="text-green-400 text-xs font-mono">
+                                Classification started! Results will appear shortly.
+                            </AlertDescription>
+                        </Alert>
+                    )}
                 </div>
             </div>
 

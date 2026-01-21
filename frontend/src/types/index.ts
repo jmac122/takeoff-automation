@@ -87,6 +87,8 @@ export interface PageSummary {
   id: string;
   page_number: number;
   classification?: string | null;
+  classification_confidence?: number | null;
+  concrete_relevance?: string | null;
   scale_calibrated: boolean;
   thumbnail_url?: string | null;
 }
@@ -108,6 +110,21 @@ export interface Page {
   width?: number | null;
   height?: number | null;
   ocr_text?: string | null;
+  ocr_blocks?: {
+    blocks: Array<{
+      text: string;
+      bbox: {
+        x0: number;
+        y0: number;
+        x1: number;
+        y1: number;
+      };
+      confidence: number;
+    }>;
+    detected_scales?: string[];
+    detected_sheet_numbers?: string[];
+    detected_titles?: string[];
+  } | null;
   title_block_data?: Record<string, any> | null;
   extra_metadata?: Record<string, any> | null;
   created_at: string;

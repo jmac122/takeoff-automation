@@ -34,6 +34,7 @@ Complete shadcn/ui component library for ForgeX Takeoffs platform. All component
 | [Alert](#alert) | Notifications | 1 + 2 sub-components | `alert.tsx` |
 | [Progress](#progress) | Progress bars | 1 | `progress.tsx` |
 | [Dialog](#dialog) | Modal overlays | 1 + 6 sub-components | `dialog.tsx` |
+| [Table](#table) | Data tables | 1 + 7 sub-components | `table.tsx` |
 
 ---
 
@@ -710,6 +711,104 @@ const [open, setOpen] = useState(false)
 
 ---
 
+### Table
+
+**Purpose:** Structured data display in rows and columns.
+
+**File:** `frontend/src/components/ui/table.tsx`
+
+**Components:**
+- `Table` - Root container with overflow handling
+- `TableHeader` - Header section
+- `TableBody` - Body section with rows
+- `TableFooter` - Footer section (optional)
+- `TableRow` - Individual row
+- `TableHead` - Header cell
+- `TableCell` - Data cell
+- `TableCaption` - Caption (optional)
+
+**Props:**
+```typescript
+// All components extend their respective HTML element props
+Table extends HTMLTableElement
+TableHeader extends HTMLTableSectionElement
+TableBody extends HTMLTableSectionElement
+TableRow extends HTMLTableRowElement
+TableHead extends HTMLTableCellElement
+TableCell extends HTMLTableCellElement
+```
+
+**Usage:**
+```tsx
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Provider</TableHead>
+      <TableHead>Model</TableHead>
+      <TableHead className="text-right">Runs</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    {providers.map((provider) => (
+      <TableRow key={provider.id}>
+        <TableCell className="font-medium">{provider.name}</TableCell>
+        <TableCell>{provider.model}</TableCell>
+        <TableCell className="text-right font-mono">
+          {provider.total_runs}
+        </TableCell>
+      </TableRow>
+    ))}
+  </TableBody>
+</Table>
+
+// With caption
+<Table>
+  <TableCaption>Provider performance metrics</TableCaption>
+  {/* ... */}
+</Table>
+
+// With footer
+<Table>
+  {/* ... body ... */}
+  <TableFooter>
+    <TableRow>
+      <TableCell colSpan={2}>Total</TableCell>
+      <TableCell className="text-right font-bold">
+        {totalRuns}
+      </TableCell>
+    </TableRow>
+  </TableFooter>
+</Table>
+```
+
+**When to Use:**
+- Displaying structured data (metrics, comparisons, lists)
+- Provider performance tables
+- Classification history timelines
+- Data-heavy dashboards
+
+**Not For:**
+- Simple lists (use Card or List components)
+- Forms (use form components)
+- Navigation (use navigation components)
+
+**Styling Notes:**
+- Use `text-right` for numeric columns
+- Use `font-mono` for numeric data
+- Use `font-medium` for emphasized cells
+- Apply hover states via `hover:bg-muted/50` on rows
+
+---
+
 ## Utility Functions
 
 ### cn() - Class Name Utility
@@ -1096,3 +1195,10 @@ Error: Cannot find module '@/components/ui/button'
 **Last Updated:** January 20, 2026  
 **Maintained By:** Development Team  
 **Questions?** See DESIGN-SYSTEM.md or ask in team chat
+
+---
+
+## Recent Additions
+
+### Table Component (January 20, 2026)
+Added table component for structured data display. Used in AI Evaluation dashboard for provider comparison and classification history display.

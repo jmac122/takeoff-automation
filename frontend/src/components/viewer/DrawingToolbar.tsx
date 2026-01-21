@@ -56,7 +56,7 @@ export function DrawingToolbar({
     disabled = false,
 }: DrawingToolbarProps) {
     return (
-        <div className="flex items-center gap-2 p-2 bg-white border rounded-lg shadow-sm">
+        <div className="flex items-center gap-2 p-2 bg-neutral-900 border border-neutral-700 rounded-lg">
             {/* Drawing Tools */}
             <div className="flex gap-1">
                 {TOOLS.map((tool) => {
@@ -73,7 +73,9 @@ export function DrawingToolbar({
                             title={`${tool.label} (${tool.shortcut})`}
                             className={cn(
                                 'w-10 h-10 p-0',
-                                isActive && 'bg-blue-600 hover:bg-blue-700'
+                                isActive
+                                    ? 'bg-amber-500 hover:bg-amber-400 text-black'
+                                    : 'text-white hover:bg-neutral-800'
                             )}
                         >
                             <Icon className="w-4 h-4" />
@@ -82,7 +84,7 @@ export function DrawingToolbar({
                 })}
             </div>
 
-            <div className="w-px h-8 bg-gray-300" />
+            <div className="w-px h-8 bg-neutral-700" />
 
             {/* Action Buttons */}
             <div className="flex gap-1">
@@ -92,7 +94,7 @@ export function DrawingToolbar({
                     onClick={onUndo}
                     disabled={!canUndo || disabled}
                     title="Undo (Ctrl+Z)"
-                    className="w-10 h-10 p-0"
+                    className="w-10 h-10 p-0 text-white hover:bg-neutral-800"
                 >
                     <Undo className="w-4 h-4" />
                 </Button>
@@ -102,7 +104,7 @@ export function DrawingToolbar({
                     onClick={onRedo}
                     disabled={!canRedo || disabled}
                     title="Redo (Ctrl+Y)"
-                    className="w-10 h-10 p-0"
+                    className="w-10 h-10 p-0 text-white hover:bg-neutral-800"
                 >
                     <Redo className="w-4 h-4" />
                 </Button>
@@ -112,14 +114,14 @@ export function DrawingToolbar({
                     onClick={onDelete}
                     disabled={!hasSelection || disabled}
                     title="Delete (Delete)"
-                    className="w-10 h-10 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    className="w-10 h-10 p-0 text-red-400 hover:text-red-300 hover:bg-red-900/20"
                 >
                     <Trash2 className="w-4 h-4" />
                 </Button>
             </div>
 
             {/* Instructions */}
-            <div className="ml-auto text-sm text-gray-600">
+            <div className="ml-auto text-sm text-neutral-400 font-mono text-xs">
                 {getInstructions(activeTool)}
             </div>
         </div>
