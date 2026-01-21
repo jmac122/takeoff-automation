@@ -14,6 +14,7 @@ from app.utils.pdf_utils import (
     extract_pdf_pages_as_images,
     extract_tiff_pages_as_images,
     create_thumbnail,
+    convert_to_png,
     validate_pdf,
     validate_tiff,
 )
@@ -109,42 +110,47 @@ class DocumentProcessor:
             "Processing document",
             document_id=str(document_id),
             file_type=file_type,
-            max_dimension=settings.llm_image_max_dimension,
+            dpi=dpi,
         )
 
         pages_data = []
 
-        # Get max dimension from settings for LLM-ready images
-        max_dim = settings.llm_image_max_dimension
-
-        # Get page iterator based on file type
+        # Extract at full resolution - no max_dimension constraint
+        # LLM resizing happens on-the-fly when sending to LLMs
         if file_type == "pdf":
             page_iterator = extract_pdf_pages_as_images(
-                file_bytes, dpi=dpi, max_dimension=max_dim
+                file_bytes, dpi=dpi, max_dimension=None
             )
         elif file_type == "tiff":
             page_iterator = extract_tiff_pages_as_images(
-                file_bytes, target_dpi=dpi, max_dimension=max_dim
+                file_bytes, target_dpi=dpi, max_dimension=None
             )
         else:
             raise ValueError(f"Unsupported file type: {file_type}")
 
-        for page_num, img_bytes, width, height in page_iterator:
+        for page_data in page_iterator:
+            # PDF pages include physical dimensions, TIFF pages don't
+            if file_type == "pdf":
+                page_num, img_bytes, width, height, page_width_inches, page_height_inches = page_data
+            else:
+                page_num, img_bytes, width, height = page_data
+                page_width_inches = None
+                page_height_inches = None
             page_id = uuid.uuid4()
+            base_path = f"projects/{project_id}/documents/{document_id}/pages/{page_id}"
 
-            # Store full-resolution image (TIFF for consistent OCR/LLM processing)
-            image_key = (
-                f"projects/{project_id}/documents/{document_id}/"
-                f"pages/{page_id}/image.tiff"
-            )
+            # Store TIFF for OCR/LLM processing (flattened, consistent)
+            image_key = f"{base_path}/image.tiff"
             self.storage.upload_bytes(img_bytes, image_key, "image/tiff")
+
+            # Store PNG for frontend viewer (browser-compatible)
+            viewer_key = f"{base_path}/image.png"
+            png_bytes = convert_to_png(img_bytes)
+            self.storage.upload_bytes(png_bytes, viewer_key, "image/png")
 
             # Create and store thumbnail
             thumb_bytes = create_thumbnail(img_bytes, max_size=256)
-            thumb_key = (
-                f"projects/{project_id}/documents/{document_id}/"
-                f"pages/{page_id}/thumbnail.png"
-            )
+            thumb_key = f"{base_path}/thumbnail.png"
             self.storage.upload_bytes(thumb_bytes, thumb_key, "image/png")
 
             pages_data.append(
@@ -154,6 +160,8 @@ class DocumentProcessor:
                     "width": width,
                     "height": height,
                     "dpi": dpi,
+                    "page_width_inches": page_width_inches,
+                    "page_height_inches": page_height_inches,
                     "image_key": image_key,
                     "thumbnail_key": thumb_key,
                     "status": "ready",

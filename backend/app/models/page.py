@@ -36,6 +36,11 @@ class Page(Base, UUIDMixin, TimestampMixin):
     height: Mapped[int] = mapped_column(Integer, nullable=False)
     dpi: Mapped[int] = mapped_column(Integer, default=150)
 
+    # Physical page dimensions (in inches) - from PDF metadata
+    # Used to calculate accurate pixels_per_inch for scale measurements
+    page_width_inches: Mapped[float | None] = mapped_column(Float, nullable=True)
+    page_height_inches: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     # Storage keys
     image_key: Mapped[str] = mapped_column(String(500), nullable=False)
     thumbnail_key: Mapped[str | None] = mapped_column(String(500), nullable=True)

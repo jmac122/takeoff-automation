@@ -96,6 +96,8 @@ def process_document_task(
                     width=page_data["width"],
                     height=page_data["height"],
                     dpi=page_data["dpi"],
+                    page_width_inches=page_data.get("page_width_inches"),
+                    page_height_inches=page_data.get("page_height_inches"),
                     image_key=page_data["image_key"],
                     thumbnail_key=page_data["thumbnail_key"],
                     status="ready",

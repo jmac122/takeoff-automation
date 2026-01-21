@@ -89,7 +89,7 @@ def extract_pdf_pages_as_images(
     dpi: int = 150,
     fmt: str = "TIFF",
     max_dimension: int | None = None,
-) -> Iterator[tuple[int, bytes, int, int]]:
+) -> Iterator[tuple[int, bytes, int, int, float, float]]:
     """Extract pages from PDF as images.
 
     Args:
@@ -99,13 +99,19 @@ def extract_pdf_pages_as_images(
         max_dimension: If provided, resize images so longest edge <= this value
 
     Yields:
-        Tuples of (page_number, image_bytes, width, height)
+        Tuples of (page_number, image_bytes, width, height, page_width_inches, page_height_inches)
+        page_width_inches and page_height_inches are the physical PDF page dimensions
     """
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
     try:
         for page_num in range(doc.page_count):
             page = doc[page_num]
+
+            # Get physical page dimensions (in points, 72 points = 1 inch)
+            page_rect = page.rect
+            page_width_inches = page_rect.width / 72.0
+            page_height_inches = page_rect.height / 72.0
 
             # Calculate zoom factor for desired DPI
             # PyMuPDF default is 72 DPI
@@ -131,7 +137,7 @@ def extract_pdf_pages_as_images(
             else:
                 width, height = pix.width, pix.height
 
-            yield (page_num + 1, img_bytes, width, height)
+            yield (page_num + 1, img_bytes, width, height, page_width_inches, page_height_inches)
     finally:
         doc.close()
 
@@ -204,6 +210,26 @@ def extract_tiff_pages_as_images(
     except EOFError:
         # No more pages
         pass
+
+
+def convert_to_png(image_bytes: bytes) -> bytes:
+    """Convert image bytes to PNG format.
+
+    Args:
+        image_bytes: Source image bytes (any format PIL supports)
+
+    Returns:
+        PNG image bytes
+    """
+    img = Image.open(io.BytesIO(image_bytes))
+
+    # Convert to RGB if needed
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+
+    output = io.BytesIO()
+    img.save(output, format="PNG")
+    return output.getvalue()
 
 
 def create_thumbnail(

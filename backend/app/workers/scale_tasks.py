@@ -90,10 +90,35 @@ def detect_page_scale_task(self, page_id: str) -> dict:
             if detection["best_scale"]:
                 best = detection["best_scale"]
                 page.scale_text = best["text"]
-                page.scale_value = best.get("pixels_per_foot")
                 page.scale_detection_method = best.get(
                     "method"
                 )  # vision_llm, ocr_predetected, etc.
+
+                # Calculate accurate pixels_per_foot using physical page dimensions
+                scale_ratio = best.get("ratio")
+                if page.page_width_inches and page.page_width_inches > 0 and scale_ratio and scale_ratio > 0:
+                    # pixels_per_inch = image_width / physical_page_width
+                    pixels_per_inch = page.width / page.page_width_inches
+                    # For scale like 1"=20' (ratio=20): 1 drawing inch = 20 real feet
+                    # So pixels_per_foot = pixels_per_inch / scale_ratio
+                    page.scale_value = pixels_per_inch / scale_ratio
+                    logger.info(
+                        "Calculated pixels_per_foot from physical dimensions",
+                        page_id=page_id,
+                        page_width_px=page.width,
+                        page_width_inches=page.page_width_inches,
+                        pixels_per_inch=pixels_per_inch,
+                        scale_ratio=scale_ratio,
+                        pixels_per_foot=page.scale_value,
+                    )
+                else:
+                    # Fallback to the legacy DPI-based estimate (less accurate)
+                    page.scale_value = best.get("pixels_per_foot")
+                    logger.warning(
+                        "Using legacy pixels_per_foot estimate (no physical dimensions)",
+                        page_id=page_id,
+                        pixels_per_foot=page.scale_value,
+                    )
 
                 if best["confidence"] >= 0.85 and page.scale_value:
                     page.scale_calibrated = True
