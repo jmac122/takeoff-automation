@@ -8,6 +8,7 @@ Supports:
 """
 
 import base64
+import io
 import json
 import time
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from typing import Any
 
 import anthropic
 import structlog
+from PIL import Image
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -27,6 +29,9 @@ from app.config import get_settings
 
 logger = structlog.get_logger()
 settings = get_settings()
+
+# Claude has a 5MB image limit
+MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
 class LLMProvider(str, Enum):
@@ -272,6 +277,9 @@ class LLMClient:
         client = self._clients[LLMProvider.ANTHROPIC]
         model = PROVIDER_MODELS[LLMProvider.ANTHROPIC]
 
+        # Compress image if needed (Claude has 5MB limit)
+        image_bytes = self._compress_image_if_needed(image_bytes)
+
         image_data = base64.b64encode(image_bytes).decode("utf-8")
         media_type = self._detect_media_type(image_bytes)
 
@@ -322,6 +330,9 @@ class LLMClient:
         """Analyze using OpenAI GPT-4V or xAI Grok (OpenAI-compatible)."""
         client = self._clients[provider]
         model = PROVIDER_MODELS[provider]
+
+        # Compress image if needed
+        image_bytes = self._compress_image_if_needed(image_bytes)
 
         image_data = base64.b64encode(image_bytes).decode("utf-8")
         media_type = self._detect_media_type(image_bytes)
@@ -448,6 +459,90 @@ class LLMClient:
             return "image/tiff"
         else:
             return "image/png"  # Default
+
+    def _compress_image_if_needed(self, image_bytes: bytes) -> bytes:
+        """Compress image if it exceeds size limits.
+
+        Args:
+            image_bytes: Original image bytes
+
+        Returns:
+            Compressed image bytes (or original if already small enough)
+        """
+        if len(image_bytes) <= MAX_IMAGE_SIZE_BYTES:
+            return image_bytes
+
+        logger.info(
+            "Image exceeds size limit, compressing",
+            original_size_mb=round(len(image_bytes) / (1024 * 1024), 2),
+            limit_mb=5,
+        )
+
+        try:
+            # Open image
+            img = Image.open(io.BytesIO(image_bytes))
+
+            # Convert RGBA to RGB if needed (for JPEG compatibility)
+            if img.mode == "RGBA":
+                # Create white background
+                background = Image.new("RGB", img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[3])  # Use alpha channel as mask
+                img = background
+            elif img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+
+            # Try progressive quality reduction
+            for quality in [85, 75, 65, 55, 45]:
+                output = io.BytesIO()
+                img.save(output, format="JPEG", quality=quality, optimize=True)
+                compressed_bytes = output.getvalue()
+
+                if len(compressed_bytes) <= MAX_IMAGE_SIZE_BYTES:
+                    logger.info(
+                        "Image compressed successfully",
+                        final_size_mb=round(len(compressed_bytes) / (1024 * 1024), 2),
+                        quality=quality,
+                        compression_ratio=round(
+                            len(image_bytes) / len(compressed_bytes), 2
+                        ),
+                    )
+                    return compressed_bytes
+
+            # If still too large, resize the image
+            logger.warning("Quality reduction insufficient, resizing image")
+            scale_factor = 0.8
+            while len(compressed_bytes) > MAX_IMAGE_SIZE_BYTES and scale_factor > 0.3:
+                new_size = (
+                    int(img.width * scale_factor),
+                    int(img.height * scale_factor),
+                )
+                resized_img = img.resize(new_size, Image.Resampling.LANCZOS)
+
+                output = io.BytesIO()
+                resized_img.save(output, format="JPEG", quality=75, optimize=True)
+                compressed_bytes = output.getvalue()
+
+                if len(compressed_bytes) <= MAX_IMAGE_SIZE_BYTES:
+                    logger.info(
+                        "Image resized and compressed",
+                        final_size_mb=round(len(compressed_bytes) / (1024 * 1024), 2),
+                        scale_factor=scale_factor,
+                        new_dimensions=f"{new_size[0]}x{new_size[1]}",
+                    )
+                    return compressed_bytes
+
+                scale_factor -= 0.1
+
+            # Return best effort
+            logger.warning(
+                "Could not compress below limit, using best effort",
+                final_size_mb=round(len(compressed_bytes) / (1024 * 1024), 2),
+            )
+            return compressed_bytes
+
+        except Exception as e:
+            logger.error("Image compression failed, using original", error=str(e))
+            return image_bytes
 
     def analyze_image_json(
         self,
