@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { PageCard } from '@/components/document/PageCard';
 import { apiClient } from '@/api/client';
@@ -22,7 +21,7 @@ import axios from 'axios';
 export default function DocumentDetail() {
     const { projectId, documentId } = useParams<{ projectId: string; documentId: string }>();
     const queryClient = useQueryClient();
-    const [classificationProvider, setClassificationProvider] = useState<string | undefined>(undefined);
+    const [isClassifying, setIsClassifying] = useState(false);
 
     // Fetch project details for breadcrumb
     const { data: project } = useQuery({
@@ -54,7 +53,8 @@ export default function DocumentDetail() {
             return response.data;
         },
         enabled: !!documentId,
-        refetchInterval: document?.status === 'processing' ? 3000 : false,
+        // Poll while document is processing OR while classifications are running
+        refetchInterval: document?.status === 'processing' || isClassifying ? 2000 : false,
     });
 
     // Classify document mutation
@@ -63,15 +63,19 @@ export default function DocumentDetail() {
             if (!documentId) throw new Error('Document ID required');
             const response = await axios.post(
                 `/api/v1/documents/${documentId}/classify`,
-                { provider: classificationProvider }
+                { use_vision: false }
             );
             return response.data;
         },
         onSuccess: () => {
-            // Refetch pages after classification starts
+            // Start polling for updates
+            setIsClassifying(true);
+
+            // Stop polling after 30 seconds (classifications should complete by then)
             setTimeout(() => {
+                setIsClassifying(false);
                 queryClient.invalidateQueries({ queryKey: ['pages', documentId] });
-            }, 2000);
+            }, 30000);
         },
     });
 
@@ -127,40 +131,37 @@ export default function DocumentDetail() {
                 </div>
 
                 {/* Classification Controls */}
-                <div className="flex flex-col gap-3 min-w-[250px]">
+                <div className="flex flex-col gap-3 min-w-[280px]">
+                    {/* Auto-classification indicator */}
+                    <Alert className="bg-green-500/10 border-green-500/50">
+                        <AlertDescription className="text-green-400 text-xs font-mono">
+                            <span className="font-bold">✓ Auto-classified</span> from OCR data
+                        </AlertDescription>
+                    </Alert>
+
+                    {/* Re-classification section */}
                     <div className="space-y-2">
-                        <Label className="text-xs font-mono text-neutral-500 uppercase tracking-wider">
-                            LLM Provider
+                        <Label className="text-xs font-mono text-neutral-400 uppercase tracking-wider">
+                            Not happy with results?
                         </Label>
-                        <Select
-                            value={classificationProvider}
-                            onValueChange={setClassificationProvider}
-                        >
-                            <SelectTrigger className="bg-neutral-900 border-neutral-700 text-white">
-                                <SelectValue placeholder="Auto (default)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="auto">Auto (default)</SelectItem>
-                                <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
-                                <SelectItem value="openai">OpenAI (GPT-4)</SelectItem>
-                                <SelectItem value="google">Google (Gemini)</SelectItem>
-                                <SelectItem value="xai">xAI (Grok)</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <div className="text-xs text-neutral-500 mb-2">
+                            Re-classify all pages or hover over individual pages to re-classify them
+                        </div>
                     </div>
 
                     <Button
                         onClick={() => classifyMutation.mutate()}
-                        disabled={classifyMutation.isPending}
-                        className="bg-amber-500 hover:bg-amber-400 text-black font-mono uppercase tracking-wider"
+                        disabled={classifyMutation.isPending || isClassifying}
+                        variant="outline"
+                        className="border-amber-500/50 hover:bg-amber-500/10 text-amber-400 font-mono uppercase tracking-wider"
                     >
-                        {classifyMutation.isPending ? 'Starting...' : 'Classify All Pages'}
+                        {classifyMutation.isPending || isClassifying ? 'Classifying...' : 'Re-Classify All Pages'}
                     </Button>
 
-                    {classifyMutation.isSuccess && (
-                        <Alert className="bg-green-500/10 border-green-500/50">
-                            <AlertDescription className="text-green-400 text-xs font-mono">
-                                Classification started! Results will appear shortly.
+                    {(classifyMutation.isSuccess || isClassifying) && (
+                        <Alert className="bg-blue-500/10 border-blue-500/50">
+                            <AlertDescription className="text-blue-400 text-xs font-mono">
+                                {isClassifying ? 'Re-classification in progress...' : 'Re-classification started!'}
                             </AlertDescription>
                         </Alert>
                     )}
