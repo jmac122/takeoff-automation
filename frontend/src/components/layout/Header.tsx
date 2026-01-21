@@ -3,9 +3,22 @@
  */
 
 import { Link, useLocation } from 'react-router-dom';
+import { Moon, Sun } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 
 export function Header() {
     const location = useLocation();
+    const [isDark, setIsDark] = useState(true);
+
+    useEffect(() => {
+        const root = document.documentElement;
+        if (isDark) {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+    }, [isDark]);
 
     const isActive = (path: string) => location.pathname.startsWith(path);
 
@@ -42,6 +55,16 @@ export function Header() {
                             </Link>
                         ))}
                     </nav>
+
+                    {/* Theme Toggle */}
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIsDark(!isDark)}
+                        className="text-neutral-400 hover:text-white"
+                    >
+                        {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                    </Button>
                 </div>
             </div>
         </header>

@@ -200,30 +200,10 @@ export function TakeoffViewer() {
         }
     }, []);
 
-    // Fullscreen handlers
-    const toggleFullscreen = async () => {
-        try {
-            if (!document.fullscreenElement) {
-                await document.documentElement.requestFullscreen();
-                setIsFullscreen(true);
-            } else {
-                await document.exitFullscreen();
-                setIsFullscreen(false);
-            }
-        } catch (error) {
-            console.error('Error toggling fullscreen:', error);
-        }
+    // Maximize within browser window (not OS fullscreen)
+    const toggleFullscreen = () => {
+        setIsFullscreen(!isFullscreen);
     };
-
-    // Listen for fullscreen changes (user might exit via ESC key)
-    useEffect(() => {
-        const handleFullscreenChange = () => {
-            setIsFullscreen(!!document.fullscreenElement);
-        };
-
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
-        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    }, []);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -263,6 +243,18 @@ export function TakeoffViewer() {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [drawing, selectedMeasurementId]);
+
+    // Global mouseup listener to prevent stuck panning state
+    useEffect(() => {
+        const handleGlobalMouseUp = () => {
+            if (isPanning) {
+                setIsPanning(false);
+            }
+        };
+
+        window.addEventListener('mouseup', handleGlobalMouseUp);
+        return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+    }, [isPanning]);
 
     // Handle canvas mouse events
     const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -374,12 +366,13 @@ export function TakeoffViewer() {
     const handleStageMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
         const stage = e.target.getStage();
 
-        // End panning
+        // End panning (always stop panning on any mouse up to prevent stuck state)
         if (isPanning) {
             setIsPanning(false);
             if (stage) {
                 stage.draggable(false); // Keep disabled, we handle panning manually
             }
+            return; // Don't process drawing if we were panning
         }
 
         // Auto-finish for rectangle and circle on mouse up
@@ -531,29 +524,29 @@ export function TakeoffViewer() {
                 await new Promise(resolve => setTimeout(resolve, 500));
 
                 const status = await scaleApi.getDetectionStatus(pageId!);
+                console.log('Scale detection status:', status);
 
                 if (status.status === 'complete') {
                     setIsDetecting(false);
 
-                    // Set detection result
-                    if (status.detection) {
-                        setDetectionResult(status.detection);
+                    // Always set detection result (even if no scale found)
+                    console.log('Detection result:', status.detection);
+                    setDetectionResult(status.detection);
 
-                        // Find bounding box for highlight
-                        if (status.detection.best_scale && (page as any)?.ocr_blocks?.blocks) {
-                            const scaleText = status.detection.best_scale.text;
-                            const matchingBlock = (page as any).ocr_blocks.blocks.find(
-                                (block: any) => block.text && block.text.includes(scaleText)
-                            );
+                    // Find bounding box for highlight
+                    if (status.detection?.best_scale && (page as any)?.ocr_blocks?.blocks) {
+                        const scaleText = status.detection.best_scale.text;
+                        const matchingBlock = (page as any).ocr_blocks.blocks.find(
+                            (block: any) => block.text && block.text.includes(scaleText)
+                        );
 
-                            if (matchingBlock?.bbox) {
-                                setScaleHighlightBox({
-                                    x: matchingBlock.bbox.x0,
-                                    y: matchingBlock.bbox.y0,
-                                    width: matchingBlock.bbox.x1 - matchingBlock.bbox.x0,
-                                    height: matchingBlock.bbox.y1 - matchingBlock.bbox.y0,
-                                });
-                            }
+                        if (matchingBlock?.bbox) {
+                            setScaleHighlightBox({
+                                x: matchingBlock.bbox.x0,
+                                y: matchingBlock.bbox.y0,
+                                width: matchingBlock.bbox.x1 - matchingBlock.bbox.x0,
+                                height: matchingBlock.bbox.y1 - matchingBlock.bbox.y0,
+                            });
                         }
                     }
 
@@ -586,7 +579,7 @@ export function TakeoffViewer() {
     }
 
     return (
-        <div className="flex flex-col h-screen bg-neutral-950 w-full" style={{ width: '100vw', maxWidth: 'none', margin: 0, padding: 0 }}>
+        <div className={`flex flex-col bg-neutral-950 ${isFullscreen ? 'fixed inset-0 z-50 w-full h-screen' : 'container mx-auto max-w-[1920px] h-[calc(100vh-2rem)]'}`}>
             {/* Header */}
             <div className="flex items-center gap-4 p-4 border-b border-neutral-700 bg-neutral-900">
                 <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-white hover:bg-neutral-800">
@@ -620,7 +613,7 @@ export function TakeoffViewer() {
                         size="sm"
                         onClick={toggleFullscreen}
                         className="border-neutral-700 text-white hover:bg-neutral-800"
-                        title={isFullscreen ? 'Exit Fullscreen (F11)' : 'Enter Fullscreen (F11)'}
+                        title={isFullscreen ? 'Exit Maximize' : 'Maximize'}
                     >
                         {isFullscreen ? (
                             <Minimize className="w-4 h-4" />
@@ -631,10 +624,10 @@ export function TakeoffViewer() {
                 </div>
             </div>
 
-            {/* Main content - Full width canvas */}
-            <div className="flex flex-1 overflow-hidden bg-neutral-900 w-full">
-                {/* Canvas - Full width */}
-                <div className="flex-1 flex flex-col w-full min-w-0">
+            {/* Main content */}
+            <div className="flex flex-1 overflow-hidden bg-neutral-900">
+                {/* Canvas */}
+                <div className="flex-1 flex flex-col min-w-0">
                     {/* Drawing Toolbar */}
                     <div className="p-4 bg-neutral-800 border-b border-neutral-700">
                         <div className="flex items-center gap-2">
@@ -694,18 +687,36 @@ export function TakeoffViewer() {
                     </div>
 
                     {/* Detection Result Display */}
-                    {detectionResult && detectionResult.best_scale && (
+                    {detectionResult && (
                         <div className="px-4 py-2 bg-neutral-800 border-b border-neutral-700">
                             <div className="flex items-center gap-3">
-                                <div className="text-xs font-mono text-amber-500 uppercase tracking-wider">
-                                    Detected:
-                                </div>
-                                <div className="text-sm font-mono text-white font-bold">
-                                    {detectionResult.best_scale.text}
-                                </div>
-                                <div className="text-xs font-mono text-neutral-400">
-                                    ({(detectionResult.best_scale.confidence * 100).toFixed(0)}% confidence)
-                                </div>
+                                {detectionResult.best_scale ? (
+                                    <>
+                                        <div className="text-xs font-mono text-amber-500 uppercase tracking-wider">
+                                            Detected:
+                                        </div>
+                                        <div className="text-sm font-mono text-white font-bold">
+                                            {detectionResult.best_scale.text}
+                                        </div>
+                                        <div className="text-xs font-mono text-neutral-400">
+                                            ({(detectionResult.best_scale.confidence * 100).toFixed(0)}% confidence)
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="text-xs font-mono text-amber-500 uppercase tracking-wider">
+                                            Detection Result:
+                                        </div>
+                                        <div className="text-sm font-mono text-neutral-400">
+                                            No scale found
+                                            {detectionResult.parsed_scales?.length === 0 && detectionResult.scale_bars?.length > 0 && (
+                                                <span className="ml-2 text-xs">
+                                                    (Found {detectionResult.scale_bars.length} graphical scale bar{detectionResult.scale_bars.length > 1 ? 's' : ''}, but unable to parse)
+                                                </span>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
                                 <div className="flex-1" />
                                 <Button
                                     variant="ghost"
@@ -725,7 +736,7 @@ export function TakeoffViewer() {
                     {/* Canvas */}
                     <div
                         id="canvas-container"
-                        className="flex-1 relative flex items-center justify-center w-full h-full"
+                        className="flex-1 relative flex items-center justify-center h-full"
                         style={{ minWidth: 0, minHeight: 0 }}
                         onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right click
                     >

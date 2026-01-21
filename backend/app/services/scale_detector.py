@@ -54,24 +54,24 @@ class ParsedScale:
 class ScaleParser:
     """Parser for construction scale notations."""
 
-    # Architectural scale patterns
+    # Architectural scale patterns (= sign optional for OCR tolerance)
     ARCH_PATTERNS = [
-        # 1/4" = 1'-0"
-        (r'(\d+)/(\d+)["\']?\s*=\s*1[\'\"]\s*-?\s*0["\']?', "fractional_arch"),
-        # 1/4" = 1'
-        (r'(\d+)/(\d+)["\']?\s*=\s*1[\'"]', "fractional_arch_simple"),
-        # 1" = 1'-0"
-        (r'(\d+)["\']?\s*=\s*1[\'\"]\s*-?\s*0["\']?', "whole_arch"),
-        # 3/4" = 1'-0"
-        (r'(\d+)/(\d+)["\']?\s*=\s*1[\'"]-0["\']?', "fractional_arch"),
+        # 1/4" = 1'-0" or 1/4" 1'-0" (OCR may miss =)
+        (r'(\d+)/(\d+)["\']?\s*=?\s*1[\'\"]\s*-?\s*0["\']?', "fractional_arch"),
+        # 1/4" = 1' or 1/4" 1'
+        (r'(\d+)/(\d+)["\']?\s*=?\s*1[\'"]', "fractional_arch_simple"),
+        # 1" = 1'-0" or 1" 1'-0"
+        (r'(\d+)["\']?\s*=?\s*1[\'\"]\s*-?\s*0["\']?', "whole_arch"),
+        # 3/4" = 1'-0" or 3/4" 1'-0"
+        (r'(\d+)/(\d+)["\']?\s*=?\s*1[\'"]-0["\']?', "fractional_arch"),
     ]
 
-    # Engineering scale patterns
+    # Engineering scale patterns (= sign optional for OCR tolerance)
     ENG_PATTERNS = [
-        # 1" = 20'
-        (r'1["\']?\s*=\s*(\d+)[\'"]', "engineering"),
-        # 1" = 20'-0"
-        (r'1["\']?\s*=\s*(\d+)[\'\"]\s*-?\s*0["\']?', "engineering"),
+        # 1" = 20' or 1" 20'
+        (r'1["\']?\s*=?\s*(\d+)[\'"]', "engineering"),
+        # 1" = 20'-0" or 1" 20'-0"
+        (r'1["\']?\s*=?\s*(\d+)[\'\"]\s*-?\s*0["\']?', "engineering"),
     ]
 
     # Ratio patterns
@@ -313,7 +313,26 @@ class ScaleDetector:
                         }
                     )
 
-        # Strategy 2: Search OCR text for scale patterns
+        # Strategy 2: Use vision LLM if OCR didn't find scales
+        if not results["parsed_scales"]:
+            try:
+                llm_scale = self._detect_scale_with_llm(image_bytes)
+                if llm_scale:
+                    parsed = self.parser.parse_scale_text(llm_scale)
+                    if parsed and parsed.scale_ratio > 0:
+                        results["parsed_scales"].append(
+                            {
+                                "text": llm_scale,
+                                "ratio": parsed.scale_ratio,
+                                "pixels_per_foot": parsed.pixels_per_foot,
+                                "confidence": parsed.confidence * 0.95,  # High confidence for LLM
+                            }
+                        )
+                        logger.info("LLM detected scale", scale_text=llm_scale)
+            except Exception as e:
+                logger.warning("LLM scale detection failed", error=str(e))
+
+        # Strategy 3: Search OCR text for scale patterns (fallback)
         if ocr_text and not results["parsed_scales"]:
             # Look for scale patterns in full text
             scale_patterns = [
@@ -337,7 +356,7 @@ class ScaleDetector:
                             }
                         )
 
-        # Strategy 3: Detect graphical scale bars
+        # Strategy 4: Detect graphical scale bars
         results["scale_bars"] = self.bar_detector.detect_scale_bar(image_bytes)
 
         # Select best scale
@@ -355,6 +374,44 @@ class ScaleDetector:
                 results["needs_calibration"] = False
 
         return results
+
+    def _detect_scale_with_llm(self, image_bytes: bytes) -> str | None:
+        """Use vision LLM to extract scale notation from image.
+        
+        Args:
+            image_bytes: Page image
+            
+        Returns:
+            Scale text string or None
+        """
+        prompt = """Look at this construction drawing and find the scale notation.
+        
+Common formats:
+- 1/4" = 1'-0"
+- 1/8" = 1'-0"
+- 1" = 20'
+- SCALE: 1:100
+- NTS (Not To Scale)
+
+The scale is usually near the drawing title or in the title block.
+
+Return ONLY the scale text exactly as shown, nothing else. If no scale is found, return "NONE"."""
+
+        try:
+            response = self.llm.analyze_image(
+                image_bytes=image_bytes,
+                prompt=prompt,
+                provider="gemini",  # Gemini 2.5 Flash is fast and cheap for this
+            )
+            
+            scale_text = response.content.strip()
+            if scale_text and scale_text.upper() != "NONE":
+                return scale_text
+                
+        except Exception as e:
+            logger.error("LLM scale detection error", error=str(e))
+            
+        return None
 
     def calculate_scale_from_calibration(
         self,

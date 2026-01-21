@@ -45,10 +45,10 @@ class OCRService:
 
     # Patterns for construction plan elements
     SCALE_PATTERNS = [
-        # Standard architectural scales
-        r'(?:SCALE[:\s]*)?(\d+(?:/\d+)?["\']?\s*=\s*\d+[\'"]\s*-?\s*\d*[\'""]?)',
-        r'(\d+/\d+"\s*=\s*1\'-0")',  # 1/4" = 1'-0"
-        r'(\d+"\s*=\s*\d+\')',  # 1" = 10'
+        # Standard architectural scales (with or without = sign for OCR tolerance)
+        r'(?:SCALE[:\s]*)?(\d+(?:/\d+)?["\']?\s*=?\s*\d+[\'"]\s*-?\s*\d*[\'""]?)',
+        r'(\d+/\d+"\s*=?\s*1\'-0")',  # 1/4" = 1'-0" or 1/4" 1'-0" (OCR may miss =)
+        r'(\d+"\s*=?\s*\d+\')',  # 1" = 10' or 1" 10'
         r"SCALE[:\s]*1[:\s]*(\d+)",  # SCALE: 1:100
         r"(\d+:\d+)\s*SCALE",
         r"NTS|NOT\s*TO\s*SCALE",  # Not to scale
