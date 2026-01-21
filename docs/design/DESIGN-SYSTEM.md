@@ -867,3 +867,202 @@ export function MyComponent({ propName, className }: MyComponentProps) {
   );
 }
 ```
+
+---
+
+## UX Patterns & Best Practices
+
+### Page Card Layout
+
+For document/page grid displays:
+
+```
+┌─────────────────────────┐
+│ ┌─────────────────────┐ │
+│ │ S1.01 - FOUNDATION  │ │ ← Sheet # (bold, large)
+│ │ Structural:Plan     │ │ ← Classification
+│ │ ██████████░ 95%     │ │ ← Confidence bar
+│ │                     │ │
+│ │   [Page Image]      │ │
+│ │                     │ │
+│ │            [HIGH]   │ │ ← Concrete relevance badge
+│ └─────────────────────┘ │
+│                         │
+│ Page 6                  │ ← Small page number
+│                         │
+│ [Open Takeoff]          │ ← Primary action
+└─────────────────────────┘
+```
+
+**Visual Hierarchy:**
+1. **Sheet Number** - Bold, large, white text (from OCR)
+2. **Classification** - Smaller, gray text (Discipline:Type format)
+3. **Confidence** - Progress bar showing AI confidence
+4. **Relevance Badge** - Color-coded (green=high, amber=medium, gray=low)
+
+### Multi-Step Selection Pattern
+
+For bulk actions with granular control:
+
+**Step 1:** Enter selection mode
+- Click "Re-Classify Pages" or similar action button
+- All items show checkboxes
+- "Select All" and "Cancel" buttons appear
+
+**Step 2:** Select items
+- Click items or checkboxes to toggle selection
+- Selected items show visual highlight (amber ring)
+- Counter shows: "Action Selected (N)"
+
+**Step 3:** Execute action
+- Large button shows count: "Classify Selected (5)"
+- Button disabled until at least one item selected
+- Returns to normal view after action starts
+
+**Implementation:**
+```tsx
+// State management
+const [isSelectMode, setIsSelectMode] = useState(false);
+const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+// Toggle selection
+const handleToggle = (id: string) => {
+  const newSelected = new Set(selectedIds);
+  newSelected.has(id) ? newSelected.delete(id) : newSelected.add(id);
+  setSelectedIds(newSelected);
+};
+
+// UI
+{isSelectMode && (
+  <Checkbox
+    checked={selectedIds.has(item.id)}
+    onCheckedChange={() => handleToggle(item.id)}
+  />
+)}
+```
+
+### Classification Display
+
+Always show classification data in this order:
+
+1. **Combined Format** - "Discipline:Type" (e.g., "Structural:Plan")
+2. **Confidence** - Percentage with visual bar
+3. **Individual Fields** - Discipline and Type separately with their confidences
+4. **Relevance** - Badge showing concrete relevance level
+5. **Elements** - List of detected concrete elements
+6. **Description** - AI-generated description
+7. **Technical Details** - Provider, latency, timestamp
+
+### Status Indicators
+
+Use consistent color coding:
+
+| Status | Color | Use Case |
+|--------|-------|----------|
+| Success/Active | Green | Completed, high relevance, approved |
+| Warning/Medium | Amber | Medium relevance, pending, in progress |
+| Error/Critical | Red | Failed, rejected, critical issues |
+| Neutral/Low | Gray | Low relevance, inactive, disabled |
+
+### Auto-Classification Messaging
+
+When features are automatic, make it clear:
+
+```tsx
+// Success indicator
+<Alert className="bg-green-500/10 border-green-500/50">
+  <AlertDescription className="text-green-400">
+    <span className="font-bold">✓ Auto-classified</span> from OCR data
+  </AlertDescription>
+</Alert>
+
+// Explanatory text
+<div className="text-xs text-neutral-500">
+  Not happy with results? Re-classify all pages or select specific pages
+</div>
+
+// Secondary action (not primary)
+<Button variant="outline" className="border-amber-500/50">
+  Re-Classify Pages
+</Button>
+```
+
+### Sidebar Patterns
+
+**Classification Sidebar** (TakeoffViewer):
+- Width: 320px expanded, 40px collapsed
+- Collapsible with arrow button
+- Auto-hides in fullscreen mode
+- Sticky positioning
+- Dark theme (neutral-900)
+- Monospace fonts for technical data
+
+**Layout:**
+```
+┌─────────────────────────────────────┬───────────────────────┐
+│                                     │ CLASSIFICATION        │
+│         Main Content                │ ───────────────────── │
+│         (flex-1)                    │ Structural:Plan       │
+│                                     │ 95% confidence        │
+│                                     │ HIGH relevance        │
+│                                     │ Elements: slab,       │
+│                                     │ foundation...         │
+└─────────────────────────────────────┴───────────────────────┘
+```
+
+### Modal Best Practices
+
+**Image + Details Layout:**
+```
+┌─────────────────────────────────────────────────────────┐
+│ Header (flex-shrink-0, py-3)                            │
+├──────────────────────────┬──────────────────────────────┤
+│ Left: Image              │ Right: Details               │
+│ (w-1/2, overflow-y)      │ (w-1/2, overflow-y)          │
+│                          │                              │
+│ [Page Image]             │ Classification Output        │
+│                          │ • Model info                 │
+│                          │ • Confidence                 │
+│                          │ • Elements                   │
+│                          │ • Description                │
+└──────────────────────────┴──────────────────────────────┘
+```
+
+**Key Points:**
+- Use `max-h-[90vh]` not `h-[90vh]` for proper flexbox
+- Header: `flex-shrink-0` to prevent squishing
+- Content: `flex-1 min-h-0` to allow scrolling
+- Both sides independently scrollable
+
+### Button Hierarchy
+
+In any view, maintain clear action hierarchy:
+
+1. **Primary Action** - One per view, default variant, prominent
+2. **Secondary Actions** - Outline or secondary variant
+3. **Tertiary Actions** - Ghost variant or links
+4. **Destructive Actions** - Red, requires confirmation
+
+Example:
+```tsx
+<div className="flex gap-2">
+  <Button variant="outline">Cancel</Button>  {/* Secondary */}
+  <Button>Save</Button>                      {/* Primary */}
+</div>
+```
+
+### Loading & Empty States
+
+**Loading:**
+- Use Skeleton for known layouts
+- Use Spinner for unknown duration
+- Show progress bars when percentage known
+- Keep action buttons disabled with loading text
+
+**Empty:**
+- Icon + title + description + action
+- Explain why it's empty
+- Provide clear next step
+- Use EmptyState component pattern
+
+---

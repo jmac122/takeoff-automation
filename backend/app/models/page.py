@@ -45,9 +45,17 @@ class Page(Base, UUIDMixin, TimestampMixin):
     classification_confidence: Mapped[float | None] = mapped_column(
         Float, nullable=True
     )
+    discipline: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    discipline_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    page_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    page_type_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     concrete_relevance: Mapped[str | None] = mapped_column(
         String(20), nullable=True
     )  # high, medium, low, none
+    concrete_elements: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    llm_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    llm_latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     classification_metadata: Mapped[dict | None] = mapped_column(
         JSON, nullable=True
     )  # Full classification result with LLM metadata

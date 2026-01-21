@@ -194,11 +194,14 @@ docker compose exec api pytest --cov=app tests/
 
 ### Phase 2A: AI Page Classification
 - ✅ Multi-provider LLM support (Anthropic, OpenAI, Google, xAI)
+- ✅ **OCR-based classification by default** (fast, free, 95%+ accuracy)
+- ✅ **Automatic classification** after OCR processing (no user action needed)
 - ✅ Discipline detection (Structural, Architectural, Civil, etc.)
 - ✅ Page type detection (Plan, Elevation, Section, Detail, etc.)
 - ✅ Concrete relevance scoring (high/medium/low/none)
 - ✅ Classification confidence scoring
 - ✅ Automatic fallback between providers
+- ✅ **Image compression** for LLM vision models (handles 5MB limit)
 - ✅ Detailed classification metadata storage
 
 ### API Capabilities
@@ -348,9 +351,12 @@ chore: Maintenance tasks
 
 - **Phase 2A**: Page Classification - Complete
   - Multi-provider LLM client
-  - AI-powered classification
+  - **OCR-based classification** (fast, free, default method)
+  - **Automatic classification** after OCR processing
+  - AI-powered classification (LLM vision option)
   - Discipline and page type detection
   - Concrete relevance scoring
+  - **Image compression** for LLM compatibility
 
 ### 🔄 Next Phases
 - **Phase 2B**: Scale Detection

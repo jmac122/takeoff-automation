@@ -277,6 +277,7 @@ class ScaleDetector:
         image_bytes: bytes,
         ocr_text: str | None = None,
         detected_scale_texts: list[str] | None = None,
+        ocr_blocks: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Detect scale from a page image.
 
@@ -290,6 +291,7 @@ class ScaleDetector:
             image_bytes: Page image
             ocr_text: Full OCR text from page
             detected_scale_texts: Pre-detected scale text candidates
+            ocr_blocks: OCR blocks with bounding boxes for accurate location matching
 
         Returns:
             Detection results with parsed scale and confidence
@@ -319,15 +321,120 @@ class ScaleDetector:
                             "method": "vision_llm",
                         }
 
-                        # Add bbox if provided
+                        # Use LLM bbox if provided, but try to match with OCR for better accuracy
+                        final_bbox = None
                         if bbox:
-                            scale_data["bbox"] = bbox
+                            # LLM provided a bbox, but it might be inaccurate
+                            # Try to find the text in OCR blocks for more accurate bbox
+                            if ocr_blocks and "blocks" in ocr_blocks:
+                                # Normalize scale text for matching - more aggressive
+                                normalized_scale = (
+                                    scale_text.lower()
+                                    .replace(" ", "")
+                                    .replace('"', "")
+                                    .replace("'", "")
+                                    .replace("=", "")
+                                    .replace("-", "")
+                                    .replace("/", "")
+                                )
+
+                                logger.debug(
+                                    "Searching OCR blocks for scale",
+                                    normalized_scale=normalized_scale,
+                                    total_blocks=len(ocr_blocks["blocks"]),
+                                )
+
+                                best_match_score = 0
+                                best_match_block = None
+
+                                for block in ocr_blocks["blocks"]:
+                                    block_text = (
+                                        block.get("text", "")
+                                        .lower()
+                                        .replace(" ", "")
+                                        .replace('"', "")
+                                        .replace("'", "")
+                                        .replace("=", "")
+                                        .replace("-", "")
+                                        .replace("/", "")
+                                    )
+
+                                    # Calculate match score
+                                    if normalized_scale in block_text:
+                                        score = len(normalized_scale) / len(block_text)
+                                    elif block_text in normalized_scale:
+                                        score = len(block_text) / len(normalized_scale)
+                                    else:
+                                        # Check for partial matches (e.g., "332" matches "3/32")
+                                        common = sum(
+                                            1
+                                            for c in normalized_scale
+                                            if c in block_text
+                                        )
+                                        score = common / max(
+                                            len(normalized_scale), len(block_text)
+                                        )
+
+                                    if score > best_match_score and score > 0.5:
+                                        best_match_score = score
+                                        best_match_block = block
+                                        logger.debug(
+                                            "OCR block match candidate",
+                                            block_text=block.get("text", "")[:50],
+                                            score=score,
+                                        )
+
+                                if best_match_block:
+                                    # OCR blocks use 'bounding_box' with x, y, width, height
+                                    if "bounding_box" in best_match_block:
+                                        ocr_bbox = best_match_block["bounding_box"]
+                                        final_bbox = {
+                                            "x": int(ocr_bbox["x"]),
+                                            "y": int(ocr_bbox["y"]),
+                                            "width": int(ocr_bbox["width"]),
+                                            "height": int(ocr_bbox["height"]),
+                                        }
+                                        logger.info(
+                                            "✅ Using OCR bbox for PIXEL-PERFECT accuracy",
+                                            scale_text=scale_text,
+                                            ocr_text=best_match_block.get("text", "")[
+                                                :50
+                                            ],
+                                            match_score=best_match_score,
+                                            bbox=final_bbox,
+                                        )
+                                    else:
+                                        logger.warning(
+                                            "OCR block found but no bounding_box key",
+                                            block_keys=list(best_match_block.keys()),
+                                        )
+
+                            # If no OCR match found, fall back to LLM bbox
+                            if not final_bbox:
+                                final_bbox = bbox
+                                logger.warning(
+                                    "Using LLM bbox (may be inaccurate)",
+                                    scale_text=scale_text,
+                                )
+                                # Log first 5 OCR blocks for debugging
+                                if ocr_blocks and "blocks" in ocr_blocks:
+                                    sample_blocks = [
+                                        block.get("text", "")[:30]
+                                        for block in ocr_blocks["blocks"][:5]
+                                    ]
+                                    logger.debug(
+                                        "OCR blocks sample (no match found)",
+                                        sample_blocks=sample_blocks,
+                                    )
+
+                        if final_bbox:
+                            scale_data["bbox"] = final_bbox
 
                         results["parsed_scales"].append(scale_data)
                         logger.info(
                             "LLM detected scale",
                             scale_text=scale_text,
-                            has_bbox=bool(bbox),
+                            has_bbox=bool(final_bbox),
                         )
         except Exception as e:
             logger.warning("LLM scale detection failed", error=str(e))
@@ -448,10 +555,38 @@ Return ONLY valid JSON, no other text."""
                 provider=LLMProvider.GOOGLE,  # Gemini 2.5 Flash is fast and cheap for this
             )
 
+            # Clean response - remove markdown code fences if present
+            content = response.content.strip()
+            if content.startswith("```json"):
+                content = content[7:]  # Remove ```json
+            if content.startswith("```"):
+                content = content[3:]  # Remove ```
+            if content.endswith("```"):
+                content = content[:-3]  # Remove trailing ```
+            content = content.strip()
+
             # Parse JSON response
-            result = json.loads(response.content.strip())
+            result = json.loads(content)
 
             if result.get("scale_text") and result["scale_text"].upper() != "NONE":
+                # Scale bbox coordinates back to original image size if image was compressed
+                if result.get("bbox") and response.image_scale_factor != 1.0:
+                    bbox = result["bbox"]
+                    scale_factor = (
+                        1.0 / response.image_scale_factor
+                    )  # Inverse to scale up
+                    result["bbox"] = {
+                        "x": int(bbox["x"] * scale_factor),
+                        "y": int(bbox["y"] * scale_factor),
+                        "width": int(bbox["width"] * scale_factor),
+                        "height": int(bbox["height"] * scale_factor),
+                    }
+                    logger.info(
+                        "Scaled bbox coordinates to original image size",
+                        scale_factor=scale_factor,
+                        original_bbox=bbox,
+                        scaled_bbox=result["bbox"],
+                    )
                 return result
 
         except json.JSONDecodeError as e:

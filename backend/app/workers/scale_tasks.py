@@ -78,6 +78,7 @@ async def _detect_page_scale(page_id: str) -> dict:
             image_bytes,
             ocr_text=page.ocr_text,
             detected_scale_texts=detected_scales,
+            ocr_blocks=page.ocr_blocks,
         )
 
         # Update page with scale info
@@ -93,6 +94,18 @@ async def _detect_page_scale(page_id: str) -> dict:
                 page.scale_calibrated = True
 
         # Store full detection data
+        # If new detection has no bbox but old one does, preserve the old bbox
+        if detection.get("best_scale") and not detection["best_scale"].get("bbox"):
+            # New detection missing bbox - check if we have old data with bbox
+            if page.scale_calibration_data and page.scale_calibration_data.get(
+                "best_scale"
+            ):
+                old_bbox = page.scale_calibration_data["best_scale"].get("bbox")
+                if old_bbox:
+                    # Preserve the old bbox
+                    detection["best_scale"]["bbox"] = old_bbox
+                    logger.info("Preserved bbox from previous detection")
+
         page.scale_calibration_data = detection
 
         await session.commit()

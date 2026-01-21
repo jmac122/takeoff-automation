@@ -102,6 +102,13 @@ export interface Page {
   title?: string | null;
   classification?: string | null;
   classification_confidence?: number | null;
+  discipline?: string | null;
+  page_type?: string | null;
+  concrete_relevance?: string | null;
+  concrete_elements?: string[] | null;
+  description?: string | null;
+  llm_provider?: string | null;
+  llm_latency_ms?: number | null;
   detected_scale?: string | null;
   scale_text?: string | null;
   scale_value?: number | null;
@@ -109,6 +116,21 @@ export interface Page {
   scale_calibrated: boolean;
   scale_method?: string | null;
   scale_detection_method?: string | null;
+  scale_calibration_data?: {
+    best_scale?: {
+      text: string;
+      confidence: number;
+      method: string;
+      bbox?: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
+    };
+    parsed_scales?: any[];
+    scale_bars?: any[];
+  } | null;
   image_url?: string | null;
   thumbnail_url?: string | null;
   width?: number | null;

@@ -862,6 +862,10 @@ Phase 0 Enhancements adds four critical improvements to the Application Interfac
 - **Stats Overview Cards**: Total classifications, avg latency, avg confidence
 - **Provider Comparison Table**: Side-by-side performance metrics
 - **Classification Timeline**: Recent runs with filtering
+- **Classification Detail Modal**: Click any timeline entry to see full classification output
+  - Page image thumbnail on left
+  - Complete classification details on right (description, elements, discipline, page type, confidence, provider, latency)
+  - Industrial/tactical styling with shadcn/ui Dialog component
 - Real-time data loading with React Query
 - Industrial UI styling
 
@@ -872,14 +876,18 @@ Phase 0 Enhancements adds four critical improvements to the Application Interfac
 ### DocumentDetail Enhancements
 
 **Classification Controls** (`src/pages/DocumentDetail.tsx`)
-- LLM provider selector dropdown
-- "Classify All Pages" button
+- **Auto-classification indicator** - Green success message showing pages were automatically classified
+- **"Re-Classify All Pages" button** - Changed from "Classify" to indicate classification already happened
+- Clear messaging explaining when re-classification is needed
 - Success alerts for user feedback
 - Auto-refresh after classification starts
+- Improved polling logic for classification status updates
 
 **PageCard Enhancements** (`src/components/document/PageCard.tsx`)
+- **Sheet number prominently displayed** at top of card overlay (bold, large)
 - Classification badge overlay with confidence bar
 - Concrete relevance badges
+- **Re-classify button** appears on hover for individual page re-classification
 - Enhanced industrial styling
 - Confidence percentage display
 

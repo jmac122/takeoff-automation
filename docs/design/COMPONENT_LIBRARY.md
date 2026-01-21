@@ -1200,5 +1200,42 @@ Error: Cannot find module '@/components/ui/button'
 
 ## Recent Additions
 
+### Checkbox Component (January 20, 2026)
+Added checkbox component for multi-select interfaces. Uses `@radix-ui/react-checkbox` primitive following shadcn/ui patterns.
+
+**File:** `frontend/src/components/ui/checkbox.tsx`
+
+**Usage:**
+```tsx
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+
+// Basic checkbox
+<Checkbox checked={checked} onCheckedChange={setChecked} />
+
+// With label
+<div className="flex items-center space-x-2">
+  <Checkbox id="terms" checked={accepted} onCheckedChange={setAccepted} />
+  <Label htmlFor="terms">Accept terms and conditions</Label>
+</div>
+
+// In selection mode (page cards)
+<Checkbox
+  checked={isSelected}
+  onCheckedChange={() => onToggleSelect(page.id)}
+  className="w-6 h-6 bg-neutral-900 border-2 border-amber-500"
+/>
+```
+
+**When to Use:**
+- Multi-select interfaces (bulk actions)
+- Form agreements/confirmations
+- Settings toggles (when multiple options can be selected)
+- Selection mode in card grids
+
+**Not For:**
+- Binary on/off switches (use Toggle or Switch)
+- Single selection from list (use Radio)
+
 ### Table Component (January 20, 2026)
 Added table component for structured data display. Used in AI Evaluation dashboard for provider comparison and classification history display.

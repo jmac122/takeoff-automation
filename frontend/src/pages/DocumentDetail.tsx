@@ -22,6 +22,8 @@ export default function DocumentDetail() {
     const { projectId, documentId } = useParams<{ projectId: string; documentId: string }>();
     const queryClient = useQueryClient();
     const [isClassifying, setIsClassifying] = useState(false);
+    const [isSelectMode, setIsSelectMode] = useState(false);
+    const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
 
     // Fetch project details for breadcrumb
     const { data: project } = useQuery({
@@ -57,19 +59,32 @@ export default function DocumentDetail() {
         refetchInterval: document?.status === 'processing' || isClassifying ? 2000 : false,
     });
 
-    // Classify document mutation
+    // Classify selected pages mutation
     const classifyMutation = useMutation({
-        mutationFn: async () => {
-            if (!documentId) throw new Error('Document ID required');
-            const response = await axios.post(
-                `/api/v1/documents/${documentId}/classify`,
-                { use_vision: false }
+        mutationFn: async (pageIds: string[]) => {
+            if (pageIds.length === 0) throw new Error('No pages selected');
+
+            // If all pages selected, use document endpoint
+            if (pageIds.length === pages.length) {
+                const response = await axios.post(
+                    `/api/v1/documents/${documentId}/classify`,
+                    { use_vision: false }
+                );
+                return response.data;
+            }
+
+            // Otherwise, classify individual pages
+            const promises = pageIds.map(pageId =>
+                axios.post(`/api/v1/pages/${pageId}/classify`, { use_vision: false })
             );
-            return response.data;
+            await Promise.all(promises);
+            return { success: true };
         },
         onSuccess: () => {
             // Start polling for updates
             setIsClassifying(true);
+            setIsSelectMode(false);
+            setSelectedPageIds(new Set());
 
             // Stop polling after 30 seconds (classifications should complete by then)
             setTimeout(() => {
@@ -78,6 +93,35 @@ export default function DocumentDetail() {
             }, 30000);
         },
     });
+
+    const handleToggleSelectMode = () => {
+        setIsSelectMode(!isSelectMode);
+        setSelectedPageIds(new Set());
+    };
+
+    const handleTogglePage = (pageId: string) => {
+        const newSelected = new Set(selectedPageIds);
+        if (newSelected.has(pageId)) {
+            newSelected.delete(pageId);
+        } else {
+            newSelected.add(pageId);
+        }
+        setSelectedPageIds(newSelected);
+    };
+
+    const handleSelectAll = () => {
+        if (selectedPageIds.size === pages.length) {
+            setSelectedPageIds(new Set());
+        } else {
+            setSelectedPageIds(new Set(pages.map(p => p.id)));
+        }
+    };
+
+    const handleClassify = () => {
+        if (selectedPageIds.size > 0) {
+            classifyMutation.mutate(Array.from(selectedPageIds));
+        }
+    };
 
     const pages = pagesData?.pages || [];
 
@@ -131,7 +175,7 @@ export default function DocumentDetail() {
                 </div>
 
                 {/* Classification Controls */}
-                <div className="flex flex-col gap-3 min-w-[280px]">
+                <div className="flex flex-col gap-3 min-w-[320px]">
                     {/* Auto-classification indicator */}
                     <Alert className="bg-green-500/10 border-green-500/50">
                         <AlertDescription className="text-green-400 text-xs font-mono">
@@ -145,18 +189,54 @@ export default function DocumentDetail() {
                             Not happy with results?
                         </Label>
                         <div className="text-xs text-neutral-500 mb-2">
-                            Re-classify all pages or hover over individual pages to re-classify them
+                            {isSelectMode
+                                ? 'Select pages to re-classify, then click "Classify Selected"'
+                                : 'Re-classify all pages or select specific pages'
+                            }
                         </div>
                     </div>
 
-                    <Button
-                        onClick={() => classifyMutation.mutate()}
-                        disabled={classifyMutation.isPending || isClassifying}
-                        variant="outline"
-                        className="border-amber-500/50 hover:bg-amber-500/10 text-amber-400 font-mono uppercase tracking-wider"
-                    >
-                        {classifyMutation.isPending || isClassifying ? 'Classifying...' : 'Re-Classify All Pages'}
-                    </Button>
+                    {!isSelectMode ? (
+                        <Button
+                            onClick={handleToggleSelectMode}
+                            disabled={classifyMutation.isPending || isClassifying}
+                            variant="outline"
+                            className="border-amber-500/50 hover:bg-amber-500/10 text-amber-400 font-mono uppercase tracking-wider"
+                        >
+                            Re-Classify Pages
+                        </Button>
+                    ) : (
+                        <div className="space-y-2">
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={handleSelectAll}
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1 border-neutral-700 hover:bg-neutral-800 text-white font-mono uppercase tracking-wider text-xs"
+                                >
+                                    {selectedPageIds.size === pages.length ? 'Deselect All' : 'Select All'}
+                                </Button>
+                                <Button
+                                    onClick={handleToggleSelectMode}
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1 border-neutral-700 hover:bg-neutral-800 text-neutral-400 font-mono uppercase tracking-wider text-xs"
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                            <Button
+                                onClick={handleClassify}
+                                disabled={selectedPageIds.size === 0 || classifyMutation.isPending}
+                                className="w-full bg-amber-500 hover:bg-amber-400 text-black font-mono uppercase tracking-wider"
+                            >
+                                {classifyMutation.isPending
+                                    ? 'Classifying...'
+                                    : `Classify Selected (${selectedPageIds.size})`
+                                }
+                            </Button>
+                        </div>
+                    )}
 
                     {(classifyMutation.isSuccess || isClassifying) && (
                         <Alert className="bg-blue-500/10 border-blue-500/50">
@@ -197,6 +277,9 @@ export default function DocumentDetail() {
                                     page={page}
                                     documentId={documentId!}
                                     projectId={projectId!}
+                                    isSelectMode={isSelectMode}
+                                    isSelected={selectedPageIds.has(page.id)}
+                                    onToggleSelect={handleTogglePage}
                                 />
                             ))}
                         </div>

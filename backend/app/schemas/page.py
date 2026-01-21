@@ -19,7 +19,13 @@ class PageResponse(BaseModel):
     height: int
     classification: str | None = None
     classification_confidence: float | None = None
+    discipline: str | None = None
+    page_type: str | None = None
     concrete_relevance: str | None = None
+    concrete_elements: list[str] | None = None
+    description: str | None = None
+    llm_provider: str | None = None
+    llm_latency_ms: float | None = None
     title: str | None = None
     sheet_number: str | None = None
     scale_text: str | None = None
@@ -27,6 +33,7 @@ class PageResponse(BaseModel):
     scale_unit: str = "foot"
     scale_calibrated: bool = False
     scale_detection_method: str | None = None
+    scale_calibration_data: dict[str, Any] | None = None
     status: str
     image_url: str | None = None
     thumbnail_url: str | None = None

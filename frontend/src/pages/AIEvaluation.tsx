@@ -207,8 +207,6 @@ function ClassificationDetailModal({
     isOpen: boolean;
     onClose: () => void;
 }) {
-    const [imageUrl, setImageUrl] = useState<string | null>(null);
-
     // Fetch page image when modal opens
     const { data: pageData } = useQuery({
         queryKey: ['page-detail', entry?.page_id],
@@ -220,14 +218,9 @@ function ClassificationDetailModal({
         enabled: isOpen && !!entry?.page_id,
     });
 
-    // Set image URL when page data loads
-    useState(() => {
-        if (pageData?.image_url) {
-            setImageUrl(pageData.image_url);
-        }
-    });
-
     if (!entry) return null;
+
+    const imageUrl = pageData?.image_url || null;
 
     const getRelevanceBadge = (relevance: string | null) => {
         if (!relevance) return null;
@@ -246,12 +239,17 @@ function ClassificationDetailModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-7xl h-[90vh] bg-neutral-900 border-neutral-700 p-0 overflow-hidden">
+            <DialogContent className="max-w-7xl max-h-[90vh] bg-neutral-900 border-neutral-700 p-0 overflow-hidden flex flex-col">
                 {/* Header */}
-                <DialogHeader className="px-6 py-4 border-b border-neutral-700">
+                <DialogHeader className="px-6 py-3 border-b border-neutral-700 flex-shrink-0">
                     <div className="flex items-center justify-between">
-                        <DialogTitle className="text-xl font-mono text-white">
+                        <DialogTitle className="text-lg font-mono text-white">
                             {entry.sheet_number || `Page ${entry.page_number}`}
+                            {pageData?.title && (
+                                <span className="text-sm font-normal text-neutral-400 ml-2">
+                                    - {pageData.title}
+                                </span>
+                            )}
                         </DialogTitle>
                         <button
                             onClick={onClose}
@@ -263,7 +261,7 @@ function ClassificationDetailModal({
                 </DialogHeader>
 
                 {/* Content: Split View */}
-                <div className="flex h-full overflow-hidden">
+                <div className="flex flex-1 overflow-hidden min-h-0">
                     {/* Left: Page Image */}
                     <div className="w-1/2 bg-neutral-950 p-6 overflow-auto">
                         {imageUrl ? (

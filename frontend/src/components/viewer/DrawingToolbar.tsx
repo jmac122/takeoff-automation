@@ -121,7 +121,7 @@ export function DrawingToolbar({
             </div>
 
             {/* Instructions */}
-            <div className="ml-auto text-sm text-neutral-400 font-mono text-xs">
+            <div className="ml-auto text-xs text-neutral-400 font-mono">
                 {getInstructions(activeTool)}
             </div>
         </div>

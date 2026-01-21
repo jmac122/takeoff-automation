@@ -37,16 +37,18 @@ Page Upload
 OCR Extraction (Google Cloud Vision)
     ↓ extracts sheet number, title, text
     ↓
-Classification (NEW: OCR-based by default)
+✨ AUTOMATIC CLASSIFICATION ✨ (NEW: Triggered automatically after OCR)
     ├─ Default: Fast OCR classification (free, instant)
     │   • Discipline from sheet prefix (S1.01 → Structural)
     │   • Page type from title (FOUNDATION PLAN → Plan)
     │   • Concrete relevance from keywords
+    │   • No user action required!
     │
     └─ Optional: LLM Vision (use_vision=true)
         • More detailed analysis
         • Costs $0.003-0.015 per page
         • Slower (3-5 seconds per page)
+        • Triggered manually via "Re-Classify" button
 ```
 
 ## API Changes

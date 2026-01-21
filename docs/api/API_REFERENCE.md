@@ -576,6 +576,13 @@ uvicorn app.main:app
 
 ## Version History
 
+- **v1.2.1** - Classification optimizations (January 20, 2026)
+  - OCR-based classification by default (fast, free)
+  - Image compression for LLM vision models (handles 5MB limit)
+  - Automatic classification after OCR processing
+  - `use_vision` parameter for classification endpoints
+  - Document timestamp updates on classification
+
 - **v1.2.0** - Phase 2A complete (January 19, 2026)
   - Multi-provider LLM client (Anthropic, OpenAI, Google, xAI)
   - AI-powered page classification
@@ -621,9 +628,14 @@ Trigger AI classification for a single page.
 **Request Body (optional):**
 ```json
 {
-  "provider": "anthropic"  // Optional: anthropic, openai, google, xai
+  "use_vision": false,  // Default: false (fast OCR-based classification)
+  "provider": "anthropic"  // Optional: Only used if use_vision=true
 }
 ```
+
+**Parameters:**
+- `use_vision` (boolean, default: `false`) - If `false`, uses fast OCR-based classification (free, instant). If `true`, uses LLM vision model (costs $0.003-0.015 per page, takes 3-5 seconds).
+- `provider` (string, optional) - LLM provider to use when `use_vision=true`. Options: `anthropic`, `openai`, `google`, `xai`.
 
 **Response:**
 ```json
@@ -638,6 +650,8 @@ Trigger AI classification for a single page.
 - `400` - Invalid provider specified
 - `404` - Page not found
 
+**Note:** Pages are automatically classified using OCR-based method after OCR processing completes. This endpoint is primarily for re-classification or when detailed LLM vision analysis is needed.
+
 ---
 
 ### POST /documents/{document_id}/classify
@@ -650,9 +664,14 @@ Trigger AI classification for all pages in a document.
 **Request Body (optional):**
 ```json
 {
-  "provider": "anthropic"  // Optional: anthropic, openai, google, xai
+  "use_vision": false,  // Default: false (fast OCR-based classification)
+  "provider": "anthropic"  // Optional: Only used if use_vision=true
 }
 ```
+
+**Parameters:**
+- `use_vision` (boolean, default: `false`) - If `false`, uses fast OCR-based classification (free, instant). If `true`, uses LLM vision model (costs $0.003-0.015 per page, takes 3-5 seconds).
+- `provider` (string, optional) - LLM provider to use when `use_vision=true`. Options: `anthropic`, `openai`, `google`, `xai`.
 
 **Response:**
 ```json
@@ -667,6 +686,8 @@ Trigger AI classification for all pages in a document.
 - `202` - Classification tasks started
 - `400` - Invalid provider specified
 - `404` - Document not found
+
+**Note:** Pages are automatically classified using OCR-based method after OCR processing completes. This endpoint is primarily for re-classification or when detailed LLM vision analysis is needed.
 
 ---
 
@@ -951,4 +972,4 @@ This API reference will be updated as new endpoints are implemented in future ph
 
 ---
 
-**Last Updated:** January 19, 2026 - Phase 2A Complete
+**Last Updated:** January 20, 2026 - Classification optimizations complete

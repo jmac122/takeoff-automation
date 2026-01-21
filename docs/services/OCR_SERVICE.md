@@ -634,12 +634,34 @@ def show_title_block_region(blocks, page_width, page_height):
 
 ---
 
+## Automatic Classification Integration
+
+After OCR processing completes, the system automatically triggers **OCR-based classification** for each page. This provides instant, free classification using the extracted OCR data (sheet numbers, titles, text) without requiring expensive LLM vision calls.
+
+**Classification Flow:**
+```
+OCR Extraction → Sheet Number/Title Detected → Auto-Classification
+```
+
+**Classification Method:**
+- Uses `OCRPageClassifier` service (`backend/app/services/ocr_classifier.py`)
+- Derives discipline from sheet prefix (S=Structural, A=Architectural, etc.)
+- Derives page type from title keywords (PLAN, ELEVATION, SECTION, etc.)
+- Assesses concrete relevance from text content
+- **Result**: Instant classification (<100ms), $0 cost, 95%+ accuracy
+
+**Manual Re-classification:**
+- Users can trigger LLM vision classification via "Re-Classify" button
+- Provides more detailed analysis for complex/non-standard sheets
+- See [Classification Optimization](../CLASSIFICATION_OPTIMIZATION.md) for details
+
 ## Related Documentation
 
 - [OCR API Reference](../api/OCR_API.md) - API endpoints
 - [Database Schema](../database/DATABASE_SCHEMA.md) - OCR data storage
 - [Phase 1B Complete](../phase-guides/PHASE_1B_COMPLETE.md) - Implementation guide
+- [Classification Optimization](../CLASSIFICATION_OPTIMIZATION.md) - OCR-based classification details
 
 ---
 
-**Last Updated:** January 19, 2026 - Phase 1B Complete
+**Last Updated:** January 20, 2026 - OCR-based classification integration complete

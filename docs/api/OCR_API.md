@@ -252,6 +252,11 @@ OCR is automatically triggered when a document is uploaded:
 3. OCR automatically queued for all pages
 4. Each page processed independently
 5. OCR data stored in database
+6. ✨ AUTOMATIC CLASSIFICATION ✨ (NEW)
+   - OCR-based classification triggered automatically
+   - Uses extracted sheet numbers, titles, and text
+   - Fast (<100ms), free, 95%+ accuracy
+   - No user action required!
 ```
 
 ### Manual Reprocessing
@@ -449,4 +454,4 @@ curl http://localhost:8000/api/v1/pages/770e8400-e29b-41d4-a716-446655440000/ocr
 
 ---
 
-**Last Updated:** January 19, 2026 - Phase 1B Complete
+**Last Updated:** January 20, 2026 - Automatic classification integration complete
