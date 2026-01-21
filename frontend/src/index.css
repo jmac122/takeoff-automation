@@ -99,3 +99,8 @@
     pointer-events: none;
   }
 }
+
+/* Force Konva canvas to inherit cursor from parent container */
+#canvas-container canvas {
+  cursor: inherit !important;
+}
