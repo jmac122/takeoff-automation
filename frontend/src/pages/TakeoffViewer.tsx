@@ -113,10 +113,11 @@ export function TakeoffViewer() {
         },
         onMeasurementSelect: setSelectedMeasurementId,
         onConditionRequired: () => {
-            if (!selectedConditionId) {
-                addNotification('warning', 'Condition Required', 'Please select a condition first before drawing measurements.');
-                return false;
-            }
+            // TODO: Re-enable condition requirement when condition management is implemented
+            // if (!selectedConditionId) {
+            //     addNotification('warning', 'Condition Required', 'Please select a condition first before drawing measurements.');
+            //     return false;
+            // }
             return true;
         },
         handleWheel: canvasControls.handleWheel,
@@ -205,7 +206,15 @@ export function TakeoffViewer() {
                     <div
                         id="canvas-container"
                         className="flex-1 relative flex items-center justify-center"
-                        style={{ minWidth: 0, minHeight: 0 }}
+                        style={{
+                            minWidth: 0,
+                            minHeight: 0,
+                            cursor: canvasEvents.isPanning
+                                ? 'grabbing'
+                                : (drawing.tool && drawing.tool !== 'select')
+                                    ? 'crosshair'
+                                    : 'grab',
+                        }}
                         onContextMenu={(e) => e.preventDefault()}
                     >
                         <Stage
@@ -217,20 +226,12 @@ export function TakeoffViewer() {
                             x={canvasControls.pan.x}
                             y={canvasControls.pan.y}
                             draggable={false}
-                            onClick={canvasEvents.handleStageMouseDown}
                             onMouseDown={canvasEvents.handleStageMouseDown}
                             onMouseMove={canvasEvents.handleStageMouseMove}
                             onMouseUp={canvasEvents.handleStageMouseUp}
                             onMouseLeave={canvasEvents.handleStageMouseLeave}
                             onDblClick={canvasEvents.handleStageDoubleClick}
                             onWheel={canvasEvents.handleWheelEvent}
-                            style={{
-                                cursor: canvasEvents.isPanning
-                                    ? 'grabbing'
-                                    : drawing.isDrawing
-                                        ? 'crosshair'
-                                        : 'grab',
-                            }}
                         >
                             {/* Background image */}
                             <Layer>
@@ -251,12 +252,16 @@ export function TakeoffViewer() {
                             )}
 
                             {/* Drawing preview */}
+                            {/* Use scale_value when calibrated (auto or manual) for real-world measurements.
+                                Auto-detection now uses PDF physical dimensions for accurate calculation. */}
                             <DrawingPreviewLayer
                                 previewShape={drawing.previewShape}
                                 points={drawing.points}
                                 isDrawing={drawing.isDrawing}
                                 color={selectedCondition?.color || '#3B82F6'}
                                 scale={canvasControls.zoom}
+                                pixelsPerUnit={page?.scale_calibrated ? page?.scale_value : null}
+                                unitLabel={page?.scale_unit || 'ft'}
                             />
 
                             {/* Scale detection highlight overlay */}
