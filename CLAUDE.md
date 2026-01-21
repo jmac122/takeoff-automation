@@ -1,3 +1,32 @@
+# Claude Response Guidelines
+
+## Response Length Preference
+
+**Default: Concise, TL;DR responses**
+
+- Keep responses short and to the point
+- Lead with the answer, not the explanation
+- Use bullet points over paragraphs
+- Avoid verbose explanations unless requested
+
+**When to provide detailed responses:**
+- User explicitly asks for a "detailed breakdown"
+- User asks "why" or "how does this work"
+- User's question implies they need comprehensive information
+- Technical complexity requires thorough explanation
+
+**Examples:**
+
+❌ **Too verbose (default behavior to avoid):**
+"Let me explain the entire history of this technology and all possible approaches before answering your question..."
+
+✅ **Concise (preferred):**
+"Use Option A. It's faster and requires no backend changes."
+
+✅ **Detailed (when requested):**
+"Can you explain how this works in detail?"
+→ Provide comprehensive breakdown with examples
+
 # AI Construction Takeoff Platform - Implementation Guide
 
 ## Project Overview
