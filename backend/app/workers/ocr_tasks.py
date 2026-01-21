@@ -124,14 +124,21 @@ def process_page_ocr_task(self, page_id: str) -> dict:
                 blocks_count=len(ocr_result.blocks),
             )
 
-            return {
-                "status": "success",
-                "page_id": page_id,
-                "text_length": len(ocr_result.full_text),
-                "sheet_number": page.sheet_number,
-                "title": page.title,
-                "scale_text": page.scale_text,
-            }
+        # Automatically classify page after OCR completes (using fast OCR-based classification)
+        from app.workers.classification_tasks import classify_page_task
+
+        classify_page_task.delay(page_id, provider=None, use_vision=False)
+
+        logger.info("Queued automatic classification after OCR", page_id=page_id)
+
+        return {
+            "status": "success",
+            "page_id": page_id,
+            "text_length": len(ocr_result.full_text),
+            "sheet_number": page.sheet_number,
+            "title": page.title,
+            "scale_text": page.scale_text,
+        }
 
     except Exception as e:
         logger.error("OCR processing failed", page_id=page_id, error=str(e))

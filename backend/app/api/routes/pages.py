@@ -248,13 +248,23 @@ async def search_pages(
 class ClassifyPageRequest(BaseModel):
     """Request to classify a single page."""
 
-    provider: str | None = None  # Optional provider override
+    provider: str | None = (
+        None  # Optional provider override (only used if use_vision=True)
+    )
+    use_vision: bool = (
+        False  # If True, use expensive LLM vision. If False (default), use fast OCR
+    )
 
 
 class ClassifyDocumentRequest(BaseModel):
     """Request to classify all pages in a document."""
 
-    provider: str | None = None  # Optional provider override
+    provider: str | None = (
+        None  # Optional provider override (only used if use_vision=True)
+    )
+    use_vision: bool = (
+        False  # If True, use expensive LLM vision. If False (default), use fast OCR
+    )
 
 
 class ClassificationTaskResponse(BaseModel):
@@ -284,8 +294,8 @@ async def classify_page_endpoint(
 ) -> ClassificationTaskResponse:
     """Trigger classification for a single page.
 
-    Optionally specify an LLM provider to use for this classification.
-    Available providers: anthropic, openai, google, xai
+    By default, uses fast OCR-based classification (free, instant).
+    Set use_vision=true to use LLM vision models (slower, costs money, but more detailed).
     """
     # Verify page exists
     result = await db.execute(select(Page.id).where(Page.id == page_id))
@@ -296,6 +306,7 @@ async def classify_page_endpoint(
         )
 
     provider = request.provider if request else None
+    use_vision = request.use_vision if request else False
 
     # Validate provider if specified
     if provider and provider not in settings.available_providers:
@@ -305,7 +316,11 @@ async def classify_page_endpoint(
             f"Available: {settings.available_providers}",
         )
 
-    task = classify_page_task.delay(str(page_id), provider=provider)
+    task = classify_page_task.delay(
+        str(page_id),
+        provider=provider,
+        use_vision=use_vision,
+    )
 
     return ClassificationTaskResponse(
         task_id=task.id,
@@ -326,7 +341,8 @@ async def classify_document_endpoint(
 ) -> DocumentClassificationResponse:
     """Trigger classification for all pages in a document.
 
-    Optionally specify an LLM provider to use for classification.
+    By default, uses fast OCR-based classification (free, instant).
+    Set use_vision=true to use LLM vision models (slower, costs money, but more detailed).
     """
     # Verify document exists (check if any pages exist)
     result = await db.execute(
@@ -339,6 +355,7 @@ async def classify_document_endpoint(
         )
 
     provider = request.provider if request else None
+    use_vision = request.use_vision if request else False
 
     if provider and provider not in settings.available_providers:
         raise HTTPException(
@@ -347,7 +364,11 @@ async def classify_document_endpoint(
             f"Available: {settings.available_providers}",
         )
 
-    result = classify_document_pages.delay(str(document_id), provider=provider)
+    result = classify_document_pages.delay(
+        str(document_id),
+        provider=provider,
+        use_vision=use_vision,
+    )
 
     # Wait briefly for task to start and get info
     try:
@@ -448,6 +469,48 @@ async def get_all_classification_history(
     return {
         "total": len(history),
         "history": history_with_context,
+    }
+
+
+@router.get("/documents/{document_id}/classification/progress")
+async def get_document_classification_progress(
+    document_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Get classification progress for a document.
+
+    Returns the number of pages classified vs total pages.
+    Useful for showing progress bars during batch classification.
+    """
+    from sqlalchemy import func
+
+    # Get total pages
+    total_result = await db.execute(
+        select(func.count(Page.id)).where(Page.document_id == document_id)
+    )
+    total_pages = total_result.scalar() or 0
+
+    # Get classified pages (pages with classification data)
+    classified_result = await db.execute(
+        select(func.count(Page.id))
+        .where(Page.document_id == document_id)
+        .where(Page.classification.isnot(None))
+    )
+    classified_pages = classified_result.scalar() or 0
+
+    # Calculate progress percentage
+    progress_percent = (classified_pages / total_pages * 100) if total_pages > 0 else 0
+
+    # Check if classification is complete
+    is_complete = classified_pages == total_pages and total_pages > 0
+
+    return {
+        "document_id": str(document_id),
+        "total_pages": total_pages,
+        "classified_pages": classified_pages,
+        "remaining_pages": total_pages - classified_pages,
+        "progress_percent": round(progress_percent, 1),
+        "is_complete": is_complete,
     }
 
 
