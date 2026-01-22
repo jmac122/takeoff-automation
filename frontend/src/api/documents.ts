@@ -17,6 +17,30 @@ export interface Document {
   created_at: string;
   updated_at: string;
   pages?: PageSummary[];
+  title_block_region?: TitleBlockRegion | null;
+}
+
+export interface TitleBlockRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  source_page_id?: string | null;
+}
+
+export interface TitleBlockRegionUpdateRequest {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  source_page_id?: string | null;
+}
+
+export interface TitleBlockRegionUpdateResponse {
+  status: string;
+  document_id: string;
+  pages_queued: number;
+  title_block_region: TitleBlockRegion;
 }
 
 export interface PageSummary {
@@ -90,6 +114,20 @@ export async function getDocumentStatus(
  */
 export async function deleteDocument(documentId: string): Promise<void> {
   await apiClient.delete(`/documents/${documentId}`);
+}
+
+/**
+ * Update the document title block region and re-run OCR.
+ */
+export async function updateTitleBlockRegion(
+  documentId: string,
+  region: TitleBlockRegionUpdateRequest
+): Promise<TitleBlockRegionUpdateResponse> {
+  const response = await apiClient.put<TitleBlockRegionUpdateResponse>(
+    `/documents/${documentId}/title-block-region`,
+    region
+  );
+  return response.data;
 }
 
 /**

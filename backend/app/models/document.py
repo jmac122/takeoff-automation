@@ -47,6 +47,9 @@ class Document(Base, UUIDMixin, TimestampMixin):
     processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     processing_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # Title block region (normalized coordinates, applies to all pages)
+    title_block_region: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="documents")
     pages: Mapped[list["Page"]] = relationship(
