@@ -24,6 +24,16 @@ class PageSummary(BaseModel):
     thumbnail_url: str | None = None
 
 
+class TitleBlockRegion(BaseModel):
+    """Normalized title block region (0-1 coordinates)."""
+
+    x: float = Field(..., ge=0.0, le=1.0)
+    y: float = Field(..., ge=0.0, le=1.0)
+    width: float = Field(..., gt=0.0, le=1.0)
+    height: float = Field(..., gt=0.0, le=1.0)
+    source_page_id: uuid.UUID | None = None
+
+
 class DocumentResponse(BaseModel):
     """Document response schema."""
 
@@ -41,6 +51,7 @@ class DocumentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     pages: list[PageSummary] = []
+    title_block_region: TitleBlockRegion | None = None
 
 
 class DocumentListResponse(BaseModel):
@@ -56,3 +67,22 @@ class DocumentStatusResponse(BaseModel):
     status: str
     page_count: int | None = None
     error: str | None = None
+
+
+class TitleBlockRegionUpdateRequest(BaseModel):
+    """Request to set a document title block region (normalized)."""
+
+    x: float = Field(..., ge=0.0, le=1.0)
+    y: float = Field(..., ge=0.0, le=1.0)
+    width: float = Field(..., gt=0.0, le=1.0)
+    height: float = Field(..., gt=0.0, le=1.0)
+    source_page_id: uuid.UUID | None = None
+
+
+class TitleBlockRegionUpdateResponse(BaseModel):
+    """Response for title block region updates."""
+
+    status: str
+    document_id: uuid.UUID
+    pages_queued: int
+    title_block_region: TitleBlockRegion

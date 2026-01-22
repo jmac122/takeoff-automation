@@ -13,6 +13,69 @@ logger = structlog.get_logger()
 settings = get_settings()
 
 
+def is_valid_scale_text(
+    text: str,
+    max_length: int = 50,
+    short_text_threshold: int = 20,
+) -> bool:
+    """Validate that text looks like an actual scale notation.
+    
+    Valid scales include:
+    - "NTS", "NOT TO SCALE", "NO SCALE"
+    - Fractions like "1/4" = 1'-0"", "1" = 10'"
+    - Ratios like "1:100", "1:50"
+    - Simple formats like "1/8", "3/16"
+    
+    Invalid (garbage text):
+    - Long sentences without scale-like patterns
+    - Text that doesn't contain numbers or NTS keywords
+    
+    Args:
+        text: The text to validate.
+        max_length: Maximum allowed length before rejecting (default 50).
+        short_text_threshold: Text shorter than this with digits is allowed (default 20).
+    
+    Returns:
+        True if text looks like a valid scale notation.
+    """
+    if not text:
+        return False
+    
+    text_upper = text.upper().strip()
+    
+    # Check for "not to scale" variations
+    if any(nts in text_upper for nts in ["NTS", "NOT TO SCALE", "NO SCALE"]):
+        return True
+    
+    # Must contain at least one digit for numeric scales
+    if not any(c.isdigit() for c in text):
+        return False
+    
+    # Reject if too long (likely garbage from greedy match)
+    if len(text) > max_length:
+        return False
+    
+    # Check for scale-like patterns
+    scale_patterns = [
+        r"\d+/\d+",  # Fractions: 1/4, 3/16
+        r"\d+:\d+",  # Ratios: 1:100, 1:50
+        r'\d+["\']',  # Inch/foot marks: 1", 10'
+        r"=",  # Equal sign (1/4" = 1'-0")
+    ]
+    
+    for pattern in scale_patterns:
+        if re.search(pattern, text):
+            return True
+    
+    # If we get here, it has digits but no scale-like pattern
+    # Allow short text as it might be a simple scale like "1/8"
+    if len(text) < short_text_threshold:
+        return True
+    
+    # Reject long text without clear scale patterns (likely garbage)
+    return False
+
+
 @dataclass
 class TextBlock:
     """Represents a detected text block with position."""
@@ -147,16 +210,25 @@ class OCRService:
             matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
             scales.extend(matches)
 
-        # Clean and deduplicate
+        # Clean, validate, and deduplicate
         cleaned = []
         for scale in scales:
             if isinstance(scale, tuple):
                 scale = scale[0] if scale else ""
             scale = scale.strip()
             if scale and scale not in cleaned:
-                cleaned.append(scale)
+                # Validate that this looks like an actual scale
+                if self._is_valid_scale_text_simple(scale):
+                    cleaned.append(scale)
 
         return cleaned
+
+    def _is_valid_scale_text_simple(self, text: str) -> bool:
+        """Quick validation for scale text from regex patterns.
+        
+        Returns True if text looks like a valid scale notation.
+        """
+        return is_valid_scale_text(text, max_length=50, short_text_threshold=15)
 
     def _extract_sheet_numbers(
         self,
@@ -239,6 +311,7 @@ class TitleBlockParser:
         blocks: list[TextBlock],
         page_width: int,
         page_height: int,
+        use_full_region: bool = False,
     ) -> dict[str, Any]:
         """Parse title block from OCR blocks.
 
@@ -262,18 +335,22 @@ class TitleBlockParser:
         if not blocks:
             return result
 
-        # Filter to title block region (bottom-right 30% x 30%)
-        title_block_x = page_width * 0.7
-        title_block_y = page_height * 0.7
+        if use_full_region:
+            # Manual title block region already cropped - use all blocks
+            title_block_blocks = list(blocks)
+        else:
+            # Filter to title block region (bottom-right 30% x 30%)
+            title_block_x = page_width * 0.7
+            title_block_y = page_height * 0.7
 
-        title_block_blocks = [
-            b
-            for b in blocks
-            if (
-                b.bounding_box["x"] + b.bounding_box["width"] / 2 > title_block_x
-                and b.bounding_box["y"] + b.bounding_box["height"] / 2 > title_block_y
-            )
-        ]
+            title_block_blocks = [
+                b
+                for b in blocks
+                if (
+                    b.bounding_box["x"] + b.bounding_box["width"] / 2 > title_block_x
+                    and b.bounding_box["y"] + b.bounding_box["height"] / 2 > title_block_y
+                )
+            ]
 
         if not title_block_blocks:
             return result
@@ -327,7 +404,9 @@ class TitleBlockParser:
                 r"SCALE[:\s]*(\d+/\d+\"\s*=\s*\d+'-\d+\")",  # 1/4" = 1'-0"
                 r"SCALE[:\s]*(\d+\"\s*=\s*\d+')",  # 1" = 10'
                 r"SCALE[:\s]*(1:\d+)",  # 1:100
-                r"SCALE[:\s]*([^,\n]+)",  # Catch-all
+                r'SCALE[:\s]*(\d+/\d+\s*"?\s*=\s*\d+[\'"]-?\d*[\'"]?)',  # Flexible fraction format
+                # Catch-all with length limit (max 40 chars) - only if contains numbers or NTS
+                r"SCALE[:\s]*([^,\n]{1,40})",
             ],
         }
 
@@ -365,10 +444,26 @@ class TitleBlockParser:
 
                     # Only set if we got a meaningful value (not just whitespace)
                     if extracted_value and len(extracted_value) >= 2:
+                        # Additional validation for scale field
+                        if field == "scale":
+                            if not self._is_valid_scale_text(extracted_value):
+                                continue  # Try next pattern
+                            # Truncate scale to 100 chars (database limit)
+                            if len(extracted_value) > 100:
+                                extracted_value = extracted_value[:100]
                         result[field] = extracted_value
                         break
 
         return result
+
+    def _is_valid_scale_text(self, text: str) -> bool:
+        """Validate that extracted text looks like an actual scale notation.
+        
+        Returns True if text looks like a valid scale notation.
+        """
+        # Use larger max_length since title block parsing already constrains
+        # the catch-all pattern to 40 chars
+        return is_valid_scale_text(text, max_length=100, short_text_threshold=20)
 
 
 # Singleton instances

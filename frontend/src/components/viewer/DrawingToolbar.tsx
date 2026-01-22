@@ -32,6 +32,7 @@ interface DrawingToolbarProps {
     onDelete: () => void;
     hasSelection: boolean;
     disabled?: boolean;
+    orientation?: 'horizontal' | 'vertical';
 }
 
 const TOOLS = [
@@ -54,11 +55,18 @@ export function DrawingToolbar({
     onDelete,
     hasSelection,
     disabled = false,
+    orientation = 'horizontal',
 }: DrawingToolbarProps) {
+    const isVertical = orientation === 'vertical';
     return (
-        <div className="flex items-center gap-2 p-2 bg-neutral-900 border border-neutral-700 rounded-lg">
+        <div
+            className={cn(
+                'p-2 bg-neutral-900 border border-neutral-700 rounded-lg',
+                isVertical ? 'flex flex-col items-center gap-2' : 'flex items-center gap-2'
+            )}
+        >
             {/* Drawing Tools */}
-            <div className="flex gap-1">
+            <div className={cn('flex gap-1', isVertical ? 'flex-col' : 'flex-row')}>
                 {TOOLS.map((tool) => {
                     const Icon = tool.icon;
                     const isActive = activeTool === tool.id;
@@ -84,10 +92,10 @@ export function DrawingToolbar({
                 })}
             </div>
 
-            <div className="w-px h-8 bg-neutral-700" />
+            <div className={cn('bg-neutral-700', isVertical ? 'h-px w-full' : 'w-px h-8')} />
 
             {/* Action Buttons */}
-            <div className="flex gap-1">
+            <div className={cn('flex gap-1', isVertical ? 'flex-col' : 'flex-row')}>
                 <Button
                     variant="ghost"
                     size="sm"
@@ -121,7 +129,12 @@ export function DrawingToolbar({
             </div>
 
             {/* Instructions */}
-            <div className="ml-auto text-xs text-neutral-400 font-mono">
+            <div
+                className={cn(
+                    'text-xs text-neutral-400 font-mono',
+                    isVertical ? 'text-center whitespace-normal' : 'ml-auto'
+                )}
+            >
                 {getInstructions(activeTool)}
             </div>
         </div>

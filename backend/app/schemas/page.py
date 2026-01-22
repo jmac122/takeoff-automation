@@ -6,6 +6,15 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.document import TitleBlockRegion
+
+
+class PageDocumentInfo(BaseModel):
+    """Minimal document info embedded on page responses."""
+
+    project_id: uuid.UUID
+    title_block_region: TitleBlockRegion | None = None
+
 
 class PageResponse(BaseModel):
     """Page response schema."""
@@ -37,6 +46,7 @@ class PageResponse(BaseModel):
     status: str
     image_url: str | None = None
     thumbnail_url: str | None = None
+    document: PageDocumentInfo | None = None
 
 
 class PageSummaryResponse(BaseModel):

@@ -103,7 +103,9 @@ export interface Page {
   classification?: string | null;
   classification_confidence?: number | null;
   discipline?: string | null;
+  discipline_confidence?: number | null;
   page_type?: string | null;
+  page_type_confidence?: number | null;
   concrete_relevance?: string | null;
   concrete_elements?: string[] | null;
   description?: string | null;
@@ -158,6 +160,7 @@ export interface Page {
   updated_at: string;
   document?: {
     project_id: string;
+    title_block_region?: TitleBlockRegion | null;
   };
 }
 
@@ -174,4 +177,13 @@ export interface Document {
   created_at: string;
   updated_at: string;
   pages?: PageSummary[];
+  title_block_region?: TitleBlockRegion | null;
+}
+
+export interface TitleBlockRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  source_page_id?: string | null;
 }

@@ -16,10 +16,13 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentListResponse,
     DocumentStatusResponse,
+    TitleBlockRegionUpdateRequest,
+    TitleBlockRegionUpdateResponse,
 )
 from app.services.document_processor import get_document_processor
 from app.utils.storage import get_storage_service
 from app.workers.document_tasks import process_document_task
+from app.workers.ocr_tasks import process_document_title_block_task
 
 router = APIRouter()
 
@@ -152,6 +155,7 @@ async def list_project_documents(
                 created_at=doc.created_at,
                 updated_at=doc.updated_at,
                 pages=[],  # Don't load pages for list view
+                title_block_region=doc.title_block_region,
             )
             for doc in documents
         ],
@@ -204,6 +208,57 @@ async def get_document_status(
         status=row[0],
         page_count=row[1],
         error=row[2],
+    )
+
+
+@router.put(
+    "/documents/{document_id}/title-block-region",
+    response_model=TitleBlockRegionUpdateResponse,
+)
+async def update_title_block_region(
+    document_id: uuid.UUID,
+    request: TitleBlockRegionUpdateRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Save a title block region and queue OCR for all pages."""
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    if request.x + request.width > 1 or request.y + request.height > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Region must fit within normalized bounds",
+        )
+
+    document.title_block_region = {
+        "x": request.x,
+        "y": request.y,
+        "width": request.width,
+        "height": request.height,
+        "source_page_id": str(request.source_page_id)
+        if request.source_page_id
+        else None,
+    }
+    await db.commit()
+
+    page_result = await db.execute(
+        select(Page.id).where(Page.document_id == document_id)
+    )
+    page_ids = page_result.scalars().all()
+
+    process_document_title_block_task.delay(str(document_id))
+
+    return TitleBlockRegionUpdateResponse(
+        status="queued",
+        document_id=document_id,
+        pages_queued=len(page_ids),
+        title_block_region=document.title_block_region,
     )
 
 

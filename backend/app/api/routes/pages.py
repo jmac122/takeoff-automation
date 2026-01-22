@@ -10,12 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.models.page import Page
+from app.models.document import Document
 from app.models.classification_history import ClassificationHistory
 from app.schemas.page import (
     PageResponse,
     PageListResponse,
     PageOCRResponse,
     PageSummaryResponse,
+    PageDocumentInfo,
     ScaleUpdateRequest,
 )
 from app.utils.storage import get_storage_service
@@ -125,6 +127,19 @@ async def get_page(
 
     storage = get_storage_service()
 
+    document_info = None
+    document_row = await db.execute(
+        select(Document.project_id, Document.title_block_region).where(
+            Document.id == page.document_id
+        )
+    )
+    document_data = document_row.one_or_none()
+    if document_data:
+        document_info = PageDocumentInfo(
+            project_id=document_data[0],
+            title_block_region=document_data[1],
+        )
+
     return PageResponse(
         id=page.id,
         document_id=page.document_id,
@@ -153,6 +168,7 @@ async def get_page(
         thumbnail_url=storage.get_presigned_url(page.thumbnail_key, 3600)
         if page.thumbnail_key
         else None,
+        document=document_info,
     )
 
 
