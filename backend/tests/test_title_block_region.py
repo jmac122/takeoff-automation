@@ -1,6 +1,18 @@
 import io
+import sys
+import types
 
 from PIL import Image
+
+# Stub google.cloud.vision to avoid requiring the dependency for these tests.
+google_module = types.ModuleType("google")
+cloud_module = types.ModuleType("google.cloud")
+vision_module = types.ModuleType("google.cloud.vision")
+cloud_module.vision = vision_module
+google_module.cloud = cloud_module
+sys.modules.setdefault("google", google_module)
+sys.modules.setdefault("google.cloud", cloud_module)
+sys.modules.setdefault("google.cloud.vision", vision_module)
 
 from app.services.ocr_service import TextBlock, TitleBlockParser
 from app.utils.image_utils import crop_image_bytes, resolve_region_to_pixels
