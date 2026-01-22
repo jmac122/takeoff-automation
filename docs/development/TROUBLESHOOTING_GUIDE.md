@@ -47,6 +47,63 @@ const imageUrl = pageData?.image_url || null;
 **Files Modified:**
 - `frontend/src/pages/AIEvaluation.tsx`
 
+---
+
+### Issue 2: Canvas Goes Black When Opening Dialogs
+
+**Symptoms:**
+- Clicking "Set Scale" or other buttons causes the canvas/image area to go completely black
+- Console shows "Failed to load image" errors from react-konva
+- Image reappears after page navigation or refresh
+
+**Root Cause:**
+Presigned MinIO URLs include timestamps that change on every API call. When React Query refetches page data, a new URL is generated. The original `usePageImage` hook had a cleanup function that set `img.src = ''` when the URL changed, aborting the current image load.
+
+**Solution:**
+```typescript
+// usePageImage.ts - Compare base URLs (without query params)
+const baseUrl = useMemo(() => {
+    if (!imageUrl) return null;
+    const url = new URL(imageUrl);
+    return url.origin + url.pathname; // Strip query params
+}, [imageUrl]);
+
+// Only reload if base URL changes, not presigned params
+if (image && currentUrlRef.current === baseUrl) {
+    return; // Keep existing image
+}
+
+// Remove cleanup that clears img.src
+// The browser handles garbage collection
+```
+
+**Files Modified:**
+- `frontend/src/hooks/usePageImage.ts`
+
+---
+
+### Issue 3: Konva CalibrationOverlay Crashes on Zero-Length Lines
+
+**Symptoms:**
+- Black screen or crash when starting calibration
+- Error: "Text components are not supported... Your text is: '0'"
+
+**Root Cause:**
+Konva Text component fails when rendering very short or zero-length lines (distance = 0).
+
+**Solution:**
+```typescript
+// Only show label when line is long enough
+const showLabel = displayDistance > 20;
+{showLabel && <Text ... />}
+
+// Also add safety checks for scale
+const safeScale = scale > 0 && Number.isFinite(scale) ? scale : 1;
+```
+
+**Files Modified:**
+- `frontend/src/components/viewer/CalibrationOverlay.tsx`
+
 **Prevention:**
 - Derive state from props directly when possible
 - Use `useEffect` for side effects, not `useState`

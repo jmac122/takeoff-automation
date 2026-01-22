@@ -303,7 +303,38 @@ results["scale_bars"] = scale_bars
 
 ## Manual Calibration
 
-### Calibration Workflow
+### Why Manual Calibration is Essential
+
+**Key Discovery:** Auto-detected scale text may not match the actual plotted scale of a PDF. For example, a drawing labeled `1/8" = 1'-0"` might actually be plotted at `1/4" = 1'-0"` when converted to digital format. Manual calibration using a known dimension provides ground-truth accuracy.
+
+### Frontend Calibration Workflow (Implemented)
+
+```
+1. User clicks "Set Scale" → Dialog opens with instructions
+   ↓
+2. User clicks "Start Drawing" → Dialog closes, cursor becomes crosshair
+   ↓
+3. User LEFT-CLICKS to set start point (right/middle click for panning)
+   ↓
+4. User moves mouse → Live preview line with pixel distance shown
+   ↓
+5. User LEFT-CLICKS to set end point → Dialog reopens
+   ↓
+6. User enters real-world distance (e.g., "21" or "21'-6"")
+   ↓
+7. User clicks "Set Scale" → POST /pages/{id}/calibrate
+   ↓
+8. Backend saves pixels_per_foot, marks page as calibrated
+```
+
+### Frontend Implementation Files
+
+- `useScaleCalibration.ts` - State management hook
+- `CalibrationOverlay.tsx` - Konva layer for drawing preview
+- `ScaleCalibrationDialog.tsx` - UI for workflow steps
+- `TakeoffViewer.tsx` - Event handler integration
+
+### Backend Calibration Workflow
 
 ```
 1. User draws a line on the plan

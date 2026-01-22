@@ -1,7 +1,7 @@
 # ForgeX Takeoffs - Project Status
 
-**Last Updated:** January 20, 2026  
-**Current Phase:** ✅ Phase 2B Complete - Ready for Phase 3A  
+**Last Updated:** January 21, 2026  
+**Current Phase:** 🔄 Phase 3A In Progress - Measurement Engine  
 **Recent Updates:** Classification optimizations complete (OCR-based default, image compression, auto-classification)
 
 ---
@@ -124,21 +124,30 @@
 
 ---
 
-## ⏭️ Next Phase
+## 🔄 Current Phase
 
 ### Phase 3A: Measurement Engine (Weeks 13-16)
-**Status:** READY TO START
+**Status:** IN PROGRESS ✅  
+**Updated:** January 21, 2026
 
-**Requirements:**
-- Phase 2B complete (scale detection working)
-- Pages have calibrated scales
+**Completed:**
+- ✅ Line measurement tool with real-time distance display
+- ✅ Manual scale calibration workflow (click-to-start, click-to-finish)
+- ✅ Feet and inches display format (e.g., `21' 6"`)
+- ✅ Konva.js canvas with pan/zoom controls
+- ✅ Calibration overlay with pixel distance preview
+- ✅ Backend calibration API endpoint (`POST /pages/{id}/calibrate`)
 
-**Tasks:**
-- Implement measurement tools (line, polyline, polygon, area)
-- Geometry calculations with scale conversion
-- Real-world unit calculations (LF, SF, CY)
-- Measurement API endpoints
-- Interactive drawing tools (Konva.js)
+**Key Implementation Notes:**
+- **Manual Calibration**: Draw line over known dimension → Enter distance → Scale saved
+- **Presigned URL Fix**: `usePageImage` hook uses base URL comparison to prevent reload on URL timestamp changes
+- **Click-to-Click Drawing**: Left-click starts/finishes line; right/middle-click for panning during calibration
+
+**Remaining:**
+- Polyline, polygon, rectangle, circle tools
+- Area/perimeter calculations
+- Measurement persistence and editing
+- Condition linking
 
 **See:** `plans/06-MEASUREMENT-ENGINE.md`
 
