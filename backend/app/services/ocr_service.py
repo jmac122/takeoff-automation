@@ -13,6 +13,69 @@ logger = structlog.get_logger()
 settings = get_settings()
 
 
+def is_valid_scale_text(
+    text: str,
+    max_length: int = 50,
+    short_text_threshold: int = 20,
+) -> bool:
+    """Validate that text looks like an actual scale notation.
+    
+    Valid scales include:
+    - "NTS", "NOT TO SCALE", "NO SCALE"
+    - Fractions like "1/4" = 1'-0"", "1" = 10'"
+    - Ratios like "1:100", "1:50"
+    - Simple formats like "1/8", "3/16"
+    
+    Invalid (garbage text):
+    - Long sentences without scale-like patterns
+    - Text that doesn't contain numbers or NTS keywords
+    
+    Args:
+        text: The text to validate.
+        max_length: Maximum allowed length before rejecting (default 50).
+        short_text_threshold: Text shorter than this with digits is allowed (default 20).
+    
+    Returns:
+        True if text looks like a valid scale notation.
+    """
+    if not text:
+        return False
+    
+    text_upper = text.upper().strip()
+    
+    # Check for "not to scale" variations
+    if any(nts in text_upper for nts in ["NTS", "NOT TO SCALE", "NO SCALE"]):
+        return True
+    
+    # Must contain at least one digit for numeric scales
+    if not any(c.isdigit() for c in text):
+        return False
+    
+    # Reject if too long (likely garbage from greedy match)
+    if len(text) > max_length:
+        return False
+    
+    # Check for scale-like patterns
+    scale_patterns = [
+        r"\d+/\d+",  # Fractions: 1/4, 3/16
+        r"\d+:\d+",  # Ratios: 1:100, 1:50
+        r'\d+["\']',  # Inch/foot marks: 1", 10'
+        r"=",  # Equal sign (1/4" = 1'-0")
+    ]
+    
+    for pattern in scale_patterns:
+        if re.search(pattern, text):
+            return True
+    
+    # If we get here, it has digits but no scale-like pattern
+    # Allow short text as it might be a simple scale like "1/8"
+    if len(text) < short_text_threshold:
+        return True
+    
+    # Reject long text without clear scale patterns (likely garbage)
+    return False
+
+
 @dataclass
 class TextBlock:
     """Represents a detected text block with position."""
@@ -165,32 +228,7 @@ class OCRService:
         
         Returns True if text looks like a valid scale notation.
         """
-        if not text:
-            return False
-        
-        text_upper = text.upper().strip()
-        
-        # Accept NTS/NOT TO SCALE
-        if any(nts in text_upper for nts in ["NTS", "NOT TO SCALE", "NO SCALE"]):
-            return True
-        
-        # Must contain at least one digit
-        if not any(c.isdigit() for c in text):
-            return False
-        
-        # Reject if too long (likely garbage from greedy match)
-        if len(text) > 50:
-            return False
-        
-        # Check for scale-like patterns
-        if re.search(r"\d+/\d+|\d+:\d+|\d+[\"']|=", text):
-            return True
-        
-        # Allow short numeric text (might be simple scale)
-        if len(text) < 15:
-            return True
-        
-        return False
+        return is_valid_scale_text(text, max_length=50, short_text_threshold=15)
 
     def _extract_sheet_numbers(
         self,
@@ -421,48 +459,11 @@ class TitleBlockParser:
     def _is_valid_scale_text(self, text: str) -> bool:
         """Validate that extracted text looks like an actual scale notation.
         
-        Valid scales include:
-        - "NTS", "NOT TO SCALE", "NO SCALE"
-        - Fractions like "1/4" = 1'-0"", "1" = 10'"
-        - Ratios like "1:100", "1:50"
-        - Simple formats like "1/8", "3/16"
-        
-        Invalid (garbage text):
-        - Long sentences without scale-like patterns
-        - Text that doesn't contain numbers or NTS keywords
+        Returns True if text looks like a valid scale notation.
         """
-        if not text:
-            return False
-        
-        text_upper = text.upper().strip()
-        
-        # Check for "not to scale" variations
-        if any(nts in text_upper for nts in ["NTS", "NOT TO SCALE", "NO SCALE"]):
-            return True
-        
-        # Must contain at least one digit for numeric scales
-        if not any(c.isdigit() for c in text):
-            return False
-        
-        # Check for scale-like patterns
-        scale_indicators = [
-            r"\d+/\d+",  # Fractions: 1/4, 3/16
-            r"\d+:\d+",  # Ratios: 1:100, 1:50
-            r'\d+["\']',  # Inch/foot marks: 1", 10'
-            r"=",  # Equal sign (1/4" = 1'-0")
-        ]
-        
-        for indicator in scale_indicators:
-            if re.search(indicator, text):
-                return True
-        
-        # If we get here, it has digits but no scale-like pattern
-        # Allow short text (< 20 chars) as it might be a simple scale like "1/8"
-        if len(text) < 20:
-            return True
-        
-        # Reject long text without clear scale patterns (likely garbage)
-        return False
+        # Use larger max_length since title block parsing already constrains
+        # the catch-all pattern to 40 chars
+        return is_valid_scale_text(text, max_length=100, short_text_threshold=20)
 
 
 # Singleton instances
