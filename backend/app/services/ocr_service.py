@@ -239,6 +239,7 @@ class TitleBlockParser:
         blocks: list[TextBlock],
         page_width: int,
         page_height: int,
+        use_full_region: bool = False,
     ) -> dict[str, Any]:
         """Parse title block from OCR blocks.
 
@@ -262,18 +263,22 @@ class TitleBlockParser:
         if not blocks:
             return result
 
-        # Filter to title block region (bottom-right 30% x 30%)
-        title_block_x = page_width * 0.7
-        title_block_y = page_height * 0.7
+        if use_full_region:
+            # Manual title block region already cropped - use all blocks
+            title_block_blocks = list(blocks)
+        else:
+            # Filter to title block region (bottom-right 30% x 30%)
+            title_block_x = page_width * 0.7
+            title_block_y = page_height * 0.7
 
-        title_block_blocks = [
-            b
-            for b in blocks
-            if (
-                b.bounding_box["x"] + b.bounding_box["width"] / 2 > title_block_x
-                and b.bounding_box["y"] + b.bounding_box["height"] / 2 > title_block_y
-            )
-        ]
+            title_block_blocks = [
+                b
+                for b in blocks
+                if (
+                    b.bounding_box["x"] + b.bounding_box["width"] / 2 > title_block_x
+                    and b.bounding_box["y"] + b.bounding_box["height"] / 2 > title_block_y
+                )
+            ]
 
         if not title_block_blocks:
             return result

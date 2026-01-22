@@ -14,8 +14,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.config import get_settings
+from app.models.document import Document
 from app.models.page import Page
 from app.services.ocr_service import get_ocr_service, get_title_block_parser
+from app.utils.image_utils import crop_image_bytes, resolve_region_to_pixels
 from app.utils.storage import get_storage_service
 from app.workers.celery_app import celery_app
 
@@ -31,6 +33,66 @@ sync_engine = create_engine(
     max_overflow=10,
 )
 SyncSession = sessionmaker(bind=sync_engine)
+
+
+def _apply_title_block_to_page(
+    page: Page,
+    title_block_data: dict,
+    detected_scales: list[str] | None = None,
+    allow_detected_scales: bool = True,
+) -> None:
+    """Apply title block extraction results to a page."""
+    extracted_sheet_number = title_block_data.get("sheet_number")
+    extracted_title = title_block_data.get("sheet_title")
+
+    if extracted_sheet_number:
+        extracted_sheet_number = extracted_sheet_number[:50]
+
+    if extracted_title:
+        extracted_title = extracted_title[:500]
+
+    if extracted_sheet_number and extracted_title:
+        combined = f"{extracted_sheet_number} - {extracted_title}"
+        if len(combined) <= 50:
+            page.sheet_number = combined
+        else:
+            page.sheet_number = extracted_sheet_number
+            page.title = extracted_title
+    elif extracted_sheet_number:
+        page.sheet_number = extracted_sheet_number
+    elif extracted_title:
+        if len(extracted_title) <= 50:
+            page.sheet_number = extracted_title
+        else:
+            page.title = extracted_title
+
+    if extracted_title and not page.title:
+        page.title = extracted_title
+
+    if title_block_data.get("scale"):
+        page.scale_text = title_block_data["scale"]
+    elif allow_detected_scales and detected_scales:
+        page.scale_text = detected_scales[0]
+
+
+def _offset_ocr_blocks(
+    blocks: list,
+    offset_x: int,
+    offset_y: int,
+) -> list[dict]:
+    """Offset OCR block bounding boxes to page coordinates."""
+    adjusted_blocks = []
+    for block in blocks:
+        block_dict = block.to_dict()
+        bbox = block_dict.get("bounding_box", {})
+        block_dict["bounding_box"] = {
+            "x": bbox.get("x", 0) + offset_x,
+            "y": bbox.get("y", 0) + offset_y,
+            "width": bbox.get("width", 0),
+            "height": bbox.get("height", 0),
+        }
+        adjusted_blocks.append(block_dict)
+    return adjusted_blocks
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -92,52 +154,18 @@ def process_page_ocr_task(self, page_id: str) -> dict:
                 "title_block": title_block_data,
             }
 
-            # Set sheet number, title, and scale - ONLY use title block data
-            # Title blocks are in the bottom-right corner and are the authoritative source
-            # Full-page OCR text is used for content analysis, not for title/sheet number extraction
+            # Set sheet number, title, and scale from title block data
+            _apply_title_block_to_page(
+                page,
+                title_block_data,
+                detected_scales=ocr_result.detected_scale_texts,
+                allow_detected_scales=True,
+            )
 
-            # Extract sheet number and title from title block ONLY
-            extracted_sheet_number = title_block_data.get("sheet_number")
-            extracted_title = title_block_data.get("sheet_title")
-
-            # Truncate to database constraints
-            # sheet_number field: String(50) - max 50 chars
-            # title field: String(500) - max 500 chars
-
-            if extracted_sheet_number:
-                extracted_sheet_number = extracted_sheet_number[:50]
-
-            if extracted_title:
-                extracted_title = extracted_title[:500]
-
-            # Store sheet number and title separately
-            # Only combine if both exist and combined length fits in sheet_number field (50 chars)
-            if extracted_sheet_number and extracted_title:
-                combined = f"{extracted_sheet_number} - {extracted_title}"
-                if len(combined) <= 50:
-                    page.sheet_number = combined
-                else:
-                    # If combined is too long, just use sheet number
-                    page.sheet_number = extracted_sheet_number
-                    page.title = extracted_title
-            elif extracted_sheet_number:
-                page.sheet_number = extracted_sheet_number
-            elif extracted_title:
-                # If only title exists, try to fit it in sheet_number if short enough
-                if len(extracted_title) <= 50:
-                    page.sheet_number = extracted_title
-                else:
-                    page.title = extracted_title
-
-            # Store title separately (if not already set above)
-            if extracted_title and not page.title:
-                page.title = extracted_title
-
-            # Scale: title block first, then full-page patterns
-            if title_block_data.get("scale"):
-                page.scale_text = title_block_data["scale"]
-            elif ocr_result.detected_scale_texts:
-                page.scale_text = ocr_result.detected_scale_texts[0]
+            # Mark title block source
+            if page.ocr_blocks is None:
+                page.ocr_blocks = {}
+            page.ocr_blocks["title_block_source"] = "auto"
 
             # Keep status as "processing" until classification also completes
             # Classification task will set it to "completed" when done
@@ -219,6 +247,154 @@ def process_document_ocr_task(self, document_id: str) -> dict:
 
     logger.info(
         "Document OCR tasks queued",
+        document_id=document_id,
+        pages_queued=len(page_ids),
+    )
+
+    return {
+        "status": "queued",
+        "document_id": document_id,
+        "pages_queued": len(page_ids),
+    }
+
+
+@celery_app.task(bind=True, max_retries=3)
+def process_page_title_block_ocr_task(self, page_id: str) -> dict:
+    """Process title block OCR for a single page using SYNC database."""
+    logger.info("Starting title block OCR", page_id=page_id)
+
+    try:
+        with SyncSession() as session:
+            page_uuid = uuid.UUID(page_id)
+
+            page = session.query(Page).filter(Page.id == page_uuid).one_or_none()
+            if not page:
+                raise ValueError(f"Page not found: {page_id}")
+
+            document = (
+                session.query(Document)
+                .filter(Document.id == page.document_id)
+                .one_or_none()
+            )
+            if not document or not document.title_block_region:
+                return {
+                    "status": "skipped",
+                    "page_id": page_id,
+                    "reason": "missing_title_block_region",
+                }
+
+            region = resolve_region_to_pixels(
+                document.title_block_region, page.width, page.height
+            )
+
+            storage = get_storage_service()
+            image_bytes = storage.download_file(page.image_key)
+            cropped_bytes, crop_width, crop_height = crop_image_bytes(
+                image_bytes, region
+            )
+
+            ocr_service = get_ocr_service()
+            ocr_result = ocr_service.extract_text(cropped_bytes)
+
+            title_block_parser = get_title_block_parser()
+            title_block_data = title_block_parser.parse_title_block(
+                ocr_result.blocks,
+                crop_width,
+                crop_height,
+                use_full_region=True,
+            )
+
+            ocr_blocks = page.ocr_blocks or {}
+            ocr_blocks["title_block"] = title_block_data
+            ocr_blocks["title_block_source"] = "manual_region"
+            ocr_blocks["title_block_region"] = {
+                "bbox": region,
+                "blocks": _offset_ocr_blocks(
+                    ocr_result.blocks,
+                    offset_x=region["x"],
+                    offset_y=region["y"],
+                ),
+                "full_text": ocr_result.full_text,
+                "detected_sheet_numbers": ocr_result.detected_sheet_numbers,
+                "detected_titles": ocr_result.detected_titles,
+            }
+            page.ocr_blocks = ocr_blocks
+
+            _apply_title_block_to_page(
+                page,
+                title_block_data,
+                detected_scales=None,
+                allow_detected_scales=False,
+            )
+
+            result_data = {
+                "status": "success",
+                "page_id": page_id,
+                "sheet_number": page.sheet_number,
+                "title": page.title,
+            }
+
+            session.commit()
+
+            logger.info(
+                "Title block OCR complete",
+                page_id=page_id,
+                blocks_count=len(ocr_result.blocks),
+            )
+
+            return result_data
+
+    except Exception as e:
+        logger.error("Title block OCR failed", page_id=page_id, error=str(e))
+
+        try:
+            with SyncSession() as session:
+                page = (
+                    session.query(Page)
+                    .filter(Page.id == uuid.UUID(page_id))
+                    .one_or_none()
+                )
+                if page:
+                    page.processing_error = f"Title block OCR error: {str(e)}"
+                    session.commit()
+        except Exception as update_error:
+            logger.error(
+                "Failed to update title block OCR error",
+                error=str(update_error),
+            )
+
+        raise self.retry(exc=e, countdown=30)
+
+
+@celery_app.task(bind=True)
+def process_document_title_block_task(self, document_id: str) -> dict:
+    """Process title block OCR for all pages in a document."""
+    logger.info("Starting document title block OCR", document_id=document_id)
+
+    doc_uuid = uuid.UUID(document_id)
+
+    with SyncSession() as session:
+        document = (
+            session.query(Document).filter(Document.id == doc_uuid).one_or_none()
+        )
+        if not document:
+            raise ValueError(f"Document not found: {document_id}")
+        if not document.title_block_region:
+            return {
+                "status": "skipped",
+                "document_id": document_id,
+                "pages_queued": 0,
+                "reason": "missing_title_block_region",
+            }
+
+        pages = session.query(Page.id).filter(Page.document_id == doc_uuid).all()
+        page_ids = [str(page.id) for page in pages]
+
+    for page_id in page_ids:
+        process_page_title_block_ocr_task.delay(page_id)
+
+    logger.info(
+        "Document title block OCR tasks queued",
         document_id=document_id,
         pages_queued=len(page_ids),
     )

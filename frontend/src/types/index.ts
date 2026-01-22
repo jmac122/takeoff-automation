@@ -158,6 +158,7 @@ export interface Page {
   updated_at: string;
   document?: {
     project_id: string;
+    title_block_region?: TitleBlockRegion | null;
   };
 }
 
@@ -174,4 +175,13 @@ export interface Document {
   created_at: string;
   updated_at: string;
   pages?: PageSummary[];
+  title_block_region?: TitleBlockRegion | null;
+}
+
+export interface TitleBlockRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  source_page_id?: string | null;
 }

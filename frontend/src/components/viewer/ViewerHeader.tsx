@@ -1,4 +1,4 @@
-import { ChevronLeft, Ruler, Loader2, MapPin } from 'lucide-react';
+import { ChevronLeft, Ruler, Loader2, MapPin, Crop } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ZoomControls } from './ZoomControls';
 import { DrawingToolbar } from './DrawingToolbar';
@@ -15,6 +15,8 @@ interface ViewerHeaderProps {
     hasSelection: boolean;
     isDetectingScale: boolean;
     scaleLocationVisible: boolean;
+    isTitleBlockMode: boolean;
+    isSavingTitleBlock: boolean;
     onNavigateBack: () => void;
     onZoomIn: () => void;
     onZoomOut: () => void;
@@ -28,6 +30,7 @@ interface ViewerHeaderProps {
     onDetectScale: () => void;
     onSetScale: () => void;
     onToggleScaleLocation: () => void;
+    onToggleTitleBlockMode: () => void;
 }
 
 export function ViewerHeader({
@@ -40,6 +43,8 @@ export function ViewerHeader({
     hasSelection,
     isDetectingScale,
     scaleLocationVisible,
+    isTitleBlockMode,
+    isSavingTitleBlock,
     onNavigateBack,
     onZoomIn,
     onZoomOut,
@@ -53,6 +58,7 @@ export function ViewerHeader({
     onDetectScale,
     onSetScale,
     onToggleScaleLocation,
+    onToggleTitleBlockMode,
 }: ViewerHeaderProps) {
     const hasScaleLocation = page?.scale_calibration_data?.best_scale?.bbox;
     return (
@@ -99,7 +105,7 @@ export function ViewerHeader({
                     onRedo={onRedo}
                     onDelete={onDelete}
                     hasSelection={hasSelection}
-                    disabled={!page?.scale_calibrated}
+                    disabled={!page?.scale_calibrated || isTitleBlockMode}
                 />
             </div>
 
@@ -111,8 +117,22 @@ export function ViewerHeader({
                 <Button
                     variant="outline"
                     size="sm"
+                    onClick={onToggleTitleBlockMode}
+                    disabled={isSavingTitleBlock}
+                    className={`font-mono uppercase text-xs ${isTitleBlockMode
+                        ? 'bg-sky-500/20 text-sky-300 border-sky-400/50 hover:bg-sky-500/30'
+                        : 'text-white hover:bg-neutral-800 border-neutral-700'
+                        }`}
+                    title="Draw the title block region for OCR"
+                >
+                    <Crop className="h-3 w-3 mr-1" />
+                    {isTitleBlockMode ? 'Exit' : 'Title Block'}
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
                     onClick={onDetectScale}
-                    disabled={isDetectingScale}
+                    disabled={isDetectingScale || isTitleBlockMode}
                     className="text-white hover:bg-neutral-800 border-neutral-700 font-mono uppercase text-xs"
                 >
                     {isDetectingScale ? (
@@ -131,6 +151,7 @@ export function ViewerHeader({
                     variant="outline"
                     size="sm"
                     onClick={onSetScale}
+                    disabled={isTitleBlockMode}
                     className="text-white hover:bg-neutral-800 border-neutral-700 font-mono uppercase text-xs"
                 >
                     <Ruler className="h-3 w-3 mr-1" />
@@ -141,6 +162,7 @@ export function ViewerHeader({
                         variant="outline"
                         size="sm"
                         onClick={onToggleScaleLocation}
+                        disabled={isTitleBlockMode}
                         className={`font-mono uppercase text-xs ${scaleLocationVisible
                             ? 'bg-amber-500/20 text-amber-400 border-amber-500/50 hover:bg-amber-500/30'
                             : 'text-white hover:bg-neutral-800 border-neutral-700'
