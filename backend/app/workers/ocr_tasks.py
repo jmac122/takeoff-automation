@@ -70,9 +70,11 @@ def _apply_title_block_to_page(
         page.title = extracted_title
 
     if title_block_data.get("scale"):
-        page.scale_text = title_block_data["scale"]
+        # Truncate to database column limit (VARCHAR 100)
+        page.scale_text = title_block_data["scale"][:100]
     elif allow_detected_scales and detected_scales:
-        page.scale_text = detected_scales[0]
+        # Truncate to database column limit (VARCHAR 100)
+        page.scale_text = detected_scales[0][:100]
 
 
 def _offset_ocr_blocks(

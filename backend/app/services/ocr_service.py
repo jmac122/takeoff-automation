@@ -147,16 +147,50 @@ class OCRService:
             matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
             scales.extend(matches)
 
-        # Clean and deduplicate
+        # Clean, validate, and deduplicate
         cleaned = []
         for scale in scales:
             if isinstance(scale, tuple):
                 scale = scale[0] if scale else ""
             scale = scale.strip()
             if scale and scale not in cleaned:
-                cleaned.append(scale)
+                # Validate that this looks like an actual scale
+                if self._is_valid_scale_text_simple(scale):
+                    cleaned.append(scale)
 
         return cleaned
+
+    def _is_valid_scale_text_simple(self, text: str) -> bool:
+        """Quick validation for scale text from regex patterns.
+        
+        Returns True if text looks like a valid scale notation.
+        """
+        if not text:
+            return False
+        
+        text_upper = text.upper().strip()
+        
+        # Accept NTS/NOT TO SCALE
+        if any(nts in text_upper for nts in ["NTS", "NOT TO SCALE", "NO SCALE"]):
+            return True
+        
+        # Must contain at least one digit
+        if not any(c.isdigit() for c in text):
+            return False
+        
+        # Reject if too long (likely garbage from greedy match)
+        if len(text) > 50:
+            return False
+        
+        # Check for scale-like patterns
+        if re.search(r"\d+/\d+|\d+:\d+|\d+[\"']|=", text):
+            return True
+        
+        # Allow short numeric text (might be simple scale)
+        if len(text) < 15:
+            return True
+        
+        return False
 
     def _extract_sheet_numbers(
         self,
@@ -332,7 +366,9 @@ class TitleBlockParser:
                 r"SCALE[:\s]*(\d+/\d+\"\s*=\s*\d+'-\d+\")",  # 1/4" = 1'-0"
                 r"SCALE[:\s]*(\d+\"\s*=\s*\d+')",  # 1" = 10'
                 r"SCALE[:\s]*(1:\d+)",  # 1:100
-                r"SCALE[:\s]*([^,\n]+)",  # Catch-all
+                r'SCALE[:\s]*(\d+/\d+\s*"?\s*=\s*\d+[\'"]-?\d*[\'"]?)',  # Flexible fraction format
+                # Catch-all with length limit (max 40 chars) - only if contains numbers or NTS
+                r"SCALE[:\s]*([^,\n]{1,40})",
             ],
         }
 
@@ -370,10 +406,63 @@ class TitleBlockParser:
 
                     # Only set if we got a meaningful value (not just whitespace)
                     if extracted_value and len(extracted_value) >= 2:
+                        # Additional validation for scale field
+                        if field == "scale":
+                            if not self._is_valid_scale_text(extracted_value):
+                                continue  # Try next pattern
+                            # Truncate scale to 100 chars (database limit)
+                            if len(extracted_value) > 100:
+                                extracted_value = extracted_value[:100]
                         result[field] = extracted_value
                         break
 
         return result
+
+    def _is_valid_scale_text(self, text: str) -> bool:
+        """Validate that extracted text looks like an actual scale notation.
+        
+        Valid scales include:
+        - "NTS", "NOT TO SCALE", "NO SCALE"
+        - Fractions like "1/4" = 1'-0"", "1" = 10'"
+        - Ratios like "1:100", "1:50"
+        - Simple formats like "1/8", "3/16"
+        
+        Invalid (garbage text):
+        - Long sentences without scale-like patterns
+        - Text that doesn't contain numbers or NTS keywords
+        """
+        if not text:
+            return False
+        
+        text_upper = text.upper().strip()
+        
+        # Check for "not to scale" variations
+        if any(nts in text_upper for nts in ["NTS", "NOT TO SCALE", "NO SCALE"]):
+            return True
+        
+        # Must contain at least one digit for numeric scales
+        if not any(c.isdigit() for c in text):
+            return False
+        
+        # Check for scale-like patterns
+        scale_indicators = [
+            r"\d+/\d+",  # Fractions: 1/4, 3/16
+            r"\d+:\d+",  # Ratios: 1:100, 1:50
+            r'\d+["\']',  # Inch/foot marks: 1", 10'
+            r"=",  # Equal sign (1/4" = 1'-0")
+        ]
+        
+        for indicator in scale_indicators:
+            if re.search(indicator, text):
+                return True
+        
+        # If we get here, it has digits but no scale-like pattern
+        # Allow short text (< 20 chars) as it might be a simple scale like "1/8"
+        if len(text) < 20:
+            return True
+        
+        # Reject long text without clear scale patterns (likely garbage)
+        return False
 
 
 # Singleton instances
