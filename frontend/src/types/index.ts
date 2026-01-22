@@ -103,7 +103,9 @@ export interface Page {
   classification?: string | null;
   classification_confidence?: number | null;
   discipline?: string | null;
+  discipline_confidence?: number | null;
   page_type?: string | null;
+  page_type_confidence?: number | null;
   concrete_relevance?: string | null;
   concrete_elements?: string[] | null;
   description?: string | null;
