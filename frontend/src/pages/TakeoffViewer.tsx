@@ -44,6 +44,7 @@ export function TakeoffViewer() {
     const [showScaleLocation, setShowScaleLocation] = useState(false);
     const [showTitleBlockRegion, setShowTitleBlockRegion] = useState(true);
     const [isTitleBlockMode, setIsTitleBlockMode] = useState(false);
+    const [isToolsCollapsed, setIsToolsCollapsed] = useState(false);
     const [titleBlockStart, setTitleBlockStart] = useState<{ x: number; y: number } | null>(null);
     const [titleBlockCurrent, setTitleBlockCurrent] = useState<{ x: number; y: number } | null>(null);
     const [pendingTitleBlock, setPendingTitleBlock] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -507,6 +508,8 @@ export function TakeoffViewer() {
                     }}
                     hasSelection={!!selectedMeasurementId}
                     disabled={!page?.scale_calibrated || isTitleBlockMode}
+                    isCollapsed={isToolsCollapsed}
+                    onToggleCollapse={() => setIsToolsCollapsed((prev) => !prev)}
                 />
                 {/* Canvas Area */}
                 <div className="flex-1 flex flex-col min-w-0">
