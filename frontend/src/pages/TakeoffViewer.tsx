@@ -514,14 +514,18 @@ export function TakeoffViewer() {
                 {/* Canvas Area */}
                 <div className="flex-1 flex flex-col min-w-0">
                     {/* Detection Result Display */}
-                    <ScaleDetectionBanner
-                        result={scaleDetection.detectionResult}
-                        onDismiss={scaleDetection.dismissResult}
-                    />
+                    {scaleDetection.detectionResult && (
+                        <div className="relative z-10 flex-shrink-0">
+                            <ScaleDetectionBanner
+                                result={scaleDetection.detectionResult}
+                                onDismiss={scaleDetection.dismissResult}
+                            />
+                        </div>
+                    )}
 
                     {/* Calibration Banner */}
                     {scaleCalibration.state.isCalibrating && (
-                        <div className="bg-amber-500 text-black px-4 py-2 font-mono text-sm flex items-center justify-between">
+                        <div className="relative z-10 flex-shrink-0 bg-amber-500 text-black px-4 py-2 font-mono text-sm flex items-center justify-between">
                             <span className="font-bold">
                                 CALIBRATION MODE: Draw a line over a known dimension
                             </span>
@@ -537,7 +541,7 @@ export function TakeoffViewer() {
                     )}
 
                     {isTitleBlockMode && (
-                        <div className="bg-sky-500 text-black px-4 py-2 font-mono text-sm flex items-center justify-between">
+                        <div className="relative z-10 flex-shrink-0 bg-sky-500 text-black px-4 py-2 font-mono text-sm flex items-center justify-between">
                             <span className="font-bold">
                                 TITLE BLOCK MODE: Click two corners to set the title block region
                             </span>
@@ -575,7 +579,7 @@ export function TakeoffViewer() {
                     {/* Canvas */}
                     <div
                         id="canvas-container"
-                        className="flex-1 relative flex items-center justify-center"
+                        className="flex-1 relative z-0 flex items-center justify-center"
                         style={{
                             minWidth: 0,
                             minHeight: 0,
