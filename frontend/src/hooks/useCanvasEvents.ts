@@ -55,12 +55,16 @@ export function useCanvasEvents({
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
     }, [isPanning]);
 
-    const getImagePoint = useCallback((pointerPos: Position): Position => {
-        return {
-            x: (pointerPos.x - pan.x) / zoom,
-            y: (pointerPos.y - pan.y) / zoom,
-        };
-    }, [zoom, pan]);
+    // Convert screen coordinates to image coordinates
+    // Note: We no longer need zoom/pan since getRelativePointerPosition handles it
+    const getImagePointFromStage = useCallback((stage: Konva.Stage): Position | null => {
+        // getRelativePointerPosition returns coordinates in the stage's local space
+        // which accounts for scaleX/scaleY and x/y transforms
+        const pos = stage.getRelativePointerPosition();
+        if (!pos) return null;
+        console.log(`getImagePointFromStage: relativePos=(${pos.x.toFixed(1)},${pos.y.toFixed(1)})`);
+        return pos;
+    }, []);
 
     const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
         const stage = e.target.getStage();
@@ -86,7 +90,9 @@ export function useCanvasEvents({
         // Left click: pan if no drawing tool, or draw if tool is active
         if (isLeftClick) {
             if (drawing.tool && drawing.tool !== 'select') {
-                const point = getImagePoint(pointerPos);
+                // Use getRelativePointerPosition for accurate image coordinates
+                const point = getImagePointFromStage(stage);
+                if (!point) return;
 
                 if (!onConditionRequired()) {
                     return;
@@ -147,7 +153,7 @@ export function useCanvasEvents({
                 }
             }
         }
-    }, [zoom, pan, drawing, getImagePoint, onMeasurementCreate, onMeasurementSelect, onConditionRequired]);
+    }, [zoom, pan, drawing, getImagePointFromStage, onMeasurementCreate, onMeasurementSelect, onConditionRequired]);
 
     const handleStageMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
         const stage = e.target.getStage();
@@ -169,10 +175,12 @@ export function useCanvasEvents({
 
         // Handle drawing preview
         if (drawing.isDrawing) {
-            const point = getImagePoint(pointerPos);
-            drawing.updatePreview(point);
+            const point = getImagePointFromStage(stage);
+            if (point) {
+                drawing.updatePreview(point);
+            }
         }
-    }, [isPanning, panStart, panStartPos, drawing, getImagePoint, setPan]);
+    }, [isPanning, panStart, panStartPos, drawing, getImagePointFromStage, setPan]);
 
     const handleStageMouseUp = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
         const stage = e.target.getStage();
@@ -187,12 +195,10 @@ export function useCanvasEvents({
 
         // Auto-finish for rectangle and circle on mouse up (drag-release)
         if (drawing.tool === 'rectangle' || drawing.tool === 'circle') {
-            if (drawing.isDrawing && drawing.points.length > 0) {
+            if (drawing.isDrawing && drawing.points.length > 0 && stage) {
                 // Get final mouse position for the end point
-                const pointerPos = stage?.getPointerPosition();
-                if (pointerPos) {
-                    const endPoint = getImagePoint(pointerPos);
-                    
+                const endPoint = getImagePointFromStage(stage);
+                if (endPoint) {
                     // Check minimum size to avoid accidental clicks creating tiny shapes
                     const startPoint = drawing.points[0];
                     const dx = Math.abs(endPoint.x - startPoint.x);
@@ -213,7 +219,7 @@ export function useCanvasEvents({
                 }
             }
         }
-    }, [isPanning, drawing, getImagePoint, onMeasurementCreate]);
+    }, [isPanning, drawing, getImagePointFromStage, onMeasurementCreate]);
 
     const handleStageMouseLeave = useCallback(() => {
         if (isPanning) {
