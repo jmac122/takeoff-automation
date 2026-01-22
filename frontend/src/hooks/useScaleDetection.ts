@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '@/api/client';
 import { scaleApi } from '@/api/scale';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import type { Page } from '@/types';
@@ -53,6 +54,23 @@ export function useScaleDetection(pageId: string | undefined, page: Page | undef
     const [isDetecting, setIsDetecting] = useState(false);
     const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
     const [scaleHighlightBox, setScaleHighlightBox] = useState<ScaleHighlightBox | null>(null);
+
+    const pollForScaleUpdate = useCallback(async () => {
+        if (!pageId) return;
+
+        const maxAttempts = 10;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const response = await apiClient.get<Page>(`/pages/${pageId}`);
+            const updatedPage = response.data;
+
+            queryClient.setQueryData(['page', pageId], updatedPage);
+
+            if (updatedPage.scale_calibration_data?.best_scale) {
+                return;
+            }
+        }
+    }, [pageId, queryClient]);
 
     const detectScale = useCallback(async () => {
         if (!pageId) return;
@@ -125,6 +143,8 @@ export function useScaleDetection(pageId: string | undefined, page: Page | undef
                     }
 
                     queryClient.invalidateQueries({ queryKey: ['page', pageId] });
+                    queryClient.refetchQueries({ queryKey: ['page', pageId] });
+                    await pollForScaleUpdate();
                     return;
                 }
 
@@ -138,7 +158,7 @@ export function useScaleDetection(pageId: string | undefined, page: Page | undef
             setIsDetecting(false);
             addNotification('error', 'Scale Detection Failed', 'Scale detection failed. Please try again.');
         }
-    }, [pageId, page, queryClient]);
+    }, [addNotification, pageId, page, pollForScaleUpdate, queryClient]);
 
     const dismissResult = useCallback(() => {
         setDetectionResult(null);

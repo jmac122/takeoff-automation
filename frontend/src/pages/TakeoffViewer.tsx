@@ -14,6 +14,7 @@ import { MeasurementsPanel } from '@/components/viewer/MeasurementsPanel';
 import { ScaleCalibrationDialog } from '@/components/viewer/ScaleCalibrationDialog';
 import { CalibrationOverlay } from '@/components/viewer/CalibrationOverlay';
 import { ViewerHeader } from '@/components/viewer/ViewerHeader';
+import { MeasurementToolbarSidebar } from '@/components/viewer/MeasurementToolbarSidebar';
 import { ClassificationSidebar } from '@/components/viewer/ClassificationSidebar';
 import { useDrawingState } from '@/hooks/useDrawingState';
 import { useCanvasControls } from '@/hooks/useCanvasControls';
@@ -41,7 +42,9 @@ export function TakeoffViewer() {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [showScaleLocation, setShowScaleLocation] = useState(false);
+    const [showTitleBlockRegion, setShowTitleBlockRegion] = useState(true);
     const [isTitleBlockMode, setIsTitleBlockMode] = useState(false);
+    const [isToolsCollapsed, setIsToolsCollapsed] = useState(false);
     const [titleBlockStart, setTitleBlockStart] = useState<{ x: number; y: number } | null>(null);
     const [titleBlockCurrent, setTitleBlockCurrent] = useState<{ x: number; y: number } | null>(null);
     const [pendingTitleBlock, setPendingTitleBlock] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -177,6 +180,31 @@ export function TakeoffViewer() {
         []
     );
 
+    const pollForTitleBlockUpdate = useCallback(
+        async (previousSheetNumber: string | null, previousTitle: string | null) => {
+            if (!pageId) return;
+
+            const maxAttempts = 15;
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                const response = await apiClient.get<Page>(`/pages/${pageId}`);
+                const updatedPage = response.data;
+
+                queryClient.setQueryData(['page', pageId], updatedPage);
+
+                const hasRegion = !!updatedPage.document?.title_block_region;
+                const sheetNumberChanged = updatedPage.sheet_number !== previousSheetNumber;
+                const titleChanged = updatedPage.title !== previousTitle;
+                const hasSheetOrTitle = !!updatedPage.sheet_number || !!updatedPage.title;
+
+                if (hasRegion && (sheetNumberChanged || titleChanged || hasSheetOrTitle)) {
+                    return;
+                }
+            }
+        },
+        [pageId, queryClient]
+    );
+
     const handleToggleTitleBlockMode = useCallback(() => {
         if (isSavingTitleBlock) return;
 
@@ -282,6 +310,9 @@ export function TakeoffViewer() {
             return;
         }
 
+        const previousSheetNumber = page.sheet_number ?? null;
+        const previousTitle = page.title ?? null;
+
         setIsSavingTitleBlock(true);
         try {
             const result = await updateTitleBlockRegion(page.document_id, normalized);
@@ -290,8 +321,12 @@ export function TakeoffViewer() {
                 'Title block region saved',
                 `OCR queued for ${result.pages_queued} pages.`
             );
+            await pollForTitleBlockUpdate(previousSheetNumber, previousTitle);
             queryClient.invalidateQueries({ queryKey: ['page', pageId] });
+            queryClient.refetchQueries({ queryKey: ['page', pageId] });
             queryClient.invalidateQueries({ queryKey: ['pages', page.document_id] });
+            queryClient.refetchQueries({ queryKey: ['pages', page.document_id] });
+            setShowTitleBlockRegion(true);
             setIsTitleBlockMode(false);
             resetTitleBlockSelection();
         } catch (error) {
@@ -306,6 +341,7 @@ export function TakeoffViewer() {
         page,
         pageId,
         pendingTitleBlock,
+        pollForTitleBlockUpdate,
         queryClient,
         resetTitleBlockSelection,
     ]);
@@ -437,12 +473,9 @@ export function TakeoffViewer() {
                 page={page}
                 zoom={canvasControls.zoom}
                 isFullscreen={isFullscreen}
-                activeTool={drawing.tool}
-                canUndo={drawing.canUndo}
-                canRedo={drawing.canRedo}
-                hasSelection={!!selectedMeasurementId}
                 isDetectingScale={scaleDetection.isDetecting}
                 scaleLocationVisible={showScaleLocation}
+                showTitleBlockRegion={showTitleBlockRegion}
                 isTitleBlockMode={isTitleBlockMode}
                 isSavingTitleBlock={isSavingTitleBlock}
                 onNavigateBack={() => navigate(-1)}
@@ -451,23 +484,33 @@ export function TakeoffViewer() {
                 onFitToScreen={canvasControls.handleFitToScreen}
                 onActualSize={canvasControls.handleActualSize}
                 onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
-                onToolChange={drawing.setTool}
-                onUndo={drawing.undo}
-                onRedo={drawing.redo}
-                onDelete={() => {
-                    if (selectedMeasurementId) {
-                        measurements.deleteMeasurement(selectedMeasurementId);
-                        setSelectedMeasurementId(null);
-                    }
-                }}
                 onDetectScale={scaleDetection.detectScale}
                 onSetScale={() => setShowCalibrationDialog(true)}
                 onToggleScaleLocation={() => setShowScaleLocation(!showScaleLocation)}
                 onToggleTitleBlockMode={handleToggleTitleBlockMode}
+                onToggleTitleBlockRegion={() => setShowTitleBlockRegion((prev) => !prev)}
             />
 
             {/* Main content area with canvas and sidebar */}
             <div className="flex flex-1 overflow-hidden bg-neutral-900">
+                <MeasurementToolbarSidebar
+                    activeTool={drawing.tool}
+                    onToolChange={drawing.setTool}
+                    canUndo={drawing.canUndo}
+                    canRedo={drawing.canRedo}
+                    onUndo={drawing.undo}
+                    onRedo={drawing.redo}
+                    onDelete={() => {
+                        if (selectedMeasurementId) {
+                            measurements.deleteMeasurement(selectedMeasurementId);
+                            setSelectedMeasurementId(null);
+                        }
+                    }}
+                    hasSelection={!!selectedMeasurementId}
+                    disabled={!page?.scale_calibrated || isTitleBlockMode}
+                    isCollapsed={isToolsCollapsed}
+                    onToggleCollapse={() => setIsToolsCollapsed((prev) => !prev)}
+                />
                 {/* Canvas Area */}
                 <div className="flex-1 flex flex-col min-w-0">
                     {/* Detection Result Display */}
@@ -596,7 +639,7 @@ export function TakeoffViewer() {
                             />
 
                             {/* Title block region overlay */}
-                            {existingTitleBlockRect && (
+                            {showTitleBlockRegion && existingTitleBlockRect && (
                                 <Layer>
                                     <Rect
                                         x={existingTitleBlockRect.x}

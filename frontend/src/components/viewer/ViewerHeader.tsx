@@ -1,20 +1,15 @@
-import { ChevronLeft, Ruler, Loader2, MapPin, Crop } from 'lucide-react';
+import { ChevronLeft, Ruler, Loader2, MapPin, Crop, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ZoomControls } from './ZoomControls';
-import { DrawingToolbar } from './DrawingToolbar';
 import type { Page } from '@/types';
-import type { DrawingTool } from './DrawingToolbar';
 
 interface ViewerHeaderProps {
     page: Page | undefined;
     zoom: number;
     isFullscreen: boolean;
-    activeTool: DrawingTool;
-    canUndo: boolean;
-    canRedo: boolean;
-    hasSelection: boolean;
     isDetectingScale: boolean;
     scaleLocationVisible: boolean;
+    showTitleBlockRegion: boolean;
     isTitleBlockMode: boolean;
     isSavingTitleBlock: boolean;
     onNavigateBack: () => void;
@@ -23,26 +18,20 @@ interface ViewerHeaderProps {
     onFitToScreen: () => void;
     onActualSize: () => void;
     onToggleFullscreen: () => void;
-    onToolChange: (tool: DrawingTool) => void;
-    onUndo: () => void;
-    onRedo: () => void;
-    onDelete: () => void;
     onDetectScale: () => void;
     onSetScale: () => void;
     onToggleScaleLocation: () => void;
     onToggleTitleBlockMode: () => void;
+    onToggleTitleBlockRegion: () => void;
 }
 
 export function ViewerHeader({
     page,
     zoom,
     isFullscreen,
-    activeTool,
-    canUndo,
-    canRedo,
-    hasSelection,
     isDetectingScale,
     scaleLocationVisible,
+    showTitleBlockRegion,
     isTitleBlockMode,
     isSavingTitleBlock,
     onNavigateBack,
@@ -51,16 +40,14 @@ export function ViewerHeader({
     onFitToScreen,
     onActualSize,
     onToggleFullscreen,
-    onToolChange,
-    onUndo,
-    onRedo,
-    onDelete,
     onDetectScale,
     onSetScale,
     onToggleScaleLocation,
     onToggleTitleBlockMode,
+    onToggleTitleBlockRegion,
 }: ViewerHeaderProps) {
     const hasScaleLocation = page?.scale_calibration_data?.best_scale?.bbox;
+    const hasTitleBlockRegion = page?.document?.title_block_region;
     return (
         <div className="flex items-center gap-4 px-4 py-3 border-b border-neutral-700 bg-neutral-900" style={{ minHeight: '70px' }}>
             {/* Back Button */}
@@ -94,24 +81,6 @@ export function ViewerHeader({
             {/* Visual Separator */}
             <div className="h-10 w-px bg-neutral-700" />
 
-            {/* Drawing Tools (CENTER) */}
-            <div className="flex-1 flex items-center justify-center min-w-0">
-                <DrawingToolbar
-                    activeTool={activeTool}
-                    onToolChange={onToolChange}
-                    canUndo={canUndo}
-                    canRedo={canRedo}
-                    onUndo={onUndo}
-                    onRedo={onRedo}
-                    onDelete={onDelete}
-                    hasSelection={hasSelection}
-                    disabled={!page?.scale_calibrated || isTitleBlockMode}
-                />
-            </div>
-
-            {/* Visual Separator */}
-            <div className="h-10 w-px bg-neutral-700" />
-
             {/* Scale Buttons */}
             <div className="flex items-center gap-2 flex-shrink-0">
                 <Button
@@ -128,6 +97,22 @@ export function ViewerHeader({
                     <Crop className="h-3 w-3 mr-1" />
                     {isTitleBlockMode ? 'Exit' : 'Title Block'}
                 </Button>
+                {hasTitleBlockRegion && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onToggleTitleBlockRegion}
+                        disabled={isTitleBlockMode}
+                        className={`font-mono uppercase text-xs ${showTitleBlockRegion
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50 hover:bg-emerald-500/30'
+                            : 'text-white hover:bg-neutral-800 border-neutral-700'
+                            }`}
+                        title="Show or hide the saved title block region"
+                    >
+                        {showTitleBlockRegion ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+                        {showTitleBlockRegion ? 'Hide' : 'Show'} Region
+                    </Button>
+                )}
                 <Button
                     variant="outline"
                     size="sm"
