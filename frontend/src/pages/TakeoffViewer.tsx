@@ -26,6 +26,7 @@ import { useCanvasEvents } from '@/hooks/useCanvasEvents';
 import { usePageImage } from '@/hooks/usePageImage';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import { createMeasurementGeometry } from '@/utils/measurementUtils';
+import { pollUntil } from '@/utils/polling';
 import type { Page, Measurement, Condition } from '@/types';
 
 export function TakeoffViewer() {
@@ -180,29 +181,31 @@ export function TakeoffViewer() {
         []
     );
 
+    const fetchPage = useCallback(async () => {
+        const response = await apiClient.get<Page>(`/pages/${pageId}`);
+        return response.data;
+    }, [pageId]);
+
     const pollForTitleBlockUpdate = useCallback(
         async (previousSheetNumber: string | null, previousTitle: string | null) => {
             if (!pageId) return;
 
-            const maxAttempts = 15;
-            for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                const response = await apiClient.get<Page>(`/pages/${pageId}`);
-                const updatedPage = response.data;
-
-                queryClient.setQueryData(['page', pageId], updatedPage);
-
-                const hasRegion = !!updatedPage.document?.title_block_region;
-                const sheetNumberChanged = updatedPage.sheet_number !== previousSheetNumber;
-                const titleChanged = updatedPage.title !== previousTitle;
-                const hasSheetOrTitle = !!updatedPage.sheet_number || !!updatedPage.title;
-
-                if (hasRegion && (sheetNumberChanged || titleChanged || hasSheetOrTitle)) {
-                    return;
-                }
-            }
+            await pollUntil<Page>({
+                fetcher: fetchPage,
+                shouldStop: (updatedPage) => {
+                    const hasRegion = !!updatedPage.document?.title_block_region;
+                    const sheetNumberChanged = updatedPage.sheet_number !== previousSheetNumber;
+                    const titleChanged = updatedPage.title !== previousTitle;
+                    const hasSheetOrTitle = !!updatedPage.sheet_number || !!updatedPage.title;
+                    return hasRegion && (sheetNumberChanged || titleChanged || hasSheetOrTitle);
+                },
+                onTick: (updatedPage) => queryClient.setQueryData(['page', pageId], updatedPage),
+                intervalMs: 2000,
+                maxAttempts: 15,
+                initialDelayMs: 2000,
+            });
         },
-        [pageId, queryClient]
+        [fetchPage, pageId, queryClient]
     );
 
     const handleToggleTitleBlockMode = useCallback(() => {
