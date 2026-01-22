@@ -87,7 +87,8 @@ export function DocumentUploader({
       return document;
     },
     onSuccess: (document, { fileKey }) => {
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "documents"] });
+      queryClient.invalidateQueries({ queryKey: ["documents", projectId] });
+      queryClient.refetchQueries({ queryKey: ["documents", projectId] });
       if (onUploadComplete) {
         onUploadComplete(document.id);
       }
