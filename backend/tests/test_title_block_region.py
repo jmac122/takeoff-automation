@@ -14,6 +14,28 @@ sys.modules.setdefault("google", google_module)
 sys.modules.setdefault("google.cloud", cloud_module)
 sys.modules.setdefault("google.cloud.vision", vision_module)
 
+# Stub structlog to avoid requiring logging dependency for these tests.
+structlog_module = types.ModuleType("structlog")
+
+class _LoggerStub:
+    def debug(self, *args, **kwargs) -> None:
+        return None
+
+    def info(self, *args, **kwargs) -> None:
+        return None
+
+    def warning(self, *args, **kwargs) -> None:
+        return None
+
+    def error(self, *args, **kwargs) -> None:
+        return None
+
+def _get_logger(*args, **kwargs) -> _LoggerStub:
+    return _LoggerStub()
+
+structlog_module.get_logger = _get_logger
+sys.modules.setdefault("structlog", structlog_module)
+
 from app.services.ocr_service import TextBlock, TitleBlockParser
 from app.utils.image_utils import crop_image_bytes, resolve_region_to_pixels
 
