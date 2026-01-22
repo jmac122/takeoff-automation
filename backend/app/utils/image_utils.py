@@ -8,6 +8,23 @@ from typing import Any
 from PIL import Image
 
 
+REQUIRED_REGION_KEYS = ("x", "y", "width", "height")
+
+
+def _validate_region_keys(region: dict[str, Any]) -> None:
+    """Validate that region dictionary contains all required keys.
+    
+    Args:
+        region: Region dictionary to validate.
+        
+    Raises:
+        ValueError: If any required key is missing.
+    """
+    missing_keys = [key for key in REQUIRED_REGION_KEYS if key not in region]
+    if missing_keys:
+        raise ValueError(f"Invalid region: missing required keys {missing_keys}")
+
+
 def resolve_region_to_pixels(
     region: dict[str, Any],
     image_width: int,
@@ -22,9 +39,14 @@ def resolve_region_to_pixels(
 
     Returns:
         Dict with integer pixel x/y/width/height.
+        
+    Raises:
+        ValueError: If region is None/empty or missing required keys.
     """
     if not region:
         raise ValueError("Region is required")
+
+    _validate_region_keys(region)
 
     units = region.get("units", "normalized")
     if units not in ("normalized", "pixels"):
@@ -64,7 +86,12 @@ def crop_image_bytes(
 
     Returns:
         Tuple of (cropped_image_bytes, width, height).
+        
+    Raises:
+        ValueError: If region is missing required keys.
     """
+    _validate_region_keys(region)
+    
     img = Image.open(io.BytesIO(image_bytes))
 
     # Convert to RGB for consistent OCR input

@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/api/client';
 import { scaleApi } from '@/api/scale';
 import { useNotificationContext } from '@/contexts/NotificationContext';
+import { pollForPageUpdate } from '@/utils/pollingUtils';
 import type { Page } from '@/types';
 
 interface ScaleHighlightBox {
@@ -58,18 +58,12 @@ export function useScaleDetection(pageId: string | undefined, page: Page | undef
     const pollForScaleUpdate = useCallback(async () => {
         if (!pageId) return;
 
-        const maxAttempts = 10;
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            const response = await apiClient.get<Page>(`/pages/${pageId}`);
-            const updatedPage = response.data;
-
-            queryClient.setQueryData(['page', pageId], updatedPage);
-
-            if (updatedPage.scale_calibration_data?.best_scale) {
-                return;
-            }
-        }
+        await pollForPageUpdate(
+            pageId,
+            queryClient,
+            (updatedPage) => !!updatedPage.scale_calibration_data?.best_scale,
+            { maxAttempts: 10, intervalMs: 500 }
+        );
     }, [pageId, queryClient]);
 
     const detectScale = useCallback(async () => {

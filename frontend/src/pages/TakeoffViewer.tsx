@@ -26,6 +26,7 @@ import { useCanvasEvents } from '@/hooks/useCanvasEvents';
 import { usePageImage } from '@/hooks/usePageImage';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import { createMeasurementGeometry } from '@/utils/measurementUtils';
+import { pollForPageUpdate } from '@/utils/pollingUtils';
 import type { Page, Measurement, Condition } from '@/types';
 
 export function TakeoffViewer() {
@@ -184,23 +185,18 @@ export function TakeoffViewer() {
         async (previousSheetNumber: string | null, previousTitle: string | null) => {
             if (!pageId) return;
 
-            const maxAttempts = 15;
-            for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                const response = await apiClient.get<Page>(`/pages/${pageId}`);
-                const updatedPage = response.data;
-
-                queryClient.setQueryData(['page', pageId], updatedPage);
-
-                const hasRegion = !!updatedPage.document?.title_block_region;
-                const sheetNumberChanged = updatedPage.sheet_number !== previousSheetNumber;
-                const titleChanged = updatedPage.title !== previousTitle;
-                const hasSheetOrTitle = !!updatedPage.sheet_number || !!updatedPage.title;
-
-                if (hasRegion && (sheetNumberChanged || titleChanged || hasSheetOrTitle)) {
-                    return;
-                }
-            }
+            await pollForPageUpdate(
+                pageId,
+                queryClient,
+                (updatedPage) => {
+                    const hasRegion = !!updatedPage.document?.title_block_region;
+                    const sheetNumberChanged = updatedPage.sheet_number !== previousSheetNumber;
+                    const titleChanged = updatedPage.title !== previousTitle;
+                    const hasSheetOrTitle = !!updatedPage.sheet_number || !!updatedPage.title;
+                    return hasRegion && (sheetNumberChanged || titleChanged || hasSheetOrTitle);
+                },
+                { maxAttempts: 15, intervalMs: 2000 }
+            );
         },
         [pageId, queryClient]
     );
