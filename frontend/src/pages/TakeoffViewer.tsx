@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stage, Layer, Image as KonvaImage, Rect } from 'react-konva';
@@ -11,11 +11,13 @@ import { ScaleDetectionBanner } from '@/components/viewer/ScaleDetectionBanner';
 import { ConditionsPanel } from '@/components/viewer/ConditionsPanel';
 import { MeasurementsPanel } from '@/components/viewer/MeasurementsPanel';
 import { ScaleCalibrationDialog } from '@/components/viewer/ScaleCalibrationDialog';
+import { CalibrationOverlay } from '@/components/viewer/CalibrationOverlay';
 import { ViewerHeader } from '@/components/viewer/ViewerHeader';
 import { ClassificationSidebar } from '@/components/viewer/ClassificationSidebar';
 import { useDrawingState } from '@/hooks/useDrawingState';
 import { useCanvasControls } from '@/hooks/useCanvasControls';
 import { useScaleDetection } from '@/hooks/useScaleDetection';
+import { useScaleCalibration } from '@/hooks/useScaleCalibration';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useMeasurements } from '@/hooks/useMeasurements';
 import { useCanvasEvents } from '@/hooks/useCanvasEvents';
@@ -83,6 +85,11 @@ export function TakeoffViewer() {
 
     const scaleDetection = useScaleDetection(pageId, page);
 
+    const scaleCalibration = useScaleCalibration();
+
+    // Track current mouse position for calibration preview
+    const [calibrationCurrentPoint, setCalibrationCurrentPoint] = useState<{ x: number; y: number } | null>(null);
+
     const measurements = useMeasurements(pageId);
 
     const canvasEvents = useCanvasEvents({
@@ -146,6 +153,86 @@ export function TakeoffViewer() {
         queryClient.invalidateQueries({ queryKey: ['page', pageId] });
     };
 
+    // Calibration mouse handlers - click-to-start, click-to-finish (left-click only)
+    const handleCalibrationClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+        if (!scaleCalibration.state.isCalibrating) return;
+        
+        // Only respond to left-click (button 0)
+        // Right-click (1) and middle-click (2) should be ignored for calibration
+        if (e.evt.button !== 0) return;
+        
+        const stage = e.target.getStage();
+        if (!stage) return;
+        
+        const pos = stage.getRelativePointerPosition();
+        if (!pos) return;
+        
+        if (!scaleCalibration.state.isDrawing) {
+            // First click: start drawing
+            scaleCalibration.startDrawing({ x: pos.x, y: pos.y });
+        } else {
+            // Second click: finish drawing
+            scaleCalibration.finishDrawing({ x: pos.x, y: pos.y });
+            setShowCalibrationDialog(true);
+        }
+    }, [scaleCalibration]);
+
+    const handleCalibrationMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+        if (!scaleCalibration.state.isCalibrating) return;
+        
+        const stage = e.target.getStage();
+        if (!stage) return;
+        
+        const pos = stage.getRelativePointerPosition();
+        if (!pos) return;
+        
+        setCalibrationCurrentPoint({ x: pos.x, y: pos.y });
+        
+        if (scaleCalibration.state.isDrawing) {
+            scaleCalibration.updateDrawing({ x: pos.x, y: pos.y });
+        }
+    }, [scaleCalibration]);
+
+    // Wrapped event handlers that check for calibration mode
+    const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+        if (scaleCalibration.state.isCalibrating) {
+            // In calibration mode, only allow panning with right/middle click
+            if (e.evt.button !== 0) {
+                canvasEvents.handleStageMouseDown(e);
+            }
+            return;
+        }
+        canvasEvents.handleStageMouseDown(e);
+    }, [scaleCalibration.state.isCalibrating, canvasEvents]);
+
+    const handleStageMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+        if (scaleCalibration.state.isCalibrating) {
+            handleCalibrationMouseMove(e);
+            // Also allow panning movement (for right/middle drag)
+            canvasEvents.handleStageMouseMove(e);
+        } else {
+            canvasEvents.handleStageMouseMove(e);
+        }
+    }, [scaleCalibration.state.isCalibrating, handleCalibrationMouseMove, canvasEvents]);
+
+    const handleStageMouseUp = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+        if (scaleCalibration.state.isCalibrating) {
+            // In calibration mode, only allow panning release with right/middle click
+            if (e.evt.button !== 0) {
+                canvasEvents.handleStageMouseUp(e);
+            }
+            return;
+        }
+        canvasEvents.handleStageMouseUp(e);
+    }, [scaleCalibration.state.isCalibrating, canvasEvents]);
+
+    const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+        if (scaleCalibration.state.isCalibrating) {
+            handleCalibrationClick(e);
+        }
+        // Normal mode doesn't use click events
+    }, [scaleCalibration.state.isCalibrating, handleCalibrationClick]);
+
     if (pageLoading) {
         return (
             <div className="flex items-center justify-center h-screen bg-neutral-950 text-white font-mono">
@@ -202,6 +289,23 @@ export function TakeoffViewer() {
                         onDismiss={scaleDetection.dismissResult}
                     />
 
+                    {/* Calibration Banner */}
+                    {scaleCalibration.state.isCalibrating && (
+                        <div className="bg-amber-500 text-black px-4 py-2 font-mono text-sm flex items-center justify-between">
+                            <span className="font-bold">
+                                CALIBRATION MODE: Draw a line over a known dimension
+                            </span>
+                            <button
+                                onClick={() => {
+                                    scaleCalibration.cancelCalibration();
+                                }}
+                                className="bg-black/20 hover:bg-black/30 px-3 py-1 rounded text-xs uppercase"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    )}
+
                     {/* Canvas */}
                     <div
                         id="canvas-container"
@@ -209,11 +313,13 @@ export function TakeoffViewer() {
                         style={{
                             minWidth: 0,
                             minHeight: 0,
-                            cursor: canvasEvents.isPanning
-                                ? 'grabbing'
-                                : (drawing.tool && drawing.tool !== 'select')
-                                    ? 'crosshair'
-                                    : 'grab',
+                            cursor: scaleCalibration.state.isCalibrating
+                                ? 'crosshair'
+                                : canvasEvents.isPanning
+                                    ? 'grabbing'
+                                    : (drawing.tool && drawing.tool !== 'select')
+                                        ? 'crosshair'
+                                        : 'grab',
                         }}
                         onContextMenu={(e) => e.preventDefault()}
                     >
@@ -221,14 +327,16 @@ export function TakeoffViewer() {
                             ref={stageRef}
                             width={canvasControls.stageSize.width}
                             height={canvasControls.stageSize.height}
+                            pixelRatio={1}
                             scaleX={canvasControls.zoom}
                             scaleY={canvasControls.zoom}
                             x={canvasControls.pan.x}
                             y={canvasControls.pan.y}
                             draggable={false}
-                            onMouseDown={canvasEvents.handleStageMouseDown}
-                            onMouseMove={canvasEvents.handleStageMouseMove}
-                            onMouseUp={canvasEvents.handleStageMouseUp}
+                            onMouseDown={handleStageMouseDown}
+                            onMouseMove={handleStageMouseMove}
+                            onMouseUp={handleStageMouseUp}
+                            onClick={handleStageClick}
                             onMouseLeave={canvasEvents.handleStageMouseLeave}
                             onDblClick={canvasEvents.handleStageDoubleClick}
                             onWheel={canvasEvents.handleWheelEvent}
@@ -295,6 +403,18 @@ export function TakeoffViewer() {
                                     />
                                 </Layer>
                             )}
+
+                            {/* Calibration overlay */}
+                            {scaleCalibration.state.isCalibrating && (
+                                <CalibrationOverlay
+                                    calibrationLine={scaleCalibration.state.calibrationLine}
+                                    startPoint={scaleCalibration.state.startPoint}
+                                    isDrawing={scaleCalibration.state.isDrawing}
+                                    currentPoint={calibrationCurrentPoint}
+                                    pixelDistance={scaleCalibration.state.pixelDistance}
+                                    scale={canvasControls.zoom}
+                                />
+                            )}
                         </Stage>
 
                         {/* Scale warning */}
@@ -337,6 +457,11 @@ export function TakeoffViewer() {
                 page={page}
                 pageId={pageId}
                 onScaleUpdated={handleScaleUpdated}
+                calibrationState={scaleCalibration.state}
+                onStartCalibration={scaleCalibration.startCalibration}
+                onCancelCalibration={scaleCalibration.cancelCalibration}
+                onClearLine={scaleCalibration.clearLine}
+                onSubmitCalibration={scaleCalibration.submitCalibration}
             />
         </div>
     );
