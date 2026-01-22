@@ -36,6 +36,18 @@ def _get_logger(*args, **kwargs) -> _LoggerStub:
 structlog_module.get_logger = _get_logger
 sys.modules.setdefault("structlog", structlog_module)
 
+# Stub app.config to avoid pulling in pydantic/settings dependencies.
+config_module = types.ModuleType("app.config")
+
+class _SettingsStub:
+    pass
+
+def _get_settings() -> _SettingsStub:
+    return _SettingsStub()
+
+config_module.get_settings = _get_settings
+sys.modules.setdefault("app.config", config_module)
+
 from app.services.ocr_service import TextBlock, TitleBlockParser
 from app.utils.image_utils import crop_image_bytes, resolve_region_to_pixels
 
