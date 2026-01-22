@@ -18,11 +18,25 @@ function getPixelDistance(start: { x: number; y: number }, end: { x: number; y: 
     return Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
 }
 
-/** Format distance for display */
+/** Format distance for display - shows feet and inches for ft unit */
 function formatDistance(pixelDistance: number, pixelsPerUnit?: number | null, unitLabel?: string): string {
     if (pixelsPerUnit && pixelsPerUnit > 0) {
         const realDistance = pixelDistance / pixelsPerUnit;
-        // Format with appropriate precision
+        
+        // For feet, show feet and inches format: XX' YY"
+        if (unitLabel === 'ft' || unitLabel === 'foot' || unitLabel === 'feet') {
+            const totalInches = realDistance * 12;
+            const feet = Math.floor(totalInches / 12);
+            const inches = Math.round(totalInches % 12);
+            
+            // Handle case where inches rounds to 12
+            if (inches === 12) {
+                return `${feet + 1}' 0"`;
+            }
+            return `${feet}' ${inches}"`;
+        }
+        
+        // Other units - show decimal format
         const formatted = realDistance < 1 
             ? realDistance.toFixed(2) 
             : realDistance < 10 
@@ -61,6 +75,7 @@ export function DrawingPreviewLayer({
                         const midX = (start.x + end.x) / 2;
                         const midY = (start.y + end.y) / 2;
                         const distanceText = formatDistance(pixelDist, pixelsPerUnit, unitLabel);
+                        console.log(`Line: start=(${start.x.toFixed(1)},${start.y.toFixed(1)}) end=(${end.x.toFixed(1)},${end.y.toFixed(1)}) pixelDist=${pixelDist.toFixed(1)} pixelsPerUnit=${pixelsPerUnit} -> ${distanceText}`);
                         
                         return (
                             <>
