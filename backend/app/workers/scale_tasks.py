@@ -99,9 +99,10 @@ def detect_page_scale_task(self, page_id: str) -> dict:
                 if page.page_width_inches and page.page_width_inches > 0 and scale_ratio and scale_ratio > 0:
                     # pixels_per_inch = image_width / physical_page_width
                     pixels_per_inch = page.width / page.page_width_inches
-                    # For scale like 1"=20' (ratio=20): 1 drawing inch = 20 real feet
-                    # So pixels_per_foot = pixels_per_inch / scale_ratio
-                    page.scale_value = pixels_per_inch / scale_ratio
+                    # scale_ratio is in INCHES per drawing inch (e.g., 96 for 1/8"=1'-0", 240 for 1"=20')
+                    # Convert to feet: scale_ratio / 12 = feet per drawing inch
+                    # pixels_per_foot = pixels_per_inch / (scale_ratio / 12) = pixels_per_inch * 12 / scale_ratio
+                    page.scale_value = pixels_per_inch * 12 / scale_ratio
                     logger.info(
                         "Calculated pixels_per_foot from physical dimensions",
                         page_id=page_id,

@@ -41,13 +41,14 @@ class ParsedScale:
         # 1 foot on the real building = 1/4" on the drawing
         # At 150 DPI: 1/4" = 150/4 = 37.5 pixels
         # So 1 real foot = 37.5 pixels
+        #
+        # scale_ratio is in INCHES per drawing inch (e.g., 48 for 1/4"=1'-0")
+        # Convert to feet: scale_ratio / 12 = feet per drawing inch
+        # pixels_per_foot = dpi / (scale_ratio / 12) = dpi * 12 / scale_ratio
 
         dpi = 150
         if self.drawing_unit == "inch":
-            # drawing_inches = real_feet / scale_ratio
-            # pixels = drawing_inches * dpi
-            # pixels_per_foot = dpi / scale_ratio
-            return dpi / self.scale_ratio
+            return dpi * 12 / self.scale_ratio
 
         return None
 
@@ -403,21 +404,32 @@ class ScaleDetector:
                                         .replace("/", "")
                                     )
 
-                                    # Calculate match score
+                                    # Calculate match score - require meaningful matches
+                                    score = 0
                                     if normalized_scale in block_text:
+                                        # Full scale text found in block
                                         score = len(normalized_scale) / len(block_text)
                                     elif block_text in normalized_scale:
+                                        # Block text is subset of scale
                                         score = len(block_text) / len(normalized_scale)
                                     else:
-                                        # Check for partial matches (e.g., "332" matches "3/32")
-                                        common = sum(
-                                            1
-                                            for c in normalized_scale
-                                            if c in block_text
-                                        )
-                                        score = common / max(
-                                            len(normalized_scale), len(block_text)
-                                        )
+                                        # For partial matches, require "scale" keyword OR
+                                        # the exact ratio portion (e.g., "1810" for 1/8" = 1'-0")
+                                        has_scale_keyword = "scale" in block_text
+                                        # Extract just the numbers from normalized_scale (e.g., "1810" from "scale1810")
+                                        scale_numbers = normalized_scale.replace("scale", "").replace(":", "")
+                                        has_scale_numbers = scale_numbers and scale_numbers in block_text
+                                        
+                                        if has_scale_keyword or has_scale_numbers:
+                                            # Calculate overlap score only if meaningful match
+                                            common = sum(
+                                                1
+                                                for c in normalized_scale
+                                                if c in block_text
+                                            )
+                                            score = common / max(
+                                                len(normalized_scale), len(block_text)
+                                            )
 
                                     if score > best_match_score and score > 0.5:
                                         best_match_score = score
@@ -549,7 +561,8 @@ class ScaleDetector:
                                                         len(normalized_combined),
                                                         len(normalized_scale),
                                                     )
-                                                    if score > best_match_score:
+                                                    # Require minimum 0.5 score for combined matching too
+                                                    if score > best_match_score and score > 0.5:
                                                         best_match_score = score
                                                         best_match_block = block  # Use last block for reference
                                                         best_match_combined = (
