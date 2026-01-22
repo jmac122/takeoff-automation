@@ -550,39 +550,49 @@ Test Cases:
 ```
 Continue to Phase 3B - Condition Management.
 
-Read `plans/07-CONDITION-MANAGEMENT.md` and implement all tasks in order:
+Read `plans/07-CONDITION-MANAGEMENT.md` and implement all tasks in order.
+
+**Important Context - Existing Implementation:**
+Some components already exist from earlier phases. Focus on EXTENDING existing code:
+
+Backend (already exists):
+- `models/condition.py` - Complete, includes line_width, fill_opacity, extra_metadata
+- `models/measurement.py` - Complete
+- `schemas/condition.py` - Has ConditionCreate, ConditionUpdate, ConditionResponse, ConditionListResponse
+- `routes/conditions.py` - Has basic CRUD (GET list, POST create, GET/PUT/DELETE by ID)
+- `routes/measurements.py` - Complete with CRUD and recalculate
+
+Frontend (already exists):
+- `viewer/ConditionsPanel.tsx` - Basic panel (needs upgrade)
+- `viewer/MeasurementsPanel.tsx` - Complete
 
 - Task 7.1: Condition API Routes
-  - Create/update `backend/app/api/routes/conditions.py`
-  - Define CONDITION_TEMPLATES list with common concrete conditions:
+  - EXTEND `backend/app/api/routes/conditions.py` (basic CRUD already exists)
+  - ADD CONDITION_TEMPLATES list with common concrete conditions:
     - Foundations: Strip Footing, Spread Footing, Foundation Wall, Grade Beam
     - Slabs: 4" SOG, 6" SOG Reinforced, 4" Sidewalk
     - Paving: 6" Concrete Paving, Curb & Gutter
     - Vertical: Concrete Column, 8" Concrete Wall
     - Miscellaneous: Concrete Pier, Catch Basin
-  - Implement endpoints:
+    - Include line_width=2 and fill_opacity=0.3 in each template
+  - ADD these new endpoints:
     - GET `/condition-templates` - list available templates with optional scope/category filters
-    - GET `/projects/{project_id}/conditions` - list project conditions with filters
-    - POST `/projects/{project_id}/conditions` - create new condition
     - POST `/projects/{project_id}/conditions/from-template` - create from template
-    - GET `/conditions/{condition_id}` - get condition details with measurements
-    - PUT `/conditions/{condition_id}` - update condition
-    - DELETE `/conditions/{condition_id}` - delete condition and measurements
     - POST `/conditions/{condition_id}/duplicate` - duplicate condition
     - PUT `/projects/{project_id}/conditions/reorder` - reorder conditions
+  - UPDATE existing endpoints:
+    - Add scope/category query filters to GET `/projects/{project_id}/conditions`
+    - Add selectinload(measurements) to GET `/conditions/{condition_id}`
 
 - Task 7.2: Condition Schemas
-  - Create `backend/app/schemas/condition.py` with:
-    - ConditionCreate schema
-    - ConditionUpdate schema
-    - ConditionResponse schema
-    - ConditionListResponse schema
-    - ConditionWithMeasurementsResponse schema
-    - ConditionTemplateResponse schema
-    - ConditionReorderRequest schema
+  - EXTEND `backend/app/schemas/condition.py` (base schemas already exist)
+  - ADD these missing schemas:
+    - ConditionWithMeasurementsResponse (extends ConditionResponse with measurements list)
+    - ConditionTemplateResponse (include line_width, fill_opacity)
+    - MeasurementSummary (brief measurement info for condition details)
 
 - Task 7.3: Frontend Condition Panel
-  - Create `frontend/src/components/takeoff/ConditionPanel.tsx`
+  - REPLACE `frontend/src/components/viewer/ConditionsPanel.tsx`
   - Display list of conditions grouped by category
   - Show condition color swatch, name, and total quantity
   - Implement condition selection (highlight active condition)
@@ -592,7 +602,7 @@ Read `plans/07-CONDITION-MANAGEMENT.md` and implement all tasks in order:
   - Implement context menu for edit, duplicate, delete actions
 
 - Task 7.4: Create Condition Modal
-  - Create `frontend/src/components/takeoff/CreateConditionModal.tsx`
+  - Create `frontend/src/components/viewer/CreateConditionModal.tsx`
   - Implement tabbed interface: "From Template" and "Custom"
   - Template tab: Display grouped templates, click to create
   - Custom tab:
@@ -603,7 +613,7 @@ Read `plans/07-CONDITION-MANAGEMENT.md` and implement all tasks in order:
     - Unit auto-selection based on measurement type
   - Use React Query mutations for API calls
 
-- Task 7.5: Condition Templates
+- Task 7.5: Condition Hooks
   - Create `frontend/src/hooks/useConditions.ts` with:
     - useConditions() for fetching project conditions
     - useConditionTemplates() for fetching templates
@@ -613,7 +623,7 @@ Read `plans/07-CONDITION-MANAGEMENT.md` and implement all tasks in order:
     - useDeleteCondition() mutation
     - useDuplicateCondition() mutation
     - useReorderConditions() mutation
-  - Implement drag-and-drop reordering using react-beautiful-dnd or similar
+  - Implement drag-and-drop reordering using @dnd-kit/core and @dnd-kit/sortable
 
 Run through the verification checklist:
 - [ ] Can create conditions from templates

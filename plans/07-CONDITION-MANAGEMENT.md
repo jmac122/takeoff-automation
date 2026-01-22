@@ -7,6 +7,41 @@
 
 ---
 
+## Current Implementation Status
+
+> **Important:** Some components already exist from earlier phases. This guide focuses on **extending** existing code rather than creating from scratch.
+
+### Backend - Already Implemented
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `models/condition.py` | ✅ Complete | Includes additional fields: `line_width`, `fill_opacity`, `extra_metadata` |
+| `models/measurement.py` | ✅ Complete | Full geometry and AI tracking support |
+| `schemas/condition.py` | ⚠️ Partial | Has `ConditionCreate`, `ConditionUpdate`, `ConditionResponse`, `ConditionListResponse` |
+| `routes/conditions.py` | ⚠️ Partial | Has basic CRUD, missing templates/duplicate/reorder endpoints |
+| `routes/measurements.py` | ✅ Complete | Full CRUD with recalculate support |
+
+### Backend - Needs to be Added
+- `GET /condition-templates` endpoint
+- `POST /projects/{id}/conditions/from-template` endpoint
+- `POST /conditions/{id}/duplicate` endpoint
+- `PUT /projects/{id}/conditions/reorder` endpoint
+- Query filters (`scope`, `category`) on list endpoint
+- `ConditionWithMeasurementsResponse`, `ConditionTemplateResponse`, `MeasurementSummary` schemas
+
+### Frontend - Already Implemented
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `viewer/ConditionsPanel.tsx` | ⚠️ Basic | Simple list display, needs upgrade to full-featured panel |
+| `viewer/MeasurementsPanel.tsx` | ✅ Complete | - |
+
+### Frontend - Needs to be Added
+- Upgrade `ConditionsPanel.tsx` with grouping, drag-and-drop, context menus
+- `CreateConditionModal.tsx`
+- `EditConditionModal.tsx`
+- `hooks/useConditions.ts`
+
+---
+
 ## Context for LLM Assistant
 
 You are implementing the condition management system for a construction takeoff platform. Conditions are "line items" that group related measurements:
@@ -58,7 +93,14 @@ Site:
 
 ### Task 7.1: Condition API Routes
 
-Create/update `backend/app/api/routes/conditions.py`:
+> **Note:** Basic CRUD endpoints already exist in `backend/app/api/routes/conditions.py`.
+> This task focuses on:
+> - Adding the `CONDITION_TEMPLATES` list
+> - Adding `scope` and `category` query filters to `list_project_conditions`
+> - Adding new endpoints: `/condition-templates`, `/from-template`, `/duplicate`, `/reorder`
+> - Updating `get_condition` to include measurements via `selectinload`
+
+Extend `backend/app/api/routes/conditions.py`:
 
 ```python
 """Condition endpoints."""
@@ -99,6 +141,8 @@ CONDITION_TEMPLATES = [
         "unit": "LF",
         "depth": 12,
         "color": "#EF4444",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     {
         "name": "Spread Footing 36\"x36\"x12\"",
@@ -108,6 +152,8 @@ CONDITION_TEMPLATES = [
         "unit": "EA",
         "depth": 12,
         "color": "#F97316",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     {
         "name": "Foundation Wall 8\"",
@@ -117,6 +163,8 @@ CONDITION_TEMPLATES = [
         "unit": "SF",
         "thickness": 8,
         "color": "#F59E0B",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     {
         "name": "Grade Beam 12\"x24\"",
@@ -126,6 +174,8 @@ CONDITION_TEMPLATES = [
         "unit": "LF",
         "depth": 24,
         "color": "#EAB308",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     # Slabs
     {
@@ -136,6 +186,8 @@ CONDITION_TEMPLATES = [
         "unit": "SF",
         "depth": 4,
         "color": "#22C55E",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     {
         "name": "6\" Concrete Slab Reinforced",
@@ -145,6 +197,8 @@ CONDITION_TEMPLATES = [
         "unit": "SF",
         "depth": 6,
         "color": "#10B981",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     {
         "name": "4\" Sidewalk",
@@ -154,6 +208,8 @@ CONDITION_TEMPLATES = [
         "unit": "SF",
         "depth": 4,
         "color": "#14B8A6",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     # Paving
     {
@@ -164,6 +220,8 @@ CONDITION_TEMPLATES = [
         "unit": "SF",
         "depth": 6,
         "color": "#06B6D4",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     {
         "name": "Curb & Gutter",
@@ -172,6 +230,8 @@ CONDITION_TEMPLATES = [
         "measurement_type": "linear",
         "unit": "LF",
         "color": "#0EA5E9",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     # Vertical
     {
@@ -181,6 +241,8 @@ CONDITION_TEMPLATES = [
         "measurement_type": "count",
         "unit": "EA",
         "color": "#3B82F6",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     {
         "name": "8\" Concrete Wall",
@@ -190,6 +252,8 @@ CONDITION_TEMPLATES = [
         "unit": "SF",
         "thickness": 8,
         "color": "#6366F1",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     # Miscellaneous
     {
@@ -199,6 +263,8 @@ CONDITION_TEMPLATES = [
         "measurement_type": "count",
         "unit": "EA",
         "color": "#8B5CF6",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
     {
         "name": "Catch Basin",
@@ -207,6 +273,8 @@ CONDITION_TEMPLATES = [
         "measurement_type": "count",
         "unit": "EA",
         "color": "#A855F7",
+        "line_width": 2,
+        "fill_opacity": 0.3,
     },
 ]
 
@@ -506,7 +574,14 @@ async def reorder_conditions(
 
 ### Task 7.2: Condition Schemas
 
-Create `backend/app/schemas/condition.py`:
+> **Note:** `ConditionCreate`, `ConditionUpdate`, `ConditionResponse`, and `ConditionListResponse` already exist in `backend/app/schemas/condition.py` with the additional fields (`line_width`, `fill_opacity`, `extra_metadata`).
+> 
+> This task focuses on adding the missing schemas:
+> - `ConditionWithMeasurementsResponse`
+> - `ConditionTemplateResponse`
+> - `MeasurementSummary`
+
+Extend `backend/app/schemas/condition.py` with the missing schemas:
 
 ```python
 """Condition schemas."""
@@ -527,9 +602,13 @@ class ConditionCreate(BaseModel):
     category: str | None = None
     measurement_type: str = Field(..., pattern="^(linear|area|volume|count)$")
     color: str = "#3B82F6"
+    line_width: int = 2          # Display line width
+    fill_opacity: float = 0.3    # Display fill opacity
     unit: str = "SF"
     depth: float | None = None
     thickness: float | None = None
+    sort_order: int = 0
+    extra_metadata: dict[str, Any] | None = None
 
 
 class ConditionUpdate(BaseModel):
@@ -539,10 +618,15 @@ class ConditionUpdate(BaseModel):
     description: str | None = None
     scope: str | None = None
     category: str | None = None
+    measurement_type: str | None = None
     color: str | None = None
+    line_width: int | None = None
+    fill_opacity: float | None = None
     unit: str | None = None
     depth: float | None = None
     thickness: float | None = None
+    sort_order: int | None = None
+    extra_metadata: dict[str, Any] | None = None
 
 
 class ConditionResponse(BaseModel):
@@ -558,12 +642,15 @@ class ConditionResponse(BaseModel):
     category: str | None = None
     measurement_type: str
     color: str
+    line_width: int
+    fill_opacity: float
     unit: str
     depth: float | None = None
     thickness: float | None = None
     total_quantity: float
     measurement_count: int
     sort_order: int
+    extra_metadata: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -574,6 +661,8 @@ class ConditionListResponse(BaseModel):
     conditions: list[ConditionResponse]
     total: int
 
+
+# ============== ADD THESE MISSING SCHEMAS ==============
 
 class MeasurementSummary(BaseModel):
     """Brief measurement info for condition details."""
@@ -606,13 +695,24 @@ class ConditionTemplateResponse(BaseModel):
     depth: float | None = None
     thickness: float | None = None
     color: str
+    line_width: int = 2
+    fill_opacity: float = 0.3
 ```
 
 ---
 
 ### Task 7.3: Frontend Condition Panel
 
-Create `frontend/src/components/takeoff/ConditionPanel.tsx`:
+> **Note:** A basic `ConditionsPanel.tsx` already exists at `frontend/src/components/viewer/ConditionsPanel.tsx`.
+> It displays conditions with color swatches and totals but lacks:
+> - Category grouping with expand/collapse
+> - Drag-and-drop reordering
+> - Context menu (edit, duplicate, delete)
+> - "Add Condition" button
+>
+> This task **replaces** the existing basic panel with the full-featured version below.
+
+Replace `frontend/src/components/viewer/ConditionsPanel.tsx`:
 
 ```tsx
 import { useState } from 'react';
@@ -970,7 +1070,7 @@ function SortableConditionItem({
 
 ### Task 7.4: Create Condition Modal
 
-Create `frontend/src/components/takeoff/CreateConditionModal.tsx`:
+Create `frontend/src/components/viewer/CreateConditionModal.tsx`:
 
 ```tsx
 import { useState } from 'react';
@@ -1015,6 +1115,8 @@ interface ConditionTemplate {
   depth: number | null;
   thickness: number | null;
   color: string;
+  line_width: number;
+  fill_opacity: number;
 }
 
 const COLORS = [
