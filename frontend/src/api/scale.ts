@@ -1,11 +1,12 @@
 import { apiClient } from './client';
+import type { JsonValue } from '@/types';
 
 export interface ScaleDetectionStatus {
     status: 'processing' | 'complete';
     scale_text: string | null;
     scale_value: number | null;
     calibrated: boolean;
-    detection: any | null;
+    detection: JsonValue | null;
 }
 
 export const scaleApi = {

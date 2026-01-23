@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import type { JsonValue } from '@/types';
 
 interface DetectionResult {
     best_scale?: {
@@ -6,8 +7,8 @@ interface DetectionResult {
         confidence: number;
         method: string;
     };
-    parsed_scales?: any[];
-    scale_bars?: any[];
+    parsed_scales?: JsonValue[];
+    scale_bars?: JsonValue[];
 }
 
 interface ScaleDetectionBannerProps {

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, ReactNode } from 'react';
 import { useNotifications, type NotificationType, type Notification } from '@/hooks/useNotifications';
 

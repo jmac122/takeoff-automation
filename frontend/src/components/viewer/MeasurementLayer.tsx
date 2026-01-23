@@ -1,13 +1,21 @@
 import { Layer, Line, Rect, Circle, Group, Text } from 'react-konva';
 
-import type { Measurement, Condition } from '@/types';
+import type { Condition, JsonObject, Measurement } from '@/types';
+
+type Point = { x: number; y: number };
+type LineData = { start: Point; end: Point };
+type PolylineData = { points: Point[] };
+type PolygonData = { points: Point[] };
+type RectangleData = { x: number; y: number; width: number; height: number };
+type CircleData = { center: Point; radius: number };
+type PointData = { x: number; y: number };
 
 interface MeasurementLayerProps {
     measurements: Measurement[];
     conditions: Map<string, Condition>;
     selectedMeasurementId: string | null;
     onMeasurementSelect: (id: string | null) => void;
-    onMeasurementUpdate: (id: string, geometryData: any) => void;
+    onMeasurementUpdate: (id: string, geometryData: JsonObject) => void;
     isEditing: boolean;
     scale: number; // Viewer zoom scale
 }
@@ -55,7 +63,7 @@ interface MeasurementShapeProps {
     isEditing: boolean;
     scale: number;
     onClick: () => void;
-    onUpdate: (geometryData: any) => void;
+    onUpdate: (geometryData: JsonObject) => void;
 }
 
 function MeasurementShape({
@@ -78,33 +86,38 @@ function MeasurementShape({
     };
 
     switch (geometry_type) {
-        case 'line':
+        case 'line': {
+            const lineData = geometry_data as unknown as LineData;
             return (
                 <LineShape
-                    start={geometry_data.start}
-                    end={geometry_data.end}
+                    start={lineData.start}
+                    end={lineData.end}
                     {...commonProps}
                     quantity={measurement.quantity}
                     unit={measurement.unit}
                     scale={scale}
                 />
             );
+        }
 
-        case 'polyline':
+        case 'polyline': {
+            const polylineData = geometry_data as unknown as PolylineData;
             return (
                 <PolylineShape
-                    points={geometry_data.points}
+                    points={polylineData.points}
                     {...commonProps}
                     quantity={measurement.quantity}
                     unit={measurement.unit}
                     scale={scale}
                 />
             );
+        }
 
-        case 'polygon':
+        case 'polygon': {
+            const polygonData = geometry_data as unknown as PolygonData;
             return (
                 <PolygonShape
-                    points={geometry_data.points}
+                    points={polygonData.points}
                     fill={color}
                     fillOpacity={fillOpacity}
                     {...commonProps}
@@ -113,14 +126,16 @@ function MeasurementShape({
                     scale={scale}
                 />
             );
+        }
 
-        case 'rectangle':
+        case 'rectangle': {
+            const rectangleData = geometry_data as unknown as RectangleData;
             return (
                 <RectangleShape
-                    x={geometry_data.x}
-                    y={geometry_data.y}
-                    width={geometry_data.width}
-                    height={geometry_data.height}
+                    x={rectangleData.x}
+                    y={rectangleData.y}
+                    width={rectangleData.width}
+                    height={rectangleData.height}
                     fill={color}
                     fillOpacity={fillOpacity}
                     {...commonProps}
@@ -129,12 +144,14 @@ function MeasurementShape({
                     scale={scale}
                 />
             );
+        }
 
-        case 'circle':
+        case 'circle': {
+            const circleData = geometry_data as unknown as CircleData;
             return (
                 <CircleShape
-                    center={geometry_data.center}
-                    radius={geometry_data.radius}
+                    center={circleData.center}
+                    radius={circleData.radius}
                     fill={color}
                     fillOpacity={fillOpacity}
                     {...commonProps}
@@ -143,17 +160,20 @@ function MeasurementShape({
                     scale={scale}
                 />
             );
+        }
 
-        case 'point':
+        case 'point': {
+            const pointData = geometry_data as unknown as PointData;
             return (
                 <PointShape
-                    x={geometry_data.x}
-                    y={geometry_data.y}
+                    x={pointData.x}
+                    y={pointData.y}
                     color={color}
                     {...commonProps}
                     scale={scale}
                 />
             );
+        }
 
         default:
             return null;
@@ -161,6 +181,16 @@ function MeasurementShape({
 }
 
 // Individual shape components
+interface CommonShapeProps {
+    stroke: string;
+    strokeWidth: number;
+    onClick: () => void;
+    onTap: () => void;
+    quantity: number;
+    unit: string;
+    scale: number;
+}
+
 function LineShape({
     start,
     end,
@@ -171,7 +201,7 @@ function LineShape({
     quantity,
     unit,
     scale,
-}: any) {
+}: { start: Point; end: Point } & CommonShapeProps) {
     const midX = (start.x + end.x) / 2;
     const midY = (start.y + end.y) / 2;
 
@@ -206,8 +236,8 @@ function PolylineShape({
     quantity,
     unit,
     scale,
-}: any) {
-    const flatPoints = points.flatMap((p: any) => [p.x, p.y]);
+}: { points: Point[] } & CommonShapeProps) {
+    const flatPoints = points.flatMap((point) => [point.x, point.y]);
     const firstPoint = points[0];
 
     return (
@@ -242,12 +272,16 @@ function PolygonShape({
     quantity,
     unit,
     scale,
-}: any) {
-    const flatPoints = points.flatMap((p: any) => [p.x, p.y]);
+}: {
+    points: Point[];
+    fill: string;
+    fillOpacity: number;
+} & CommonShapeProps) {
+    const flatPoints = points.flatMap((point) => [point.x, point.y]);
 
     // Calculate centroid for label
-    const centroidX = points.reduce((sum: number, p: any) => sum + p.x, 0) / points.length;
-    const centroidY = points.reduce((sum: number, p: any) => sum + p.y, 0) / points.length;
+    const centroidX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+    const centroidY = points.reduce((sum, point) => sum + point.y, 0) / points.length;
 
     return (
         <Group>
@@ -289,7 +323,14 @@ function RectangleShape({
     quantity,
     unit,
     scale,
-}: any) {
+}: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    fill: string;
+    fillOpacity: number;
+} & CommonShapeProps) {
     return (
         <Group>
             <Rect
@@ -330,7 +371,12 @@ function CircleShape({
     quantity,
     unit,
     scale,
-}: any) {
+}: {
+    center: Point;
+    radius: number;
+    fill: string;
+    fillOpacity: number;
+} & CommonShapeProps) {
     return (
         <Group>
             <Circle
@@ -365,7 +411,14 @@ function PointShape({
     onClick,
     onTap,
     scale,
-}: any) {
+}: {
+    x: number;
+    y: number;
+    color: string;
+    onClick: () => void;
+    onTap: () => void;
+    scale: number;
+}) {
     const markerSize = 8 / scale;
 
     return (

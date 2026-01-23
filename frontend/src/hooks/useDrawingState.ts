@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { DrawingTool } from '@/components/viewer/DrawingToolbar';
+import type { JsonObject } from '@/types';
 
 export interface Point {
     x: number;
@@ -10,16 +11,26 @@ export interface DrawingState {
     tool: DrawingTool;
     isDrawing: boolean;
     points: Point[];
-    previewShape: {
-        type: DrawingTool;
-        data: any;
-    } | null;
+    previewShape: PreviewShape | null;
 }
+
+export type LinePreviewData = { start: Point; end: Point };
+export type PolylinePreviewData = { points: Point[] };
+export type PolygonPreviewData = { points: Point[] };
+export type RectanglePreviewData = { x: number; y: number; width: number; height: number };
+export type CirclePreviewData = { center: Point; radius: number };
+
+export type PreviewShape =
+    | { type: 'line'; data: LinePreviewData }
+    | { type: 'polyline'; data: PolylinePreviewData }
+    | { type: 'polygon'; data: PolygonPreviewData }
+    | { type: 'rectangle'; data: RectanglePreviewData }
+    | { type: 'circle'; data: CirclePreviewData };
 
 interface HistoryState {
     action: 'create' | 'update' | 'delete';
     measurementId: string;
-    data: any;
+    data: JsonObject | null;
 }
 
 export function useDrawingState() {
