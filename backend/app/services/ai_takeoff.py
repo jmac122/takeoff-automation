@@ -1,8 +1,6 @@
 """AI-powered takeoff generation service with multi-provider support."""
 
-import json
-import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import structlog

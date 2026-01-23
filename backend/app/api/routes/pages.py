@@ -1,14 +1,17 @@
 """Page endpoints."""
 
 import uuid
+from enum import Enum
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.config import get_settings
 from app.models.page import Page
 from app.models.document import Document
 from app.models.classification_history import ClassificationHistory
@@ -20,16 +23,24 @@ from app.schemas.page import (
     PageDocumentInfo,
     ScaleUpdateRequest,
 )
+from app.services.scale_detector import get_scale_detector
 from app.utils.storage import get_storage_service
 from app.workers.ocr_tasks import process_page_ocr_task
 from app.workers.classification_tasks import classify_page_task, classify_document_pages
 from app.workers.scale_tasks import detect_page_scale_task
-from app.services.scale_detector import get_scale_detector
-from app.config import get_settings
-from pydantic import BaseModel
 
 router = APIRouter()
 settings = get_settings()
+
+
+class ScaleDetectionMethod(str, Enum):
+    """Scale detection method constants."""
+    
+    MANUAL_CALIBRATION = "manual_calibration"
+    VISION_LLM = "vision_llm"
+    OCR_PREDETECTED = "ocr_predetected"
+    OCR_PATTERN_MATCH = "ocr_pattern_match"
+    SCALE_BAR = "scale_bar"
 
 
 def get_viewer_image_key(image_key: str) -> str:
@@ -740,7 +751,7 @@ async def update_page_scale(
     page.scale_value = request.scale_value
     page.scale_unit = request.scale_unit
     page.scale_calibrated = True
-    page.scale_detection_method = "manual_calibration"
+    page.scale_detection_method = ScaleDetectionMethod.MANUAL_CALIBRATION
 
     if request.scale_text:
         page.scale_text = request.scale_text
@@ -748,7 +759,7 @@ async def update_page_scale(
     # Store calibration source
     if not page.scale_calibration_data:
         page.scale_calibration_data = {}
-    page.scale_calibration_data["manual_calibration"] = {
+    page.scale_calibration_data[ScaleDetectionMethod.MANUAL_CALIBRATION] = {
         "scale_value": request.scale_value,
         "scale_unit": request.scale_unit,
         "scale_text": request.scale_text,
@@ -804,7 +815,7 @@ async def calibrate_page_scale(
     page.scale_value = calibration["pixels_per_foot"]
     page.scale_unit = "foot"
     page.scale_calibrated = True
-    page.scale_detection_method = "manual_calibration"
+    page.scale_detection_method = ScaleDetectionMethod.MANUAL_CALIBRATION
 
     # Store calibration data
     if not page.scale_calibration_data:

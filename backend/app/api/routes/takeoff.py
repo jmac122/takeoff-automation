@@ -3,6 +3,7 @@
 import uuid
 from typing import Annotated, Any
 
+from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from app.config import get_settings
 from app.models.page import Page
 from app.models.document import Document
 from app.models.condition import Condition
+from app.workers.celery_app import celery_app
 from app.workers.takeoff_tasks import (
     generate_ai_takeoff_task,
     compare_providers_task,
@@ -402,9 +404,6 @@ async def get_task_status(task_id: str) -> TaskStatusResponse:
 
     Returns the task state and result if complete.
     """
-    from celery.result import AsyncResult
-    from app.workers.celery_app import celery_app
-
     result = AsyncResult(task_id, app=celery_app)
 
     response_data = {
