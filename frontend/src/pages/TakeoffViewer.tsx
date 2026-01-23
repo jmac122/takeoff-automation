@@ -28,6 +28,7 @@ import { usePageImage } from '@/hooks/usePageImage';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import { createMeasurementGeometry } from '@/utils/measurementUtils';
 import { pollUntil } from '@/utils/polling';
+import { AITakeoffDialog } from '@/components/takeoff/AITakeoffDialog';
 import type { Page, Measurement, Condition, JsonObject } from '@/types';
 
 export function TakeoffViewer() {
@@ -47,6 +48,7 @@ export function TakeoffViewer() {
     const [showTitleBlockRegion, setShowTitleBlockRegion] = useState(true);
     const [isTitleBlockMode, setIsTitleBlockMode] = useState(false);
     const [isToolsCollapsed, setIsToolsCollapsed] = useState(false);
+    const [aiTakeoffCondition, setAiTakeoffCondition] = useState<{ id: string; name: string } | null>(null);
     const [titleBlockStart, setTitleBlockStart] = useState<{ x: number; y: number } | null>(null);
     const [titleBlockCurrent, setTitleBlockCurrent] = useState<{ x: number; y: number } | null>(null);
     const [pendingTitleBlock, setPendingTitleBlock] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -467,6 +469,8 @@ export function TakeoffViewer() {
             {/* Consolidated Header with all controls */}
             <ViewerHeader
                 page={page}
+                pageId={pageId}
+                projectId={projectId}
                 zoom={canvasControls.zoom}
                 isFullscreen={isFullscreen}
                 isDetectingScale={scaleDetection.isDetecting}
@@ -485,6 +489,11 @@ export function TakeoffViewer() {
                 onToggleScaleLocation={() => setShowScaleLocation(!showScaleLocation)}
                 onToggleTitleBlockMode={handleToggleTitleBlockMode}
                 onToggleTitleBlockRegion={() => setShowTitleBlockRegion((prev) => !prev)}
+                onAutonomousTakeoffComplete={() => {
+                    queryClient.invalidateQueries({ queryKey: ['measurements', pageId] });
+                    queryClient.invalidateQueries({ queryKey: ['conditions'] });
+                    addNotification('success', 'Autonomous Takeoff Complete', 'AI has identified concrete elements and created measurements.');
+                }}
             />
 
             {/* Main content area with canvas and sidebar */}
@@ -727,6 +736,17 @@ export function TakeoffViewer() {
                                 projectId={page.document.project_id}
                                 selectedConditionId={selectedConditionId}
                                 onConditionSelect={setSelectedConditionId}
+                                pageId={pageId}
+                                isPageCalibrated={Boolean(
+                                    page?.scale_calibrated && (
+                                        page?.scale_detection_method === 'manual_calibration' ||
+                                        page?.scale_calibration_data?.manual_calibration ||
+                                        page?.scale_calibration_data?.calibration
+                                    )
+                                )}
+                                onAITakeoff={(conditionId, conditionName) => {
+                                    setAiTakeoffCondition({ id: conditionId, name: conditionName });
+                                }}
                             />
                         )}
 
@@ -762,6 +782,23 @@ export function TakeoffViewer() {
                 onClearLine={scaleCalibration.clearLine}
                 onSubmitCalibration={scaleCalibration.submitCalibration}
             />
+
+            {/* AI Takeoff Dialog */}
+            {aiTakeoffCondition && pageId && (
+                <AITakeoffDialog
+                    pageId={pageId}
+                    conditionId={aiTakeoffCondition.id}
+                    conditionName={aiTakeoffCondition.name}
+                    isPageCalibrated={page?.scale_calibrated ?? false}
+                    open={!!aiTakeoffCondition}
+                    onOpenChange={(open) => !open && setAiTakeoffCondition(null)}
+                    onComplete={() => {
+                        queryClient.invalidateQueries({ queryKey: ['measurements', pageId] });
+                        queryClient.invalidateQueries({ queryKey: ['conditions'] });
+                        addNotification('success', 'AI Takeoff Complete', 'Measurements have been generated.');
+                    }}
+                />
+            )}
         </div>
     );
 }
