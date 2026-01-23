@@ -740,6 +740,7 @@ async def update_page_scale(
     page.scale_value = request.scale_value
     page.scale_unit = request.scale_unit
     page.scale_calibrated = True
+    page.scale_detection_method = "manual_calibration"
 
     if request.scale_text:
         page.scale_text = request.scale_text
@@ -803,6 +804,7 @@ async def calibrate_page_scale(
     page.scale_value = calibration["pixels_per_foot"]
     page.scale_unit = "foot"
     page.scale_calibrated = True
+    page.scale_detection_method = "manual_calibration"
 
     # Store calibration data
     if not page.scale_calibration_data:

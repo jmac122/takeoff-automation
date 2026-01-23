@@ -156,6 +156,7 @@ export function TakeoffViewer() {
 
     const handleScaleUpdated = () => {
         queryClient.invalidateQueries({ queryKey: ['page', pageId] });
+        queryClient.refetchQueries({ queryKey: ['page', pageId] });
     };
 
     const MIN_TITLE_BLOCK_SIZE = 10;
