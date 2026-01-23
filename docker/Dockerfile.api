@@ -16,10 +16,8 @@ RUN apt-get update && apt-get install -y \
 COPY backend/requirements.txt .
 COPY backend/requirements-base.txt .
 COPY backend/requirements-dev.txt .
-COPY backend/requirements-full.txt .
-COPY backend/requirements-ml.txt .
-# Use full requirements for OpenCV and ML dependencies
-RUN pip install --no-cache-dir -r requirements-full.txt -r requirements-dev.txt
+# Use core requirements (no ML/AI packages)
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
 # Copy source code
 COPY backend/ .
