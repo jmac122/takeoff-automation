@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db
 from app.config import get_settings
 from app.models.page import Page
+from app.models.document import Document
 from app.models.condition import Condition
 from app.workers.takeoff_tasks import (
     generate_ai_takeoff_task,
@@ -97,15 +98,21 @@ async def generate_ai_takeoff(
     Optionally specify an LLM provider to use.
     Available providers: anthropic, openai, google, xai
     """
-    # Verify page exists
-    result = await db.execute(select(Page).where(Page.id == page_id))
-    page = result.scalar_one_or_none()
+    # Verify page exists and get its project via document
+    result = await db.execute(
+        select(Page, Document)
+        .join(Document, Page.document_id == Document.id)
+        .where(Page.id == page_id)
+    )
+    row = result.one_or_none()
 
-    if not page:
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Page not found",
         )
+    
+    page, document = row
 
     # Verify page is calibrated
     if not page.scale_calibrated:
@@ -123,6 +130,13 @@ async def generate_ai_takeoff(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Condition not found",
+        )
+
+    # Verify page and condition belong to the same project
+    if document.project_id != condition.project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Page and condition must belong to the same project",
         )
 
     # Validate provider if specified
@@ -168,15 +182,21 @@ async def autonomous_ai_takeoff(
     If project_id is provided, conditions will be auto-created for each
     element type the AI discovers.
     """
-    # Verify page exists
-    result = await db.execute(select(Page).where(Page.id == page_id))
-    page = result.scalar_one_or_none()
+    # Verify page exists and get its project via document
+    result = await db.execute(
+        select(Page, Document)
+        .join(Document, Page.document_id == Document.id)
+        .where(Page.id == page_id)
+    )
+    row = result.one_or_none()
 
-    if not page:
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Page not found",
         )
+    
+    page, document = row
 
     # Verify page is calibrated
     if not page.scale_calibrated:
@@ -194,11 +214,24 @@ async def autonomous_ai_takeoff(
             f"Available: {settings.available_providers}",
         )
 
+    # If project_id is provided, verify it matches the page's project
+    project_id_to_use = request.project_id
+    if project_id_to_use:
+        project_uuid = uuid.UUID(project_id_to_use)
+        if project_uuid != document.project_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Provided project_id does not match the page's project",
+            )
+    else:
+        # Use the page's actual project
+        project_id_to_use = str(document.project_id)
+
     # Queue the autonomous task
     task = autonomous_ai_takeoff_task.delay(
         str(page_id),
         provider=provider,
-        project_id=request.project_id,
+        project_id=project_id_to_use,
     )
 
     provider_msg = f" using {provider}" if provider else ""
@@ -221,15 +254,21 @@ async def compare_providers(
     Useful for benchmarking which provider works best for specific content.
     Does not create measurements - just returns comparison data.
     """
-    # Verify page exists
-    result = await db.execute(select(Page).where(Page.id == page_id))
-    page = result.scalar_one_or_none()
+    # Verify page exists and get its project via document
+    result = await db.execute(
+        select(Page, Document)
+        .join(Document, Page.document_id == Document.id)
+        .where(Page.id == page_id)
+    )
+    row = result.one_or_none()
 
-    if not page:
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Page not found",
         )
+    
+    page, document = row
 
     if not page.scale_calibrated:
         raise HTTPException(
@@ -240,10 +279,19 @@ async def compare_providers(
     # Verify condition exists
     condition_uuid = uuid.UUID(request.condition_id)
     result = await db.execute(select(Condition).where(Condition.id == condition_uuid))
-    if not result.scalar_one_or_none():
+    condition = result.scalar_one_or_none()
+    
+    if not condition:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Condition not found",
+        )
+
+    # Verify page and condition belong to the same project
+    if document.project_id != condition.project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Page and condition must belong to the same project",
         )
 
     # Validate providers if specified
@@ -277,11 +325,14 @@ async def batch_ai_takeoff(
     """Generate AI takeoff for multiple pages.
 
     Queues individual tasks for each page.
+    All pages must belong to the same project as the condition.
     """
     # Verify condition exists
     condition_uuid = uuid.UUID(request.condition_id)
     result = await db.execute(select(Condition).where(Condition.id == condition_uuid))
-    if not result.scalar_one_or_none():
+    condition = result.scalar_one_or_none()
+    
+    if not condition:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Condition not found",
@@ -293,6 +344,34 @@ async def batch_ai_takeoff(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Provider '{request.provider}' not available. "
             f"Available: {settings.available_providers}",
+        )
+
+    # Verify all pages exist and belong to the condition's project
+    page_uuids = [uuid.UUID(pid) for pid in request.page_ids]
+    result = await db.execute(
+        select(Page, Document)
+        .join(Document, Page.document_id == Document.id)
+        .where(Page.id.in_(page_uuids))
+    )
+    rows = result.all()
+    
+    if len(rows) != len(page_uuids):
+        found_ids = {str(row[0].id) for row in rows}
+        missing = [pid for pid in request.page_ids if pid not in found_ids]
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pages not found: {missing}",
+        )
+
+    # Check all pages belong to the condition's project
+    invalid_pages = [
+        str(page.id) for page, doc in rows 
+        if doc.project_id != condition.project_id
+    ]
+    if invalid_pages:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Pages do not belong to the condition's project: {invalid_pages}",
         )
 
     # Queue batch task

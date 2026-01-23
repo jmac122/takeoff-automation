@@ -257,10 +257,13 @@ class LLMClient:
         original_img = Image.open(io.BytesIO(image_bytes))
         original_width, original_height = original_img.width, original_img.height
         
+        original_format = original_img.format or "unknown"
+        
         if (original_width, original_height) != (new_width, new_height):
             logger.info(
                 "Resized image for LLM (provider-specific)",
                 provider=provider.value,
+                original_format=original_format,
                 original_size=f"{original_width}x{original_height}",
                 new_size=f"{new_width}x{new_height}",
                 max_dimension=max_dim,
@@ -269,6 +272,7 @@ class LLMClient:
             logger.info(
                 "Using original image resolution for LLM",
                 provider=provider.value,
+                original_format=original_format,
                 size=f"{new_width}x{new_height}",
                 provider_max=max_dim,
             )

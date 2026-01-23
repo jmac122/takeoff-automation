@@ -427,7 +427,9 @@ class AITakeoffService:
             for elem in data.get("elements", []):
                 geometry_type = elem.get("geometry_type", "polygon")
                 element_type = elem.get("element_type", "unknown")
-                depth_inches = elem.get("depth_inches")
+                # Convert depth_inches to float - LLM may return string or number
+                raw_depth = elem.get("depth_inches")
+                depth_inches = float(raw_depth) if raw_depth is not None else None
 
                 if geometry_type == "point":
                     geometry_data = {"x": elem.get("x", 0), "y": elem.get("y", 0)}

@@ -15,6 +15,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.config import get_settings
 from app.models.page import Page
+from app.models.document import Document
 from app.models.condition import Condition
 from app.models.measurement import Measurement
 from app.services.ai_takeoff import get_ai_takeoff_service, AITakeoffResult, DetectedElement
@@ -59,7 +60,8 @@ def create_measurement_from_element(
             return None
         
         # Use element depth if available, otherwise condition depth
-        depth_inches = element.depth_inches or (condition.depth * 12 if condition.depth else None)
+        # Note: condition.depth is already stored in inches (e.g., 4 for "4" SOG")
+        depth_inches = element.depth_inches or condition.depth
         
         calculation = calculator.calculate_polygon(points, depth_inches)
         quantity = calculation.get("area_sf", 0)
@@ -143,7 +145,7 @@ def generate_ai_takeoff_task(
             page_uuid = uuid.UUID(page_id)
             condition_uuid = uuid.UUID(condition_id)
 
-            # Get page and condition
+            # Get page with document for project validation
             page = db.query(Page).filter(Page.id == page_uuid).one_or_none()
             condition = db.query(Condition).filter(Condition.id == condition_uuid).one_or_none()
 
@@ -151,6 +153,11 @@ def generate_ai_takeoff_task(
                 raise ValueError(f"Page not found: {page_id}")
             if not condition:
                 raise ValueError(f"Condition not found: {condition_id}")
+
+            # Verify page and condition belong to the same project
+            document = db.query(Document).filter(Document.id == page.document_id).one()
+            if document.project_id != condition.project_id:
+                raise ValueError("Page and condition must belong to the same project")
 
             # Verify page is calibrated
             if not page.scale_calibrated or not page.scale_value:
@@ -501,6 +508,15 @@ def autonomous_ai_takeoff_task(
 
             if not page.scale_calibrated or not page.scale_value:
                 raise ValueError("Page must be calibrated before AI takeoff")
+
+            # Verify project_id matches the page's project (if provided)
+            document = db.query(Document).filter(Document.id == page.document_id).one()
+            if project_uuid and project_uuid != document.project_id:
+                raise ValueError("Provided project_id does not match the page's project")
+            
+            # Use the page's actual project if not provided
+            if not project_uuid:
+                project_uuid = document.project_id
 
             # Get page image
             storage = get_storage_service()
