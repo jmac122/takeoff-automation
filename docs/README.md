@@ -15,8 +15,10 @@ Complete documentation for the ForgeX Takeoffs platform.
 | [Database Schema](./database/DATABASE_SCHEMA.md) | Database structure and relationships |
 | [OCR Service](./services/OCR_SERVICE.md) | OCR service implementation guide |
 | [Scale Service](./services/SCALE_SERVICE.md) | Scale detection and calibration service |
+| [Measurement Service](./services/MEASUREMENT_SERVICE.md) | Measurement engine service |
 | [Google Cloud Setup](./deployment/GOOGLE_CLOUD_SETUP.md) | Google Cloud Platform configuration |
 | [Phase 2B Complete](./phase-guides/PHASE_2B_COMPLETE.md) | ✅ Phase 2B completion status |
+| [Phase 3A Guide](./phase-guides/PHASE_3A_GUIDE.md) | ⭐ Complete measurement engine guide |
 
 ---
 
@@ -56,11 +58,14 @@ Complete documentation for the ForgeX Takeoffs platform.
 - **PHASE_2A_COMPLETE.md** - Page classification (complete)
 - **PHASE_2A_DOCKER_TESTING.md** - Docker testing guide for Phase 2A
 - **PHASE_2B_COMPLETE.md** - Scale detection and calibration (complete)
+- **PHASE_3A_GUIDE.md** - ⭐ Measurement engine complete guide (API, geometry types, examples)
+- **PHASE_3A_COMPLETE.md** - Measurement engine implementation report
 - **PHASE_3B_COMPLETE.md** - Condition management (complete)
 
 ### `/services/` - Service Documentation
 - **OCR_SERVICE.md** - OCR service implementation and usage
 - **SCALE_SERVICE.md** - Scale detection and calibration service
+- **MEASUREMENT_SERVICE.md** - Measurement engine service implementation
 
 ---
 
