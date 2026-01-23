@@ -655,7 +655,8 @@ Test Cases:
 ```
 Continue to Phase 4A - AI Takeoff Generation.
 
-Read `plans/08-AI-TAKEOFF-GENERATION.md` and implement all tasks in order:
+Read `plans/08-AI-TAKEOFF-GENERATION.md`.
+For frontend tasks, also refer to `docs/design/DESIGN-SYSTEM.md`, `docs/design/COMPONENT_LIBRARY.md`, and the `@industrial-tactical-ui.mdc` rule for aesthetic guidance.
 
 - Task 8.1: AI Takeoff Service with Provider Selection
   - Create `backend/app/services/ai_takeoff.py`
@@ -777,7 +778,8 @@ Accuracy Testing:
 ```
 Continue to Phase 4B - Review Interface.
 
-Read `plans/09-REVIEW-INTERFACE.md` and implement all tasks in order:
+Read `plans/09-REVIEW-INTERFACE.md`.
+For frontend tasks, also refer to `docs/design/DESIGN-SYSTEM.md`, `docs/design/COMPONENT_LIBRARY.md`, and the `@industrial-tactical-ui.mdc` rule for aesthetic guidance.
 
 - Task 9.1: Add Review Fields to Models
   - Update `backend/app/models/measurement.py` with:
@@ -895,7 +897,8 @@ Test Cases:
 ```
 Continue to Phase 5A - Export System.
 
-Read `plans/10-EXPORT-SYSTEM.md` and implement all tasks in order:
+Read `plans/10-EXPORT-SYSTEM.md`.
+For frontend tasks, also refer to `docs/design/DESIGN-SYSTEM.md`, `docs/design/COMPONENT_LIBRARY.md`, and the `@industrial-tactical-ui.mdc` rule for aesthetic guidance.
 
 - Task 10.1: Export Job Model
   - Create `backend/app/models/export.py` with:
@@ -1072,7 +1075,8 @@ Test Cases:
 ```
 Continue to Phase 5B - Testing & Quality Assurance.
 
-Read `plans/11-TESTING-QA.md` and implement all tasks in order:
+Read `plans/11-TESTING-QA.md`.
+For frontend tests, also refer to `docs/design/DESIGN-SYSTEM.md`, `docs/design/COMPONENT_LIBRARY.md`, and the `@industrial-tactical-ui.mdc` rule for aesthetic guidance.
 
 - Task 11.1: Test Configuration and Fixtures
   - Update `backend/tests/conftest.py` with:
@@ -1249,7 +1253,7 @@ CI/CD:
 - [ ] Unit tests run on every PR
 - [ ] Coverage threshold enforced (80%)
 - [ ] Accuracy tests run on main branch
-- [ ] Test reports generated
+- [ ] Test reports generated 
 
 Performance:
 - [ ] API responses under 200ms
@@ -1265,7 +1269,8 @@ Performance:
 ```
 Continue to Phase 6 - Deployment & Operations.
 
-Read `plans/12-DEPLOYMENT.md` and implement all tasks in order:
+Read `plans/12-DEPLOYMENT.md`.
+For frontend tasks, also refer to `docs/design/DESIGN-SYSTEM.md`, `docs/design/COMPONENT_LIBRARY.md`, and the `@industrial-tactical-ui.mdc` rule for aesthetic guidance.
 
 - Task 12.1: Production Dockerfiles
   - Create `docker/Dockerfile.api` (multi-stage build):

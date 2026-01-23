@@ -1,15 +1,15 @@
 import { apiClient } from './client';
-import type { Measurement } from '@/types';
+import type { JsonObject, Measurement } from '@/types';
 
 export interface MeasurementCreateRequest {
   page_id: string;
   geometry_type: string;
-  geometry_data: Record<string, any>;
+  geometry_data: JsonObject;
   notes?: string | null;
 }
 
 export interface MeasurementUpdateRequest {
-  geometry_data?: Record<string, any>;
+  geometry_data?: JsonObject;
   notes?: string | null;
 }
 

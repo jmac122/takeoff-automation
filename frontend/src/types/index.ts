@@ -1,4 +1,13 @@
 // API Response Types
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+export type JsonObject = Record<string, JsonValue>;
 export interface HealthResponse {
   status: string;
 }
@@ -25,7 +34,7 @@ export interface Measurement {
   condition_id: string;
   page_id: string;
   geometry_type: "line" | "polyline" | "polygon" | "rectangle" | "circle" | "point";
-  geometry_data: Record<string, any>;
+  geometry_data: JsonObject;
   quantity: number;
   unit: string;
   pixel_length?: number | null;
@@ -57,9 +66,36 @@ export interface Condition {
   total_quantity: number;
   measurement_count: number;
   sort_order: number;
-  extra_metadata?: Record<string, any> | null;
+  extra_metadata?: JsonObject | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface MeasurementSummary {
+  id: string;
+  page_id: string;
+  geometry_type: string;
+  quantity: number;
+  unit: string;
+  is_ai_generated: boolean;
+  is_verified: boolean;
+}
+
+export interface ConditionWithMeasurements extends Condition {
+  measurements: MeasurementSummary[];
+}
+
+export interface ConditionTemplate {
+  name: string;
+  scope: string;
+  category?: string | null;
+  measurement_type: "linear" | "area" | "volume" | "count";
+  unit: string;
+  depth?: number | null;
+  thickness?: number | null;
+  color: string;
+  line_width: number;
+  fill_opacity: number;
 }
 
 // Project Types
@@ -91,6 +127,22 @@ export interface PageSummary {
   concrete_relevance?: string | null;
   scale_calibrated: boolean;
   thumbnail_url?: string | null;
+}
+
+export interface ScaleDetectionResult {
+  best_scale?: {
+    text: string;
+    confidence: number;
+    method: string;
+    bbox?: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+  };
+  parsed_scales?: JsonValue[];
+  scale_bars?: JsonValue[];
 }
 
 export interface Page {
@@ -130,8 +182,8 @@ export interface Page {
         height: number;
       };
     };
-    parsed_scales?: any[];
-    scale_bars?: any[];
+    parsed_scales?: JsonValue[];
+    scale_bars?: JsonValue[];
   } | null;
   image_url?: string | null;
   thumbnail_url?: string | null;
@@ -154,8 +206,8 @@ export interface Page {
     detected_sheet_numbers?: string[];
     detected_titles?: string[];
   } | null;
-  title_block_data?: Record<string, any> | null;
-  extra_metadata?: Record<string, any> | null;
+  title_block_data?: JsonObject | null;
+  extra_metadata?: JsonObject | null;
   created_at: string;
   updated_at: string;
   document?: {

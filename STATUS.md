@@ -1,8 +1,8 @@
 # ForgeX Takeoffs - Project Status
 
-**Last Updated:** January 21, 2026  
-**Current Phase:** 🔄 Phase 3A In Progress - Measurement Engine  
-**Recent Updates:** Classification optimizations complete (OCR-based default, image compression, auto-classification)
+**Last Updated:** January 22, 2026  
+**Current Phase:** ✅ Phase 3B Complete - Condition Management (Phase 3A still in progress)  
+**Recent Updates:** Condition templates, duplication/reorder endpoints, upgraded Conditions UI, lint cleanup, and dev-test support in Docker
 
 ---
 
@@ -122,13 +122,34 @@
 - [Phase 2B Complete Guide](docs/phase-guides/PHASE_2B_COMPLETE.md)
 - [Scale Service Docs](docs/services/SCALE_SERVICE.md)
 
+### Phase 3B: Condition Management (Weeks 14-18)
+**Status:** COMPLETE ✅  
+**Completed:** January 22, 2026
+
+- ✅ Condition templates with scope/category grouping
+- ✅ Condition duplication and reorder endpoints
+- ✅ Project condition filtering (scope/category)
+- ✅ Condition detail loads measurements
+- ✅ Drag-and-drop reorder in UI
+- ✅ Create/Edit condition modals (template + custom)
+- ✅ Condition totals and measurement counts in panel
+
+**Key Features:**
+- **Templates:** Common concrete conditions with standard styling (line width/fill opacity)
+- **Reordering:** Persisted sort order per project
+- **UX:** Grouped panel, context menu actions, and color picker
+
+**Testing:**
+- ✅ Backend tests: `tests/test_condition_templates.py`
+- ✅ Frontend lint clean in Docker
+
 ---
 
 ## 🔄 Current Phase
 
 ### Phase 3A: Measurement Engine (Weeks 13-16)
 **Status:** IN PROGRESS ✅  
-**Updated:** January 21, 2026
+**Updated:** January 22, 2026
 
 **Completed:**
 - ✅ Line measurement tool with real-time distance display
@@ -147,7 +168,6 @@
 - Polyline, polygon, rectangle, circle tools
 - Area/perimeter calculations
 - Measurement persistence and editing
-- Condition linking
 
 **See:** `plans/06-MEASUREMENT-ENGINE.md`
 
@@ -291,6 +311,12 @@ docker compose up -d
 - `PUT /pages/{id}/scale` - Manually set scale
 - `POST /pages/{id}/calibrate` - Calibrate from measurement
 - `POST /pages/{id}/copy-scale-from/{source_id}` - Copy scale
+
+### Phase 3B - Condition Management
+- `GET /condition-templates` - List condition templates
+- `POST /projects/{id}/conditions/from-template` - Create from template
+- `POST /conditions/{id}/duplicate` - Duplicate condition
+- `PUT /projects/{id}/conditions/reorder` - Reorder conditions
 
 ---
 

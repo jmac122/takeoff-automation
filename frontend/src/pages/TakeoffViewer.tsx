@@ -21,13 +21,14 @@ import { useCanvasControls } from '@/hooks/useCanvasControls';
 import { useScaleDetection } from '@/hooks/useScaleDetection';
 import { useScaleCalibration } from '@/hooks/useScaleCalibration';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useConditions } from '@/hooks/useConditions';
 import { useMeasurements } from '@/hooks/useMeasurements';
 import { useCanvasEvents } from '@/hooks/useCanvasEvents';
 import { usePageImage } from '@/hooks/usePageImage';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import { createMeasurementGeometry } from '@/utils/measurementUtils';
 import { pollUntil } from '@/utils/polling';
-import type { Page, Measurement, Condition } from '@/types';
+import type { Page, Measurement, Condition, JsonObject } from '@/types';
 
 export function TakeoffViewer() {
     const { pageId } = useParams<{ documentId: string; pageId: string }>();
@@ -64,15 +65,8 @@ export function TakeoffViewer() {
         enabled: !!pageId,
     });
 
-    // Fetch conditions for the project
-    const { data: conditionsData } = useQuery({
-        queryKey: ['conditions', page?.document?.project_id],
-        queryFn: async () => {
-            const response = await apiClient.get(`/projects/${page?.document?.project_id}/conditions`);
-            return response.data;
-        },
-        enabled: !!page?.document?.project_id,
-    });
+    const projectId = page?.document?.project_id;
+    const { data: conditionsData } = useConditions(projectId);
 
     // Fetch measurements for the page
     const { data: measurementsData } = useQuery({
@@ -100,10 +94,9 @@ export function TakeoffViewer() {
     // Track current mouse position for calibration preview
     const [calibrationCurrentPoint, setCalibrationCurrentPoint] = useState<{ x: number; y: number } | null>(null);
 
-    const measurements = useMeasurements(pageId);
+    const measurements = useMeasurements(pageId, projectId);
 
     const canvasEvents = useCanvasEvents({
-        zoom: canvasControls.zoom,
         pan: canvasControls.pan,
         setPan: canvasControls.setPan,
         drawing: {
@@ -125,7 +118,7 @@ export function TakeoffViewer() {
                 conditionId: selectedConditionId,
                 pageId,
                 geometryType: geometry.geometryType,
-                geometryData: geometry.geometryData,
+                geometryData: geometry.geometryData as unknown as JsonObject,
             });
         },
         onMeasurementSelect: setSelectedMeasurementId,
@@ -729,11 +722,13 @@ export function TakeoffViewer() {
                         )}
 
                         {/* Conditions overlay */}
-                        <ConditionsPanel
-                            conditions={conditions}
-                            selectedConditionId={selectedConditionId}
-                            onSelectCondition={setSelectedConditionId}
-                        />
+                        {page?.document?.project_id && (
+                            <ConditionsPanel
+                                projectId={page.document.project_id}
+                                selectedConditionId={selectedConditionId}
+                                onConditionSelect={setSelectedConditionId}
+                            />
+                        )}
 
                         {/* Measurements overlay */}
                         <MeasurementsPanel

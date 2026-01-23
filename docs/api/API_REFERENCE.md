@@ -1,8 +1,8 @@
-# API Reference - Phases 1A, 1B, 2A & 2B: Document Ingestion, OCR, Classification & Scale Detection
+# API Reference - Phases 1A, 1B, 2A, 2B & 3B: Document Ingestion, OCR, Classification, Scale Detection & Condition Management
 
 ## Overview
 
-The ForgeX Takeoffs API provides RESTful endpoints for managing construction plan documents, projects, OCR text extraction, and AI-powered page classification. All endpoints are prefixed with `/api/v1` and return JSON responses.
+The ForgeX Takeoffs API provides RESTful endpoints for managing construction plan documents, projects, OCR text extraction, AI-powered page classification, scale detection, and condition management. All endpoints are prefixed with `/api/v1` and return JSON responses.
 
 ## Authentication
 
@@ -266,15 +266,321 @@ Get page thumbnail (to be implemented).
 
 ---
 
-## Conditions
+## Condition Management (Phase 3B)
+
+Condition management endpoints allow creating, updating, and organizing takeoff line items (conditions) with templates, filtering, duplication, and reordering capabilities.
+
+### GET /condition-templates
+
+List available condition templates. Templates provide pre-configured conditions for common concrete scopes (foundations, slabs, paving, vertical, miscellaneous).
+
+**Query Parameters:**
+- `scope` (optional) - Filter by scope (e.g., "concrete")
+- `category` (optional) - Filter by category (e.g., "foundations", "slabs")
+
+**Response:**
+```json
+[
+  {
+    "name": "Strip Footing",
+    "scope": "concrete",
+    "category": "foundations",
+    "measurement_type": "linear",
+    "unit": "LF",
+    "depth": 12,
+    "color": "#EF4444",
+    "line_width": 2,
+    "fill_opacity": 0.3
+  },
+  {
+    "name": "4\" SOG",
+    "scope": "concrete",
+    "category": "slabs",
+    "measurement_type": "area",
+    "unit": "SF",
+    "depth": 4,
+    "color": "#22C55E",
+    "line_width": 2,
+    "fill_opacity": 0.3
+  }
+]
+```
+
+**Status Codes:**
+- `200` - Success
+
+---
 
 ### GET /projects/{project_id}/conditions
 
-List project conditions (stub implementation).
+List all conditions for a project, optionally filtered by scope or category.
+
+**Parameters:**
+- `project_id` (path) - UUID of the project
+- `scope` (query, optional) - Filter by scope
+- `category` (query, optional) - Filter by category
+
+**Response:**
+```json
+{
+  "conditions": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "project_id": "660e8400-e29b-41d4-a716-446655440001",
+      "name": "Strip Footing",
+      "description": null,
+      "scope": "concrete",
+      "category": "foundations",
+      "measurement_type": "linear",
+      "unit": "LF",
+      "color": "#EF4444",
+      "line_width": 2,
+      "fill_opacity": 0.3,
+      "depth": 12,
+      "thickness": null,
+      "sort_order": 1,
+      "created_at": "2024-01-01T10:00:00Z",
+      "updated_at": "2024-01-01T10:00:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+**Status Codes:**
+- `200` - Success
+- `404` - Project not found
+
+---
 
 ### POST /projects/{project_id}/conditions
 
-Create condition (stub implementation).
+Create a new custom condition for a project.
+
+**Parameters:**
+- `project_id` (path) - UUID of the project
+
+**Request Body:**
+```json
+{
+  "name": "Custom Foundation",
+  "description": "Custom foundation condition",
+  "scope": "concrete",
+  "category": "foundations",
+  "measurement_type": "linear",
+  "unit": "LF",
+  "color": "#EF4444",
+  "line_width": 2,
+  "fill_opacity": 0.3,
+  "depth": 12,
+  "thickness": null,
+  "extra_metadata": {}
+}
+```
+
+**Response:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "project_id": "660e8400-e29b-41d4-a716-446655440001",
+  "name": "Custom Foundation",
+  "description": "Custom foundation condition",
+  "scope": "concrete",
+  "category": "foundations",
+  "measurement_type": "linear",
+  "unit": "LF",
+  "color": "#EF4444",
+  "line_width": 2,
+  "fill_opacity": 0.3,
+  "depth": 12,
+  "thickness": null,
+  "sort_order": 1,
+  "created_at": "2024-01-01T10:00:00Z",
+  "updated_at": "2024-01-01T10:00:00Z"
+}
+```
+
+**Status Codes:**
+- `201` - Condition created successfully
+- `404` - Project not found
+- `422` - Validation error
+
+---
+
+### POST /projects/{project_id}/conditions/from-template
+
+Create a condition from a predefined template.
+
+**Parameters:**
+- `project_id` (path) - UUID of the project
+- `template_name` (query, required) - Name of the template (e.g., "Strip Footing")
+
+**Response:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "project_id": "660e8400-e29b-41d4-a716-446655440001",
+  "name": "Strip Footing",
+  "scope": "concrete",
+  "category": "foundations",
+  "measurement_type": "linear",
+  "unit": "LF",
+  "color": "#EF4444",
+  "line_width": 2,
+  "fill_opacity": 0.3,
+  "depth": 12,
+  "sort_order": 1,
+  "created_at": "2024-01-01T10:00:00Z",
+  "updated_at": "2024-01-01T10:00:00Z"
+}
+```
+
+**Status Codes:**
+- `201` - Condition created successfully
+- `404` - Project or template not found
+
+---
+
+### GET /conditions/{condition_id}
+
+Get condition details including measurement summaries.
+
+**Parameters:**
+- `condition_id` (path) - UUID of the condition
+
+**Response:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "project_id": "660e8400-e29b-41d4-a716-446655440001",
+  "name": "Strip Footing",
+  "description": null,
+  "scope": "concrete",
+  "category": "foundations",
+  "measurement_type": "linear",
+  "unit": "LF",
+  "color": "#EF4444",
+  "line_width": 2,
+  "fill_opacity": 0.3,
+  "depth": 12,
+  "thickness": null,
+  "sort_order": 1,
+  "measurements": [],
+  "created_at": "2024-01-01T10:00:00Z",
+  "updated_at": "2024-01-01T10:00:00Z"
+}
+```
+
+**Status Codes:**
+- `200` - Success
+- `404` - Condition not found
+
+---
+
+### PUT /conditions/{condition_id}
+
+Update a condition.
+
+**Parameters:**
+- `condition_id` (path) - UUID of the condition
+
+**Request Body:**
+```json
+{
+  "name": "Updated Strip Footing",
+  "color": "#FF0000",
+  "line_width": 3
+}
+```
+
+All fields are optional. Only provided fields will be updated.
+
+**Response:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Updated Strip Footing",
+  "color": "#FF0000",
+  "line_width": 3,
+  "...": "..."
+}
+```
+
+**Status Codes:**
+- `200` - Condition updated successfully
+- `404` - Condition not found
+- `422` - Validation error
+
+---
+
+### DELETE /conditions/{condition_id}
+
+Delete a condition and all its measurements.
+
+**Parameters:**
+- `condition_id` (path) - UUID of the condition
+
+**Status Codes:**
+- `204` - Condition deleted successfully
+- `404` - Condition not found
+
+---
+
+### POST /conditions/{condition_id}/duplicate
+
+Duplicate a condition (without measurements). The new condition will have "(Copy)" appended to its name.
+
+**Parameters:**
+- `condition_id` (path) - UUID of the condition to duplicate
+
+**Response:**
+```json
+{
+  "id": "770e8400-e29b-41d4-a716-446655440002",
+  "name": "Strip Footing (Copy)",
+  "...": "..."
+}
+```
+
+**Status Codes:**
+- `200` - Condition duplicated successfully
+- `404` - Condition not found
+
+---
+
+### PUT /projects/{project_id}/conditions/reorder
+
+Reorder conditions by providing an ordered list of condition IDs. All condition IDs for the project must be included.
+
+**Parameters:**
+- `project_id` (path) - UUID of the project
+
+**Request Body:**
+```json
+[
+  "550e8400-e29b-41d4-a716-446655440000",
+  "660e8400-e29b-41d4-a716-446655440001",
+  "770e8400-e29b-41d4-a716-446655440002"
+]
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "reordered_count": 3
+}
+```
+
+**Status Codes:**
+- `200` - Conditions reordered successfully
+- `400` - Invalid request (duplicate IDs or missing conditions)
+- `404` - Project or conditions not found
+
+**Notes:**
+- The order of IDs in the request determines the new sort order
+- All condition IDs for the project must be included
+- Sort order is persisted and used for display sequencing
 
 ---
 
@@ -964,12 +1270,14 @@ When multiple pages in a document have the same scale, calibrate one page and co
 - `PUT /measurements/{id}` - Update measurements
 - `DELETE /measurements/{id}` - Delete measurements
 
-### Phase 3B - Condition Management
-- `POST /projects/{id}/conditions` - Create condition
-- `GET /conditions/{id}` - Get condition details
+### Phase 3A - Measurement Engine
+- `POST /measurements` - Create measurements
+- `GET /measurements/{id}` - Get measurement details
+- `PUT /measurements/{id}` - Update measurements
+- `DELETE /measurements/{id}` - Delete measurements
 
 This API reference will be updated as new endpoints are implemented in future phases.
 
 ---
 
-**Last Updated:** January 20, 2026 - Classification optimizations complete
+**Last Updated:** January 22, 2026 - Phase 3B Condition Management complete

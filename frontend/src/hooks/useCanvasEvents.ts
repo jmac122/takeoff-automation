@@ -4,7 +4,6 @@ import type { DrawingTool } from '@/components/viewer/DrawingToolbar';
 import type { Position } from './useCanvasControls';
 
 interface UseCanvasEventsOptions {
-    zoom: number;
     pan: Position;
     setPan: (pan: Position | ((prev: Position) => Position)) => void;
     drawing: {
@@ -30,7 +29,6 @@ interface UseCanvasEventsOptions {
 }
 
 export function useCanvasEvents({
-    zoom,
     pan,
     setPan,
     drawing,
@@ -153,7 +151,7 @@ export function useCanvasEvents({
                 }
             }
         }
-    }, [zoom, pan, drawing, getImagePointFromStage, onMeasurementCreate, onMeasurementSelect, onConditionRequired]);
+    }, [pan, drawing, getImagePointFromStage, onMeasurementCreate, onMeasurementSelect, onConditionRequired]);
 
     const handleStageMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
         const stage = e.target.getStage();

@@ -89,7 +89,7 @@ export function ScaleCalibrationDialog({
         const trimmed = value.trim();
         
         // Try feet with optional inches: "21'-6"", "21' 6"", "21-6", "21'", "21'-0""
-        const feetInchesMatch = trimmed.match(/^(\d+)[''\-]?\s*(\d+)?["'"]?$/);
+        const feetInchesMatch = trimmed.match(/^(\d+)[''-]?\s*(\d+)?["'"]?$/);
         if (feetInchesMatch) {
             const feet = parseInt(feetInchesMatch[1]);
             const inches = feetInchesMatch[2] ? parseInt(feetInchesMatch[2]) : 0;

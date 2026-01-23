@@ -1,8 +1,8 @@
-# Database Schema - Phases 1A, 1B, 2A & 2B: Document Ingestion, OCR, Classification & Scale Detection
+# Database Schema - Phases 1A, 1B, 2A, 2B & 3B: Document Ingestion, OCR, Classification, Scale Detection & Condition Management
 
 ## Overview
 
-The database schema implements a document-centric data model optimized for construction takeoff workflows. Built with SQLAlchemy 2.0 and PostgreSQL, the schema supports hierarchical organization of projects, documents, pages, and measurements, with AI-powered classification metadata.
+The database schema implements a document-centric data model optimized for construction takeoff workflows. Built with SQLAlchemy 2.0 and PostgreSQL, the schema supports hierarchical organization of projects, documents, pages, conditions, and measurements, with AI-powered classification metadata and condition management.
 
 ## Schema Design Principles
 
@@ -295,16 +295,44 @@ The `pages` table includes comprehensive scale detection and calibration fields:
 - Then `scale_calibrated = TRUE` and `scale_value` is set
 - Otherwise, `needs_calibration = TRUE` (requires manual calibration)
 
-### Conditions Table
+### Conditions Table (Phase 3B)
 
 ```sql
 CREATE TABLE conditions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    
+    -- Basic info
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    unit VARCHAR(50) NOT NULL,
-    unit_cost FLOAT,
+    
+    -- Scope and categorization (Phase 3B)
+    scope VARCHAR(100) NOT NULL DEFAULT 'concrete',
+    category VARCHAR(100),
+    
+    -- Measurement configuration
+    measurement_type VARCHAR(50) NOT NULL,  -- linear, area, volume, count
+    unit VARCHAR(50) NOT NULL DEFAULT 'LF',  -- LF, SF, CY, EA
+    
+    -- Visual styling (Phase 3B)
+    color VARCHAR(20) NOT NULL DEFAULT '#3B82F6',  -- Hex color
+    line_width INTEGER NOT NULL DEFAULT 2,
+    fill_opacity FLOAT NOT NULL DEFAULT 0.3,
+    
+    -- Volume calculation modifiers
+    depth FLOAT,        -- For volume calculations
+    thickness FLOAT,    -- For volume calculations
+    
+    -- Calculated totals (denormalized for performance)
+    total_quantity FLOAT NOT NULL DEFAULT 0.0,
+    measurement_count INTEGER NOT NULL DEFAULT 0,
+    
+    -- Display ordering (Phase 3B)
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    
+    -- Flexible metadata storage
+    extra_metadata JSONB,
+    
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -312,7 +340,9 @@ CREATE TABLE conditions (
 -- Indexes
 CREATE INDEX ix_conditions_project_id ON conditions(project_id);
 CREATE INDEX ix_conditions_name ON conditions(name);
-CREATE INDEX ix_conditions_unit ON conditions(unit);
+CREATE INDEX ix_conditions_scope ON conditions(scope);
+CREATE INDEX ix_conditions_category ON conditions(category);
+CREATE INDEX ix_conditions_sort_order ON conditions(project_id, sort_order);
 
 -- Foreign Key Constraints
 ALTER TABLE conditions
@@ -320,9 +350,22 @@ ADD CONSTRAINT fk_conditions_project_id
 FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 ```
 
+**Phase 3B Enhancements:**
+- **Templates Support**: `scope` and `category` enable template-based condition creation
+- **Visual Styling**: `color`, `line_width`, and `fill_opacity` control viewer appearance
+- **Sort Order**: `sort_order` enables drag-and-drop reordering
+- **Flexible Metadata**: `extra_metadata` JSONB field for future extensibility
+- **Performance**: Denormalized `total_quantity` and `measurement_count` for quick UI display
+
 **Relationships:**
 - Many-to-one with Projects
 - One-to-many with Measurements
+
+**Common Values:**
+- `scope`: "concrete", "steel", "masonry", etc.
+- `category`: "foundations", "slabs", "paving", "vertical", "miscellaneous"
+- `measurement_type`: "linear", "area", "volume", "count"
+- `unit`: "LF" (linear feet), "SF" (square feet), "CY" (cubic yards), "EA" (each)
 
 ### Measurements Table
 

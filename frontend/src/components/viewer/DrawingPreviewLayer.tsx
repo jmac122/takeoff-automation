@@ -104,7 +104,7 @@ export function DrawingPreviewLayer({
 
                     {previewShape.type === 'polyline' && (
                         <Line
-                            points={previewShape.data.points.flatMap((p: any) => [p.x, p.y])}
+                            points={previewShape.data.points.flatMap((point) => [point.x, point.y])}
                             stroke={color}
                             strokeWidth={strokeWidth}
                             dash={[10 / scale, 5 / scale]}
@@ -113,7 +113,7 @@ export function DrawingPreviewLayer({
 
                     {previewShape.type === 'polygon' && (
                         <Line
-                            points={previewShape.data.points.flatMap((p: any) => [p.x, p.y])}
+                            points={previewShape.data.points.flatMap((point) => [point.x, point.y])}
                             stroke={color}
                             strokeWidth={strokeWidth}
                             fill={color}

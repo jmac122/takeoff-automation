@@ -17,16 +17,16 @@ export function ClassificationSidebar({
     isCollapsed,
     onToggleCollapse,
 }: ClassificationSidebarProps) {
-    if (!page) return null;
-
     const [showScaleHistory, setShowScaleHistory] = useState(false);
 
     // Fetch classification history for this page
     const { data: historyData } = useQuery({
-        queryKey: ['classification-history', page.id],
-        queryFn: () => classificationApi.getPageHistory(page.id),
-        enabled: !!page.id,
+        queryKey: ['classification-history', page?.id],
+        queryFn: () => classificationApi.getPageHistory(page!.id),
+        enabled: !!page?.id,
     });
+
+    if (!page) return null;
 
     // Use the most recent successful classification from history (has all the data)
     const latestClassification = historyData?.history?.[0];
@@ -250,17 +250,19 @@ export function ClassificationSidebar({
                                                         </div>
                                                     </div>
                                                 )}
-                                                {scaleDetectionData.parsed_scales && scaleDetectionData.parsed_scales.length > 1 && (
+                                        {scaleDetectionData.parsed_scales && scaleDetectionData.parsed_scales.length > 1 && (
                                                     <div>
                                                         <div className="text-xs text-neutral-500 mb-1">
                                                             Alternative Scales Found ({scaleDetectionData.parsed_scales.length - 1})
                                                         </div>
                                                         <div className="space-y-1">
-                                                            {scaleDetectionData.parsed_scales.slice(1, 4).map((scale: any, idx: number) => (
-                                                                <div key={idx} className="text-xs text-neutral-400 font-mono">
-                                                                    • {scale.text} ({(scale.confidence * 100).toFixed(0)}%)
-                                                                </div>
-                                                            ))}
+                                                    {getParsedScales(scaleDetectionData.parsed_scales)
+                                                        .slice(1, 4)
+                                                        .map((scale, idx) => (
+                                                            <div key={idx} className="text-xs text-neutral-400 font-mono">
+                                                                • {scale.text} ({(scale.confidence * 100).toFixed(0)}%)
+                                                            </div>
+                                                        ))}
                                                         </div>
                                                     </div>
                                                 )}
@@ -389,4 +391,22 @@ function getRelevanceBadgeColor(relevance: string | null | undefined): string {
         default:
             return 'bg-neutral-500/20 text-neutral-400 border-neutral-500/50';
     }
+}
+
+function getParsedScales(values: Array<unknown>): Array<{ text: string; confidence: number }> {
+    return values
+        .filter(isParsedScale)
+        .map((scale) => ({
+            text: scale.text,
+            confidence: scale.confidence ?? 0,
+        }));
+}
+
+function isParsedScale(value: unknown): value is { text: string; confidence?: number } {
+    if (typeof value !== 'object' || value === null) return false;
+
+    const candidate = value as { text?: unknown; confidence?: unknown };
+    if (typeof candidate.text !== 'string') return false;
+
+    return candidate.confidence === undefined || typeof candidate.confidence === 'number';
 }

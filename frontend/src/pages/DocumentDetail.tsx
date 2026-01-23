@@ -2,7 +2,7 @@
  * DocumentDetail page - displays document information and pages.
  */
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -187,7 +187,7 @@ export default function DocumentDetail() {
         }
     };
 
-    const pages = pagesData?.pages || [];
+    const pages = useMemo(() => pagesData?.pages || [], [pagesData?.pages]);
 
     // Check if any pages are still processing
     const hasProcessingPages = pages.some(page => {
@@ -213,7 +213,15 @@ export default function DocumentDetail() {
                 queryClient.refetchQueries({ queryKey: ['pages', documentId] });
             }
         }
-    }, [pages, isClassifying, documentId, queryClient, classifyMutation, reprocessOCRMutation]);
+    }, [
+        pages,
+        isClassifying,
+        hasProcessingPages,
+        documentId,
+        queryClient,
+        classifyMutation,
+        reprocessOCRMutation,
+    ]);
 
     const statusColors: Record<string, string> = {
         pending: 'bg-yellow-100 text-yellow-800',

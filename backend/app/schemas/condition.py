@@ -74,3 +74,38 @@ class ConditionListResponse(BaseModel):
     
     conditions: list[ConditionResponse]
     total: int
+
+
+class MeasurementSummary(BaseModel):
+    """Brief measurement info for condition details."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    page_id: uuid.UUID
+    geometry_type: str
+    quantity: float
+    unit: str
+    is_ai_generated: bool
+    is_verified: bool
+
+
+class ConditionWithMeasurementsResponse(ConditionResponse):
+    """Condition with its measurements."""
+
+    measurements: list[MeasurementSummary] = []
+
+
+class ConditionTemplateResponse(BaseModel):
+    """Condition template response."""
+
+    name: str
+    scope: str
+    category: str | None = None
+    measurement_type: str
+    unit: str
+    depth: float | None = None
+    thickness: float | None = None
+    color: str
+    line_width: int = 2
+    fill_opacity: float = 0.3

@@ -1,14 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
+import type { JsonObject } from '@/types';
 
 interface CreateMeasurementData {
     conditionId: string;
     pageId: string;
     geometryType: string;
-    geometryData: any;
+    geometryData: JsonObject;
 }
 
-export function useMeasurements(pageId: string | undefined) {
+export function useMeasurements(pageId: string | undefined, projectId?: string) {
     const queryClient = useQueryClient();
 
     const createMeasurementMutation = useMutation({
@@ -23,7 +24,11 @@ export function useMeasurements(pageId: string | undefined) {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['measurements', pageId] });
-            queryClient.invalidateQueries({ queryKey: ['conditions'] });
+            if (projectId) {
+                queryClient.invalidateQueries({ queryKey: ['conditions', projectId] });
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['conditions'] });
+            }
         },
     });
 
