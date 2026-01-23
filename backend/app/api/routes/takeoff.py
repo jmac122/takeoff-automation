@@ -4,7 +4,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,12 +35,32 @@ class GenerateTakeoffRequest(BaseModel):
     condition_id: str
     provider: str | None = None  # Optional provider override
 
+    @field_validator("condition_id")
+    @classmethod
+    def validate_condition_id(cls, v: str) -> str:
+        try:
+            uuid.UUID(v)
+            return v
+        except (ValueError, AttributeError):
+            raise ValueError(f"Invalid UUID format: {v}")
+
 
 class AutonomousTakeoffRequest(BaseModel):
     """Request for autonomous AI takeoff - AI determines elements."""
 
     provider: str | None = None  # Optional provider override
     project_id: str | None = None  # Optional: auto-create conditions in this project
+
+    @field_validator("project_id")
+    @classmethod
+    def validate_project_id(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            uuid.UUID(v)
+            return v
+        except (ValueError, AttributeError):
+            raise ValueError(f"Invalid UUID format: {v}")
 
 
 class CompareProvidersRequest(BaseModel):
@@ -49,6 +69,15 @@ class CompareProvidersRequest(BaseModel):
     condition_id: str
     providers: list[str] | None = None  # None = all available
 
+    @field_validator("condition_id")
+    @classmethod
+    def validate_condition_id(cls, v: str) -> str:
+        try:
+            uuid.UUID(v)
+            return v
+        except (ValueError, AttributeError):
+            raise ValueError(f"Invalid UUID format: {v}")
+
 
 class BatchTakeoffRequest(BaseModel):
     """Request for batch AI takeoff."""
@@ -56,6 +85,25 @@ class BatchTakeoffRequest(BaseModel):
     page_ids: list[str]
     condition_id: str
     provider: str | None = None
+
+    @field_validator("condition_id")
+    @classmethod
+    def validate_condition_id(cls, v: str) -> str:
+        try:
+            uuid.UUID(v)
+            return v
+        except (ValueError, AttributeError):
+            raise ValueError(f"Invalid UUID format: {v}")
+
+    @field_validator("page_ids")
+    @classmethod
+    def validate_page_ids(cls, v: list[str]) -> list[str]:
+        for page_id in v:
+            try:
+                uuid.UUID(page_id)
+            except (ValueError, AttributeError):
+                raise ValueError(f"Invalid UUID format in page_ids: {page_id}")
+        return v
 
 
 class TakeoffTaskResponse(BaseModel):
@@ -372,6 +420,17 @@ async def batch_ai_takeoff(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Pages do not belong to the condition's project: {invalid_pages}",
+        )
+
+    # Check all pages are calibrated
+    uncalibrated_pages = [
+        str(page.id) for page, doc in rows 
+        if not page.scale_calibrated
+    ]
+    if uncalibrated_pages:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Pages must be calibrated before AI takeoff: {uncalibrated_pages}",
         )
 
     # Queue batch task

@@ -1177,16 +1177,16 @@ class TestProviderComparison:
         
         # Ensure calibrated
         if not page.get("scale_calibrated"):
-            http_session.post(
+            cal_resp = http_session.post(
                 f"{api_url}/pages/{page_id}/calibrate",
-                json={
-                    "start_point": {"x": 0, "y": 0},
-                    "end_point": {"x": 500, "y": 0},
-                    "known_length": 10.0,
-                    "unit": "foot",
+                params={
+                    "pixel_distance": 500.0,
+                    "real_distance": 10.0,
+                    "real_unit": "foot",
                 },
                 timeout=DEFAULT_TIMEOUT,
             )
+            assert cal_resp.status_code == 200, f"Calibration failed: {cal_resp.text}"
         
         # Get available providers
         providers_response = http_session.get(
