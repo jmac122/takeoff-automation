@@ -12,6 +12,55 @@ logger = structlog.get_logger()
 settings = get_settings()
 
 
+def scale_coordinates(
+    geometry_data: dict[str, Any],
+    geometry_type: str,
+    llm_width: int,
+    llm_height: int,
+    original_width: int,
+    original_height: int,
+) -> dict[str, Any]:
+    """Scale coordinates from LLM image space to original image space.
+    
+    The LLM receives a resized image but returns coordinates in that resized space.
+    We need to scale them back to the original image dimensions so they align
+    with the page's scale_value (pixels_per_foot) which is calibrated for the
+    original image.
+    
+    Args:
+        geometry_data: The geometry data with coordinates
+        geometry_type: "polygon", "polyline", "line", or "point"
+        llm_width: Width of image sent to LLM
+        llm_height: Height of image sent to LLM
+        original_width: Original page image width
+        original_height: Original page image height
+        
+    Returns:
+        Geometry data with scaled coordinates
+    """
+    # No scaling needed if dimensions match
+    if llm_width == original_width and llm_height == original_height:
+        return geometry_data
+    
+    scale_x = original_width / llm_width
+    scale_y = original_height / llm_height
+    
+    if geometry_type == "point":
+        return {
+            "x": geometry_data.get("x", 0) * scale_x,
+            "y": geometry_data.get("y", 0) * scale_y,
+        }
+    else:
+        # polygon, polyline, line - all have "points" array
+        scaled_points = []
+        for point in geometry_data.get("points", []):
+            scaled_points.append({
+                "x": point.get("x", 0) * scale_x,
+                "y": point.get("y", 0) * scale_y,
+            })
+        return {"points": scaled_points}
+
+
 @dataclass
 class DetectedElement:
     """An element detected by AI."""
@@ -314,6 +363,18 @@ class AITakeoffService:
                 max_tokens=2048,
             )
 
+            # Get LLM image dimensions for coordinate scaling
+            llm_width = response.image_width or width
+            llm_height = response.image_height or height
+            
+            # Log if scaling is needed
+            if llm_width != width or llm_height != height:
+                logger.info(
+                    "Scaling AI coordinates from LLM image space to original",
+                    llm_size=f"{llm_width}x{llm_height}",
+                    original_size=f"{width}x{height}",
+                )
+
             # Parse detected elements
             elements = []
             for elem in data.get("elements", []):
@@ -323,6 +384,13 @@ class AITakeoffService:
                     geometry_data = {"x": elem.get("x", 0), "y": elem.get("y", 0)}
                 else:
                     geometry_data = {"points": elem.get("points", [])}
+
+                # Scale coordinates from LLM image space to original image space
+                geometry_data = scale_coordinates(
+                    geometry_data, geometry_type,
+                    llm_width, llm_height,
+                    width, height,
+                )
 
                 elements.append(
                     DetectedElement(
@@ -420,6 +488,18 @@ class AITakeoffService:
                 max_tokens=4096,  # More tokens for autonomous detection
             )
 
+            # Get LLM image dimensions for coordinate scaling
+            llm_width = response.image_width or width
+            llm_height = response.image_height or height
+            
+            # Log if scaling is needed
+            if llm_width != width or llm_height != height:
+                logger.info(
+                    "Scaling AI coordinates from LLM image space to original",
+                    llm_size=f"{llm_width}x{llm_height}",
+                    original_size=f"{width}x{height}",
+                )
+
             # Parse detected elements - AI determines element_type
             elements = []
             for elem in data.get("elements", []):
@@ -433,6 +513,13 @@ class AITakeoffService:
                     geometry_data = {"x": elem.get("x", 0), "y": elem.get("y", 0)}
                 else:
                     geometry_data = {"points": elem.get("points", [])}
+
+                # Scale coordinates from LLM image space to original image space
+                geometry_data = scale_coordinates(
+                    geometry_data, geometry_type,
+                    llm_width, llm_height,
+                    width, height,
+                )
 
                 # Apply default depths if AI didn't specify
                 if depth_inches is None:

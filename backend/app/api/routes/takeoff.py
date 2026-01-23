@@ -334,6 +334,14 @@ async def batch_ai_takeoff(
     # Validate provider if specified
     validate_provider(request.provider)
 
+    # Check for duplicate page_ids
+    unique_page_ids = set(request.page_ids)
+    if len(unique_page_ids) != len(request.page_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Duplicate page_ids are not allowed",
+        )
+
     # Verify all pages exist and belong to the condition's project
     result = await db.execute(
         select(Page, Document)

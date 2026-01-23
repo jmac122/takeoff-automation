@@ -66,6 +66,9 @@ class LLMResponse:
     input_tokens: int
     output_tokens: int
     latency_ms: float
+    # Image dimensions actually sent to the LLM (after resizing)
+    image_width: int | None = None
+    image_height: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -301,6 +304,9 @@ class LLMClient:
 
         latency_ms = (time.time() - start_time) * 1000
         result.latency_ms = latency_ms
+        # Store the actual image dimensions sent to the LLM for coordinate scaling
+        result.image_width = new_width
+        result.image_height = new_height
 
         logger.info(
             "LLM analysis complete",
@@ -309,6 +315,7 @@ class LLMClient:
             latency_ms=round(latency_ms, 2),
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
+            image_size=f"{new_width}x{new_height}",
         )
 
         return result
