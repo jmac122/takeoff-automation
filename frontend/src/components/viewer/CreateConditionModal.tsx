@@ -90,6 +90,7 @@ export function CreateConditionModal({
         depth: depth ? Number(depth) : null,
         color,
         scope: 'concrete',
+        category: 'other',
         line_width: 2,
         fill_opacity: 0.3,
       },

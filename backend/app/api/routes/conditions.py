@@ -223,9 +223,11 @@ async def create_condition(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Create a new condition."""
-    # Verify project exists
-    project = await db.get(Project, project_id)
-    if not project:
+    # Verify project exists and lock to avoid sort_order races
+    project_result = await db.execute(
+        select(Project).where(Project.id == project_id).with_for_update()
+    )
+    if not project_result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
@@ -278,8 +280,10 @@ async def create_condition_from_template(
             detail="Template not found",
         )
 
-    project = await db.get(Project, project_id)
-    if not project:
+    project_result = await db.execute(
+        select(Project).where(Project.id == project_id).with_for_update()
+    )
+    if not project_result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
@@ -411,14 +415,23 @@ async def duplicate_condition(
             detail="Condition not found",
         )
 
+    await db.execute(
+        select(Project).where(Project.id == condition.project_id).with_for_update()
+    )
+
     result = await db.execute(
         select(func.max(Condition.sort_order)).where(Condition.project_id == condition.project_id)
     )
     max_order = result.scalar() or 0
 
+    suffix = " (Copy)"
+    base_name = condition.name
+    if len(base_name) + len(suffix) > 255:
+        base_name = base_name[: max(0, 255 - len(suffix))]
+
     duplicate = Condition(
         project_id=condition.project_id,
-        name=f"{condition.name} (Copy)",
+        name=f"{base_name}{suffix}",
         description=condition.description,
         scope=condition.scope,
         category=condition.category,
@@ -470,6 +483,16 @@ async def reorder_conditions(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="One or more conditions not found for project",
+        )
+
+    all_ids_result = await db.execute(
+        select(Condition.id).where(Condition.project_id == project_id)
+    )
+    all_condition_ids = set(all_ids_result.scalars().all())
+    if len(condition_ids) != len(all_condition_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reorder request must include all project condition IDs",
         )
 
     for index, condition_id in enumerate(condition_ids):

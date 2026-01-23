@@ -76,7 +76,7 @@ export function ConditionsPanel({
   const [editingCondition, setEditingCondition] = useState<Condition | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<Condition | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(['foundations', 'slabs', 'paving', 'vertical', 'miscellaneous'])
+    new Set(['foundations', 'slabs', 'paving', 'vertical', 'miscellaneous', 'other'])
   );
 
   const { data, isLoading } = useConditions(projectId);
