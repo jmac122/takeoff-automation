@@ -86,3 +86,11 @@ export async function recalculatePageMeasurements(pageId: string): Promise<{stat
   const response = await apiClient.post<{status: string; recalculated_count: number}>(`/pages/${pageId}/recalculate-all`);
   return response.data;
 }
+
+/**
+ * Recalculate all measurements for a condition
+ */
+export async function recalculateConditionMeasurements(conditionId: string): Promise<{status: string; recalculated_count: number}> {
+  const response = await apiClient.post<{status: string; recalculated_count: number}>(`/conditions/${conditionId}/recalculate-all`);
+  return response.data;
+}

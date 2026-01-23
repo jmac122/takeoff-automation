@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -61,7 +61,7 @@ export function CreateConditionModal({
   const [tab, setTab] = useState<'template' | 'custom'>('template');
   const [name, setName] = useState('');
   const [measurementType, setMeasurementType] = useState<MeasurementType>('area');
-  const [depth, setDepth] = useState('');
+  const [thickness, setThickness] = useState('');
   const [color, setColor] = useState<string>(DEFAULT_COLOR);
   const resolvedCategory = defaultCategory || 'other';
 
@@ -79,18 +79,34 @@ export function CreateConditionModal({
   const resetForm = () => {
     setName('');
     setMeasurementType('area');
-    setDepth('');
+    setThickness('');
     setColor(DEFAULT_COLOR);
   };
 
+  useEffect(() => {
+    if (!defaultCategory || thickness) return;
+    const templatesForCategory = groupedTemplates[defaultCategory] || [];
+    const templateDepth = templatesForCategory.find(
+      (template) => template.thickness || template.depth
+    );
+    const defaultDepth = templateDepth?.thickness ?? templateDepth?.depth;
+    if (defaultDepth) {
+      setThickness(String(defaultDepth));
+    }
+  }, [defaultCategory, groupedTemplates, thickness]);
+
   const handleCreateCustom = () => {
     const selected = MEASUREMENT_TYPES.find((t) => t.value === measurementType);
+    const thicknessValue = thickness ? Number(thickness) : null;
+    const depthValue =
+      measurementType === 'area' || measurementType === 'volume' ? thicknessValue : null;
     createCustomMutation.mutate(
       {
         name,
         measurement_type: measurementType,
         unit: selected?.unit || 'SF',
-        depth: depth ? Number(depth) : null,
+        depth: depthValue,
+        thickness: depthValue,
         color,
         scope: 'concrete',
         category: resolvedCategory,
@@ -202,12 +218,12 @@ export function CreateConditionModal({
 
             {(measurementType === 'area' || measurementType === 'volume') && (
               <div className="space-y-2">
-                <Label htmlFor="depth">Depth/Thickness (inches)</Label>
+                <Label htmlFor="depth">Thickness/Depth (inches)</Label>
                 <Input
                   id="depth"
                   type="number"
-                  value={depth}
-                  onChange={(event) => setDepth(event.target.value)}
+                  value={thickness}
+                  onChange={(event) => setThickness(event.target.value)}
                   placeholder="e.g., 4"
                 />
               </div>

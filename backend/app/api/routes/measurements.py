@@ -191,3 +191,28 @@ async def recalculate_page_measurements(
         "status": "success",
         "recalculated_count": len(measurement_ids),
     }
+
+
+@router.post("/conditions/{condition_id}/recalculate-all")
+async def recalculate_condition_measurements(
+    condition_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Recalculate all measurements for a condition (after unit/type change)."""
+    result = await db.execute(
+        select(Measurement.id).where(Measurement.condition_id == condition_id)
+    )
+    measurement_ids = [row[0] for row in result.all()]
+
+    engine = get_measurement_engine()
+
+    for mid in measurement_ids:
+        try:
+            await engine.recalculate_measurement(db, mid)
+        except ValueError:
+            pass  # Skip measurements that can't be recalculated
+
+    return {
+        "status": "success",
+        "recalculated_count": len(measurement_ids),
+    }
