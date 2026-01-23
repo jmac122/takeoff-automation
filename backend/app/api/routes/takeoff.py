@@ -91,6 +91,7 @@ class TaskStatusResponse(BaseModel):
     status: str
     result: Any | None = None
     error: str | None = None
+    traceback: str | None = None  # Include traceback for debugging failed tasks
 
 
 # ============================================================================
@@ -411,6 +412,7 @@ async def get_task_status(task_id: str) -> TaskStatusResponse:
         "status": result.status,
         "result": None,
         "error": None,
+        "traceback": None,
     }
 
     if result.ready():
@@ -418,5 +420,7 @@ async def get_task_status(task_id: str) -> TaskStatusResponse:
             response_data["result"] = result.result
         else:
             response_data["error"] = str(result.result) if result.result else "Task failed"
+            if result.traceback:
+                response_data["traceback"] = result.traceback
 
     return TaskStatusResponse(**response_data)
