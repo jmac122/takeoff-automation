@@ -48,6 +48,7 @@ export function TakeoffViewer() {
         measurement: Measurement;
         position: { x: number; y: number };
     } | null>(null);
+    const [isConditionsCollapsed, setIsConditionsCollapsed] = useState(false);
     const [hiddenMeasurementIds, setHiddenMeasurementIds] = useState<Set<string>>(new Set());
     const [measurementOrder, setMeasurementOrder] = useState<string[]>([]);
     const [showCalibrationDialog, setShowCalibrationDialog] = useState(false);
@@ -1062,6 +1063,10 @@ export function TakeoffViewer() {
                                 selectedConditionId={selectedConditionId}
                                 onConditionSelect={handleConditionSelect}
                                 pageId={pageId}
+                                isCollapsed={isConditionsCollapsed}
+                                onToggleCollapse={() =>
+                                    setIsConditionsCollapsed((prev) => !prev)
+                                }
                                 isPageCalibrated={Boolean(
                                     page?.scale_calibrated && (
                                         page?.scale_detection_method === 'manual_calibration' ||

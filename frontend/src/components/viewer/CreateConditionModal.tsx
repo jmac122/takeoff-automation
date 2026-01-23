@@ -38,6 +38,7 @@ interface CreateConditionModalProps {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultCategory?: string | null;
 }
 
 const DEFAULT_COLOR = MEASUREMENT_COLORS.default;
@@ -55,12 +56,14 @@ export function CreateConditionModal({
   projectId,
   open,
   onOpenChange,
+  defaultCategory,
 }: CreateConditionModalProps) {
   const [tab, setTab] = useState<'template' | 'custom'>('template');
   const [name, setName] = useState('');
   const [measurementType, setMeasurementType] = useState<MeasurementType>('area');
   const [depth, setDepth] = useState('');
   const [color, setColor] = useState<string>(DEFAULT_COLOR);
+  const resolvedCategory = defaultCategory || 'other';
 
   const { data: templates } = useConditionTemplates();
   const createFromTemplateMutation = useCreateConditionFromTemplate(projectId);
@@ -90,7 +93,7 @@ export function CreateConditionModal({
         depth: depth ? Number(depth) : null,
         color,
         scope: 'concrete',
-        category: 'other',
+        category: resolvedCategory,
         line_width: 2,
         fill_opacity: 0.3,
       },
@@ -113,7 +116,7 @@ export function CreateConditionModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="uppercase tracking-wide">Add Condition</DialogTitle>
+          <DialogTitle className="uppercase tracking-wide">New Condition</DialogTitle>
           <DialogDescription>
             <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest text-muted-foreground">
               <span>Status: {createCustomMutation.isPending ? 'Processing' : 'Ready'}</span>
