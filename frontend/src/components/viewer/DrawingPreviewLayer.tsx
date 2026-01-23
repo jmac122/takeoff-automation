@@ -7,6 +7,7 @@ interface DrawingPreviewLayerProps {
     isDrawing: boolean;
     color: string;
     scale: number;
+    isCloseToStart?: boolean;
     /** Pixels per real-world unit (e.g., pixels per foot) */
     pixelsPerUnit?: number | null;
     /** Unit label (e.g., "ft", "in", "m") */
@@ -54,6 +55,7 @@ export function DrawingPreviewLayer({
     isDrawing,
     color,
     scale,
+    isCloseToStart = false,
     pixelsPerUnit,
     unitLabel = 'ft',
 }: DrawingPreviewLayerProps) {
@@ -62,6 +64,7 @@ export function DrawingPreviewLayer({
     const strokeWidth = 2 / scale;
     const pointRadius = 4 / scale;
     const fontSize = 14 / scale;
+    const hintFontSize = 12 / scale;
 
     return (
         <Layer listening={false}>
@@ -165,6 +168,31 @@ export function DrawingPreviewLayer({
                     />
                 </Group>
             ))}
+
+            {isCloseToStart && points.length >= 3 && (
+                <Group>
+                    <Circle
+                        x={points[0].x}
+                        y={points[0].y}
+                        radius={pointRadius * 2}
+                        stroke={color}
+                        strokeWidth={strokeWidth}
+                        dash={[6 / scale, 4 / scale]}
+                    />
+                    <Text
+                        x={points[0].x}
+                        y={points[0].y - 18 / scale}
+                        text="Click to close"
+                        fontSize={hintFontSize}
+                        fontFamily="monospace"
+                        fill="#fff"
+                        stroke="#000"
+                        strokeWidth={0.5 / scale}
+                        align="center"
+                        offsetX={36 / scale}
+                    />
+                </Group>
+            )}
         </Layer>
     );
 }

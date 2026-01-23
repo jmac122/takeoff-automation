@@ -55,9 +55,19 @@ export function useMeasurements(pageId: string | undefined, projectId?: string) 
         deleteMeasurementMutation.mutate(measurementId);
     };
 
+    const createMeasurementAsync = (data: CreateMeasurementData) => {
+        return createMeasurementMutation.mutateAsync(data);
+    };
+
+    const deleteMeasurementAsync = (measurementId: string) => {
+        return deleteMeasurementMutation.mutateAsync(measurementId);
+    };
+
     return {
         createMeasurement,
         deleteMeasurement,
+        createMeasurementAsync,
+        deleteMeasurementAsync,
         isCreating: createMeasurementMutation.isPending,
         isDeleting: deleteMeasurementMutation.isPending,
     };

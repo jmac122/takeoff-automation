@@ -4,14 +4,14 @@ import type { DrawingTool } from '@/components/viewer/DrawingToolbar';
 interface UseKeyboardShortcutsOptions {
     drawing: {
         setTool: (tool: DrawingTool) => void;
-        undo: () => void;
-        redo: () => void;
         cancelDrawing: () => void;
     };
     selectedMeasurementId: string | null;
     onDeleteMeasurement: (id: string) => void;
     onToggleFullscreen: () => void;
-    onDeselectMeasurement: () => void;
+    onClearSelection: () => void;
+    onUndo: () => void;
+    onRedo: () => void;
 }
 
 export function useKeyboardShortcuts({
@@ -19,7 +19,9 @@ export function useKeyboardShortcuts({
     selectedMeasurementId,
     onDeleteMeasurement,
     onToggleFullscreen,
-    onDeselectMeasurement,
+    onClearSelection,
+    onUndo,
+    onRedo,
 }: UseKeyboardShortcutsOptions) {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -39,8 +41,8 @@ export function useKeyboardShortcuts({
             if (e.key === 'm') drawing.setTool('point');
 
             // Undo/Redo
-            if (e.ctrlKey && e.key === 'z') drawing.undo();
-            if (e.ctrlKey && e.key === 'y') drawing.redo();
+            if (e.ctrlKey && e.key === 'z') onUndo();
+            if (e.ctrlKey && e.key === 'y') onRedo();
 
             // Delete
             if (e.key === 'Delete' && selectedMeasurementId) {
@@ -50,11 +52,19 @@ export function useKeyboardShortcuts({
             // Escape - cancel drawing
             if (e.key === 'Escape') {
                 drawing.cancelDrawing();
-                onDeselectMeasurement();
+                onClearSelection();
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [drawing, selectedMeasurementId, onDeleteMeasurement, onToggleFullscreen, onDeselectMeasurement]);
+    }, [
+        drawing,
+        selectedMeasurementId,
+        onDeleteMeasurement,
+        onToggleFullscreen,
+        onClearSelection,
+        onUndo,
+        onRedo,
+    ]);
 }

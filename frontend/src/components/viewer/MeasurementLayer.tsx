@@ -15,6 +15,7 @@ interface MeasurementLayerProps {
     conditions: Map<string, Condition>;
     selectedMeasurementId: string | null;
     onMeasurementSelect: (id: string | null) => void;
+    onConditionSelect?: (id: string | null) => void;
     onMeasurementUpdate: (id: string, geometryData: JsonObject) => void;
     isEditing: boolean;
     scale: number; // Viewer zoom scale
@@ -25,6 +26,7 @@ export function MeasurementLayer({
     conditions,
     selectedMeasurementId,
     onMeasurementSelect,
+    onConditionSelect,
     onMeasurementUpdate,
     isEditing,
     scale,
@@ -45,7 +47,10 @@ export function MeasurementLayer({
                         isSelected={isSelected}
                         isEditing={isEditing && isSelected}
                         scale={scale}
-                        onClick={() => onMeasurementSelect(measurement.id)}
+                        onClick={() => {
+                            onMeasurementSelect(measurement.id);
+                            onConditionSelect?.(measurement.condition_id);
+                        }}
                         onUpdate={(geometryData) =>
                             onMeasurementUpdate(measurement.id, geometryData)
                         }
