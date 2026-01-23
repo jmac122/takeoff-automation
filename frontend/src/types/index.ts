@@ -184,6 +184,8 @@ export interface Page {
     };
     parsed_scales?: JsonValue[];
     scale_bars?: JsonValue[];
+    manual_calibration?: JsonValue;
+    calibration?: JsonValue;
   } | null;
   image_url?: string | null;
   thumbnail_url?: string | null;
