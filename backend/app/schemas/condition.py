@@ -64,6 +64,7 @@ class ConditionResponse(BaseModel):
     total_quantity: float
     measurement_count: int
     sort_order: int
+    is_ai_generated: bool
     extra_metadata: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
