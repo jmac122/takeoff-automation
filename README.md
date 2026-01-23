@@ -4,16 +4,18 @@ AI-powered construction takeoff automation platform.
 
 ## 📊 Current Status
 
-### ✅ **Phase 2A: Page Classification - COMPLETE**
+### ✅ **Phase 3B: Condition Management - COMPLETE**
 
-Phase 2A has been fully implemented with multi-provider LLM support (Anthropic, OpenAI, Google, xAI), AI-powered page classification, discipline/page type detection, and concrete relevance scoring. See [STATUS.md](STATUS.md) for detailed implementation status.
+Phase 3B condition management is complete with templates, duplication, reordering, and upgraded UI for grouped conditions with totals. See [STATUS.md](STATUS.md) for detailed implementation status.
 
 **Completed:**
 - ✅ Phase 1A: Document Ingestion
 - ✅ Phase 1B: OCR and Text Extraction
 - ✅ Phase 2A: Page Classification
+- ✅ Phase 2B: Scale Detection
+- ✅ Phase 3B: Condition Management
 
-**Ready for Phase 2B: Scale Detection**
+**In Progress:** Phase 3A Measurement Engine
 
 ## 🚀 Quick Start
 
@@ -70,6 +72,9 @@ Phase 2A has been fully implemented with multi-provider LLM support (Anthropic, 
    
    # Get a shell
    docker compose exec api bash
+
+   # Frontend lint
+   docker compose exec frontend npm run lint
    ```
 
 ### 💻 Development Workflow
@@ -204,6 +209,13 @@ docker compose exec api pytest --cov=app tests/
 - ✅ **Image compression** for LLM vision models (handles 5MB limit)
 - ✅ Detailed classification metadata storage
 
+### Phase 3B: Condition Management
+- ✅ Condition templates and scoped filtering
+- ✅ Duplicate and reorder endpoints
+- ✅ Grouped conditions panel with totals
+- ✅ Create/edit condition modals with templates
+- ✅ Drag-and-drop ordering
+
 ### API Capabilities
 - ✅ RESTful CRUD operations for documents
 - ✅ Real-time processing status polling
@@ -284,8 +296,9 @@ npm run build
 # Run tests
 npm test
 
-# Lint code
-npm run lint
+# Lint code (via Docker)
+cd docker
+docker compose exec frontend npm run lint
 ```
 
 ## 🚀 Deployment
@@ -359,9 +372,9 @@ chore: Maintenance tasks
   - **Image compression** for LLM compatibility
 
 ### 🔄 Next Phases
-- **Phase 2B**: Scale Detection
 - **Phase 3A**: Interactive Measurements
-- **Phase 3B**: Export System
+- **Phase 4A**: AI Takeoff Generation
+- **Phase 4B**: Review Interface
 
 ## 📞 Support
 
