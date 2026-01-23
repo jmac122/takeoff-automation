@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Condition } from '@/types';
+import type { Condition, ConditionTemplate, JsonObject } from '@/types';
 
 export interface ConditionCreateRequest {
   name: string;
@@ -14,7 +14,7 @@ export interface ConditionCreateRequest {
   depth?: number | null;
   thickness?: number | null;
   sort_order?: number;
-  extra_metadata?: Record<string, any> | null;
+  extra_metadata?: JsonObject | null;
 }
 
 export interface ConditionUpdateRequest {
@@ -30,7 +30,7 @@ export interface ConditionUpdateRequest {
   depth?: number | null;
   thickness?: number | null;
   sort_order?: number;
-  extra_metadata?: Record<string, any> | null;
+  extra_metadata?: JsonObject | null;
 }
 
 export interface ConditionListResponse {
@@ -41,8 +41,13 @@ export interface ConditionListResponse {
 /**
  * List conditions for a project
  */
-export async function listProjectConditions(projectId: string): Promise<ConditionListResponse> {
-  const response = await apiClient.get<ConditionListResponse>(`/projects/${projectId}/conditions`);
+export async function listProjectConditions(
+  projectId: string,
+  filters?: { scope?: string; category?: string }
+): Promise<ConditionListResponse> {
+  const response = await apiClient.get<ConditionListResponse>(`/projects/${projectId}/conditions`, {
+    params: filters,
+  });
   return response.data;
 }
 
@@ -81,4 +86,53 @@ export async function updateCondition(
  */
 export async function deleteCondition(conditionId: string): Promise<void> {
   await apiClient.delete(`/conditions/${conditionId}`);
+}
+
+/**
+ * List condition templates
+ */
+export async function listConditionTemplates(filters?: {
+  scope?: string;
+  category?: string;
+}): Promise<ConditionTemplate[]> {
+  const response = await apiClient.get<ConditionTemplate[]>(`/condition-templates`, {
+    params: filters,
+  });
+  return response.data;
+}
+
+/**
+ * Create condition from template
+ */
+export async function createConditionFromTemplate(
+  projectId: string,
+  templateName: string
+): Promise<Condition> {
+  const response = await apiClient.post<Condition>(
+    `/projects/${projectId}/conditions/from-template`,
+    null,
+    {
+      params: { template_name: templateName },
+    }
+  );
+  return response.data;
+}
+
+/**
+ * Duplicate condition
+ */
+export async function duplicateCondition(conditionId: string): Promise<Condition> {
+  const response = await apiClient.post<Condition>(`/conditions/${conditionId}/duplicate`);
+  return response.data;
+}
+
+/**
+ * Reorder conditions
+ */
+export async function reorderConditions(
+  projectId: string,
+  conditionIds: string[]
+): Promise<{ status: string; reordered_count: number }> {
+  const response = await apiClient.put(`/projects/${projectId}/conditions/reorder`, conditionIds);
+  return response.data;
 }
