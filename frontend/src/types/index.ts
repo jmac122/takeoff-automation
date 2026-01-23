@@ -129,6 +129,22 @@ export interface PageSummary {
   thumbnail_url?: string | null;
 }
 
+export interface ScaleDetectionResult {
+  best_scale?: {
+    text: string;
+    confidence: number;
+    method: string;
+    bbox?: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+  };
+  parsed_scales?: JsonValue[];
+  scale_bars?: JsonValue[];
+}
+
 export interface Page {
   id: string;
   document_id: string;

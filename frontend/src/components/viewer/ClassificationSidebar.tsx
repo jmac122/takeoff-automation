@@ -257,7 +257,7 @@ export function ClassificationSidebar({
                                                         </div>
                                                         <div className="space-y-1">
                                                     {getParsedScales(scaleDetectionData.parsed_scales)
-                                                        .slice(0, 3)
+                                                        .slice(1, 4)
                                                         .map((scale, idx) => (
                                                             <div key={idx} className="text-xs text-neutral-400 font-mono">
                                                                 • {scale.text} ({(scale.confidence * 100).toFixed(0)}%)

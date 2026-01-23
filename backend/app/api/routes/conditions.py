@@ -450,6 +450,12 @@ async def reorder_conditions(
     if not condition_ids:
         return {"status": "success", "reordered_count": 0}
 
+    if len(set(condition_ids)) != len(condition_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Duplicate condition IDs provided",
+        )
+
     result = await db.execute(
         select(Condition).where(
             Condition.project_id == project_id,

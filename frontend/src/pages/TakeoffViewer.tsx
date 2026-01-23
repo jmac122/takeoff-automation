@@ -28,7 +28,7 @@ import { usePageImage } from '@/hooks/usePageImage';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import { createMeasurementGeometry } from '@/utils/measurementUtils';
 import { pollUntil } from '@/utils/polling';
-import type { Page, Measurement, Condition } from '@/types';
+import type { Page, Measurement, Condition, JsonObject } from '@/types';
 
 export function TakeoffViewer() {
     const { pageId } = useParams<{ documentId: string; pageId: string }>();
@@ -118,7 +118,7 @@ export function TakeoffViewer() {
                 conditionId: selectedConditionId,
                 pageId,
                 geometryType: geometry.geometryType,
-                geometryData: geometry.geometryData,
+                geometryData: geometry.geometryData as unknown as JsonObject,
             });
         },
         onMeasurementSelect: setSelectedMeasurementId,

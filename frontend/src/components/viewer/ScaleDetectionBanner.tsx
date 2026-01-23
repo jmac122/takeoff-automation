@@ -1,18 +1,8 @@
 import { Button } from '@/components/ui/button';
-import type { JsonValue } from '@/types';
-
-interface DetectionResult {
-    best_scale?: {
-        text: string;
-        confidence: number;
-        method: string;
-    };
-    parsed_scales?: JsonValue[];
-    scale_bars?: JsonValue[];
-}
+import type { ScaleDetectionResult } from '@/types';
 
 interface ScaleDetectionBannerProps {
-    result: DetectionResult | null;
+    result: ScaleDetectionResult | null;
     onDismiss: () => void;
 }
 
