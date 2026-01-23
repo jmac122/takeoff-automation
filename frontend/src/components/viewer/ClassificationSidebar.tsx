@@ -403,10 +403,10 @@ function getParsedScales(values: Array<unknown>): Array<{ text: string; confiden
 }
 
 function isParsedScale(value: unknown): value is { text: string; confidence?: number } {
-    return (
-        typeof value === 'object' &&
-        value !== null &&
-        'text' in value &&
-        typeof (value as { text?: unknown }).text === 'string'
-    );
+    if (typeof value !== 'object' || value === null) return false;
+
+    const candidate = value as { text?: unknown; confidence?: unknown };
+    if (typeof candidate.text !== 'string') return false;
+
+    return candidate.confidence === undefined || typeof candidate.confidence === 'number';
 }
