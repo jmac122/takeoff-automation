@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stage, Layer, Image as KonvaImage, Rect } from 'react-konva';
@@ -9,6 +9,7 @@ import { updateTitleBlockRegion } from '@/api/documents';
 import { MeasurementLayer } from '@/components/viewer/MeasurementLayer';
 import { DrawingPreviewLayer } from '@/components/viewer/DrawingPreviewLayer';
 import { DrawingInstructions } from '@/components/viewer/DrawingInstructions';
+import { ShapeContextMenu } from '@/components/viewer/ShapeContextMenu';
 import { ScaleDetectionBanner } from '@/components/viewer/ScaleDetectionBanner';
 import { ConditionsPanel } from '@/components/viewer/ConditionsPanel';
 import { MeasurementsPanel } from '@/components/viewer/MeasurementsPanel';
@@ -28,7 +29,7 @@ import { useMeasurements } from '@/hooks/useMeasurements';
 import { useCanvasEvents } from '@/hooks/useCanvasEvents';
 import { usePageImage } from '@/hooks/usePageImage';
 import { useNotificationContext } from '@/contexts/NotificationContext';
-import { createMeasurementGeometry } from '@/utils/measurementUtils';
+import { createMeasurementGeometry, offsetGeometryData } from '@/utils/measurementUtils';
 import { pollUntil } from '@/utils/polling';
 import { AITakeoffDialog } from '@/components/takeoff/AITakeoffDialog';
 import type { Page, Measurement, Condition, JsonObject } from '@/types';
@@ -43,6 +44,12 @@ export function TakeoffViewer() {
     // State
     const [selectedConditionId, setSelectedConditionId] = useState<string | null>(null);
     const [selectedMeasurementId, setSelectedMeasurementId] = useState<string | null>(null);
+    const [shapeContextMenu, setShapeContextMenu] = useState<{
+        measurement: Measurement;
+        position: { x: number; y: number };
+    } | null>(null);
+    const [hiddenMeasurementIds, setHiddenMeasurementIds] = useState<Set<string>>(new Set());
+    const [measurementOrder, setMeasurementOrder] = useState<string[]>([]);
     const [showCalibrationDialog, setShowCalibrationDialog] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -104,6 +111,7 @@ export function TakeoffViewer() {
     const clearSelection = useCallback(() => {
         setSelectedMeasurementId(null);
         setSelectedConditionId(null);
+        setShapeContextMenu(null);
     }, []);
 
     const handleConditionSelect = useCallback((id: string | null) => {
@@ -201,9 +209,53 @@ export function TakeoffViewer() {
     const conditions = conditionsData?.conditions || [];
     const measurementsList = measurementsData?.measurements || [];
     const selectedCondition = conditions.find((c: Condition) => c.id === selectedConditionId);
+    const orderedMeasurements = useMemo(() => {
+        if (measurementOrder.length === 0) return measurementsList;
+        const orderIndex = new Map(measurementOrder.map((id, index) => [id, index]));
+        return [...measurementsList].sort((a, b) => {
+            const aIndex = orderIndex.get(a.id) ?? 0;
+            const bIndex = orderIndex.get(b.id) ?? 0;
+            return aIndex - bIndex;
+        });
+    }, [measurementOrder, measurementsList]);
+    const visibleMeasurements = orderedMeasurements.filter(
+        (measurement) => !hiddenMeasurementIds.has(measurement.id)
+    );
     const filteredMeasurements = selectedConditionId
-        ? measurementsList.filter((m: Measurement) => m.condition_id === selectedConditionId)
+        ? visibleMeasurements.filter((m: Measurement) => m.condition_id === selectedConditionId)
         : [];
+
+    useEffect(() => {
+        if (measurementsList.length === 0) {
+            setMeasurementOrder([]);
+            return;
+        }
+        setMeasurementOrder((prev) => {
+            const availableIds = new Set(measurementsList.map((measurement) => measurement.id));
+            const filtered = prev.filter((id) => availableIds.has(id));
+            const missing = measurementsList
+                .map((measurement) => measurement.id)
+                .filter((id) => !filtered.includes(id));
+            return [...filtered, ...missing];
+        });
+    }, [measurementsList]);
+
+    useEffect(() => {
+        if (measurementsList.length === 0) {
+            setHiddenMeasurementIds(new Set());
+            return;
+        }
+        setHiddenMeasurementIds((prev) => {
+            const availableIds = new Set(measurementsList.map((measurement) => measurement.id));
+            const next = new Set<string>();
+            prev.forEach((id) => {
+                if (availableIds.has(id)) {
+                    next.add(id);
+                }
+            });
+            return next;
+        });
+    }, [measurementsList]);
 
     const handleDeleteMeasurement = useCallback(
         (id: string) => {
@@ -245,6 +297,140 @@ export function TakeoffViewer() {
         },
         [addNotification, measurements, measurementsList, pageId, undoRedo]
     );
+
+    const handleMeasurementUpdate = useCallback(
+        (id: string, geometryData: JsonObject, previousGeometryData?: JsonObject) => {
+            void (async () => {
+                if (!pageId) return;
+                const measurement = measurementsList.find((item: Measurement) => item.id === id);
+                if (!measurement) return;
+                const before = previousGeometryData ?? (measurement.geometry_data as JsonObject);
+                try {
+                    await measurements.updateMeasurementAsync({
+                        measurementId: id,
+                        geometryData,
+                    });
+                    undoRedo.push({
+                        undo: async () => {
+                            await measurements.updateMeasurementAsync({
+                                measurementId: id,
+                                geometryData: before,
+                            });
+                        },
+                        redo: async () => {
+                            await measurements.updateMeasurementAsync({
+                                measurementId: id,
+                                geometryData,
+                            });
+                        },
+                    });
+                } catch (error) {
+                    const message =
+                        error instanceof Error ? error.message : 'Failed to update measurement.';
+                    addNotification('error', 'Update failed', message);
+                }
+            })();
+        },
+        [addNotification, measurements, measurementsList, pageId, undoRedo]
+    );
+
+    const handleDuplicateMeasurement = useCallback(
+        (id: string) => {
+            void (async () => {
+                if (!pageId) return;
+                const measurement = measurementsList.find((item: Measurement) => item.id === id);
+                if (!measurement) return;
+                const offset = 12;
+                const duplicatedGeometry = offsetGeometryData(
+                    measurement.geometry_type,
+                    measurement.geometry_data as JsonObject,
+                    offset,
+                    offset
+                );
+
+                try {
+                    const created = await measurements.createMeasurementAsync({
+                        conditionId: measurement.condition_id,
+                        pageId,
+                        geometryType: measurement.geometry_type,
+                        geometryData: duplicatedGeometry as JsonObject,
+                    });
+                    if (!created?.id) return;
+                    let measurementId = created.id as string;
+
+                    undoRedo.push({
+                        undo: async () => {
+                            await measurements.deleteMeasurementAsync(measurementId);
+                        },
+                        redo: async () => {
+                            const recreated = await measurements.createMeasurementAsync({
+                                conditionId: measurement.condition_id,
+                                pageId,
+                                geometryType: measurement.geometry_type,
+                                geometryData: duplicatedGeometry as JsonObject,
+                            });
+                            if (recreated?.id) {
+                                measurementId = recreated.id as string;
+                                setSelectedMeasurementId(measurementId);
+                                setSelectedConditionId(measurement.condition_id);
+                            }
+                        },
+                    });
+
+                    setSelectedMeasurementId(measurementId);
+                    setSelectedConditionId(measurement.condition_id);
+                } catch (error) {
+                    const message =
+                        error instanceof Error ? error.message : 'Failed to duplicate measurement.';
+                    addNotification('error', 'Duplicate failed', message);
+                }
+            })();
+        },
+        [addNotification, measurements, measurementsList, pageId, undoRedo]
+    );
+
+    const bringMeasurementToFront = useCallback((id: string) => {
+        setMeasurementOrder((prev) => {
+            const filtered = prev.filter((item) => item !== id);
+            return [...filtered, id];
+        });
+    }, []);
+
+    const sendMeasurementToBack = useCallback((id: string) => {
+        setMeasurementOrder((prev) => {
+            const filtered = prev.filter((item) => item !== id);
+            return [id, ...filtered];
+        });
+    }, []);
+
+    const toggleMeasurementHidden = useCallback((id: string) => {
+        setHiddenMeasurementIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    }, []);
+
+    const openShapeContextMenu = useCallback(
+        (measurement: Measurement, event: Konva.KonvaEventObject<PointerEvent | MouseEvent>) => {
+            event.evt.preventDefault();
+            setShapeContextMenu({
+                measurement,
+                position: { x: event.evt.clientX, y: event.evt.clientY },
+            });
+            setSelectedMeasurementId(measurement.id);
+            setSelectedConditionId(measurement.condition_id);
+        },
+        []
+    );
+
+    const closeShapeContextMenu = useCallback(() => {
+        setShapeContextMenu(null);
+    }, []);
 
     const handleUndo = useCallback(() => {
         if (drawing.isDrawing && drawing.canUndo) {
@@ -750,13 +936,14 @@ export function TakeoffViewer() {
                             {/* Measurements */}
                             {page && (
                                 <MeasurementLayer
-                                    measurements={measurementsList}
+                                    measurements={visibleMeasurements}
                                     conditions={new Map(conditions.map((c: Condition) => [c.id, c]))}
                                     selectedMeasurementId={selectedMeasurementId}
                                     onMeasurementSelect={(id) => handleMeasurementSelect(id)}
                                     onConditionSelect={handleConditionSelect}
-                                    onMeasurementUpdate={() => { }}
-                                    isEditing={false}
+                                    onMeasurementUpdate={handleMeasurementUpdate}
+                                    onMeasurementContextMenu={openShapeContextMenu}
+                                    isEditing={drawing.tool === 'select'}
                                     scale={canvasControls.zoom}
                                 />
                             )}
@@ -897,6 +1084,27 @@ export function TakeoffViewer() {
                                 handleMeasurementSelect(id, measurement?.condition_id);
                             }}
                         />
+
+                        {shapeContextMenu && (
+                            <ShapeContextMenu
+                                position={shapeContextMenu.position}
+                                isHidden={hiddenMeasurementIds.has(shapeContextMenu.measurement.id)}
+                                onEdit={() => {
+                                    setSelectedMeasurementId(shapeContextMenu.measurement.id);
+                                    setSelectedConditionId(shapeContextMenu.measurement.condition_id);
+                                }}
+                                onDuplicate={() => handleDuplicateMeasurement(shapeContextMenu.measurement.id)}
+                                onDelete={() => handleDeleteMeasurement(shapeContextMenu.measurement.id)}
+                                onBringToFront={() =>
+                                    bringMeasurementToFront(shapeContextMenu.measurement.id)
+                                }
+                                onSendToBack={() => sendMeasurementToBack(shapeContextMenu.measurement.id)}
+                                onToggleHidden={() =>
+                                    toggleMeasurementHidden(shapeContextMenu.measurement.id)
+                                }
+                                onClose={closeShapeContextMenu}
+                            />
+                        )}
                     </div>
                 </div>
 

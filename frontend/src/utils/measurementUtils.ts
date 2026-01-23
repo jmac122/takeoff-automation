@@ -35,6 +35,60 @@ export interface MeasurementResult {
     };
 }
 
+type GeometryType = MeasurementResult['tool'];
+
+export function offsetGeometryData(
+    geometryType: GeometryType,
+    geometryData: import('@/types').JsonObject,
+    dx: number,
+    dy: number
+): import('@/types').JsonObject {
+    switch (geometryType) {
+        case 'line': {
+            const data = geometryData as unknown as { start: Point; end: Point };
+            return {
+                start: { x: data.start.x + dx, y: data.start.y + dy },
+                end: { x: data.end.x + dx, y: data.end.y + dy },
+            };
+        }
+        case 'polyline':
+        case 'polygon': {
+            const data = geometryData as unknown as { points: Point[] };
+            return {
+                points: data.points.map((point) => ({
+                    x: point.x + dx,
+                    y: point.y + dy,
+                })),
+            };
+        }
+        case 'rectangle': {
+            const data = geometryData as unknown as RectangleData;
+            return {
+                x: data.x + dx,
+                y: data.y + dy,
+                width: data.width,
+                height: data.height,
+            };
+        }
+        case 'circle': {
+            const data = geometryData as unknown as CircleData;
+            return {
+                center: { x: data.center.x + dx, y: data.center.y + dy },
+                radius: data.radius,
+            };
+        }
+        case 'point': {
+            const data = geometryData as unknown as Point;
+            return {
+                x: data.x + dx,
+                y: data.y + dy,
+            };
+        }
+        default:
+            return geometryData;
+    }
+}
+
 export function createMeasurementGeometry(result: MeasurementResult | { tool: string; points?: Point[]; previewShape?: { type: string; data: unknown } | null }): {
     geometryType: MeasurementResult['tool'];
     geometryData: GeometryData;
