@@ -469,6 +469,16 @@ async def reorder_conditions(
             detail="Duplicate condition IDs provided",
         )
 
+    # Lock the project row to prevent concurrent reorder races
+    project_result = await db.execute(
+        select(Project).where(Project.id == project_id).with_for_update()
+    )
+    if not project_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
     result = await db.execute(
         select(Condition).where(
             Condition.project_id == project_id,

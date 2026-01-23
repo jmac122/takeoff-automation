@@ -8,6 +8,7 @@ import {
   Layers,
   MoreHorizontal,
   Plus,
+  Sparkles,
   Trash2,
 } from 'lucide-react';
 import {
@@ -65,12 +66,18 @@ interface ConditionsPanelProps {
   projectId: string;
   selectedConditionId: string | null;
   onConditionSelect: (id: string | null) => void;
+  pageId?: string;
+  isPageCalibrated?: boolean;
+  onAITakeoff?: (conditionId: string, conditionName: string) => void;
 }
 
 export function ConditionsPanel({
   projectId,
   selectedConditionId,
   onConditionSelect,
+  pageId: _pageId, // Available for future use
+  isPageCalibrated = false,
+  onAITakeoff,
 }: ConditionsPanelProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingCondition, setEditingCondition] = useState<Condition | null>(null);
@@ -114,19 +121,33 @@ export function ConditionsPanel({
     })
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  // Handle drag end within a category - reorders only within that category
+  const handleCategoryDragEnd = (category: string) => (event: DragEndEvent) => {
     if (!event.over) return;
 
     const activeId = String(event.active.id);
     const overId = String(event.over.id);
     if (activeId === overId) return;
 
-    const oldIndex = conditions.findIndex((c) => c.id === activeId);
-    const newIndex = conditions.findIndex((c) => c.id === overId);
+    const categoryConditions = groupedConditions[category] || [];
+    const oldIndex = categoryConditions.findIndex((c) => c.id === activeId);
+    const newIndex = categoryConditions.findIndex((c) => c.id === overId);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const newOrder = arrayMove(conditions, oldIndex, newIndex);
-    reorderMutation.mutate(newOrder.map((c) => c.id));
+    // Reorder within category, then rebuild full list preserving category order
+    const reorderedCategory = arrayMove(categoryConditions, oldIndex, newIndex);
+    const newFullOrder: string[] = [];
+    
+    // Rebuild the full order, replacing the reordered category
+    Object.entries(groupedConditions).forEach(([cat, items]) => {
+      if (cat === category) {
+        newFullOrder.push(...reorderedCategory.map((c) => c.id));
+      } else {
+        newFullOrder.push(...items.map((c) => c.id));
+      }
+    });
+
+    reorderMutation.mutate(newFullOrder);
   };
 
   const totalQuantityByUnit = conditions.reduce((acc, condition) => {
@@ -173,18 +194,19 @@ export function ConditionsPanel({
             }
           />
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={conditions.map((c) => c.id)}
-              strategy={verticalListSortingStrategy}
+          // Each category has its own DndContext to prevent cross-category dragging
+          Object.entries(groupedConditions).map(([category, items]) => (
+            <DndContext
+              key={category}
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleCategoryDragEnd(category)}
             >
-              {Object.entries(groupedConditions).map(([category, items]) => (
+              <SortableContext
+                items={items.map((c) => c.id)}
+                strategy={verticalListSortingStrategy}
+              >
                 <Collapsible
-                  key={category}
                   open={expandedCategories.has(category)}
                   onOpenChange={() => toggleCategory(category)}
                 >
@@ -207,13 +229,14 @@ export function ConditionsPanel({
                         onEdit={() => setEditingCondition(condition)}
                         onDuplicate={() => duplicateMutation.mutate(condition.id)}
                         onDelete={() => setDeleteCandidate(condition)}
+                        onAITakeoff={isPageCalibrated && onAITakeoff ? () => onAITakeoff(condition.id, condition.name) : undefined}
                       />
                     ))}
                   </CollapsibleContent>
                 </Collapsible>
-              ))}
-            </SortableContext>
-          </DndContext>
+              </SortableContext>
+            </DndContext>
+          ))
         )}
       </div>
 
@@ -288,6 +311,7 @@ function SortableConditionItem({
   onEdit,
   onDuplicate,
   onDelete,
+  onAITakeoff,
 }: {
   condition: Condition;
   isSelected: boolean;
@@ -295,6 +319,7 @@ function SortableConditionItem({
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onAITakeoff?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: condition.id,
@@ -353,6 +378,12 @@ function SortableConditionItem({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {onAITakeoff && (
+            <DropdownMenuItem onClick={onAITakeoff}>
+              <Sparkles className="h-4 w-4 mr-2" />
+              AI Takeoff
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={onEdit}>
             <Edit className="h-4 w-4 mr-2" />
             Edit

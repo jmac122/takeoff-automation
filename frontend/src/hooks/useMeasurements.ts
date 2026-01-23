@@ -38,6 +38,12 @@ export function useMeasurements(pageId: string | undefined, projectId?: string) 
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['measurements', pageId] });
+            // Also invalidate conditions to refresh total_quantity and measurement_count
+            if (projectId) {
+                queryClient.invalidateQueries({ queryKey: ['conditions', projectId] });
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['conditions'] });
+            }
         },
     });
 
