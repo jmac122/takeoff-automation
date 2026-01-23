@@ -64,7 +64,12 @@ class Settings(BaseSettings):
     # ==========================================================================
     # Image Processing Configuration
     # ==========================================================================
-    # Max dimension for page images stored and sent to LLMs (1568px fits all LLM limits)
+    # Note: LLM image resolution is now per-provider (see llm_client.py):
+    # - Anthropic Claude: 1568px
+    # - OpenAI GPT-4o: 2048px  
+    # - Google Gemini: 3072px
+    # - xAI Grok: 2048px
+    # This setting is used as fallback only
     llm_image_max_dimension: int = 1568
 
     @field_validator("llm_fallback_providers", mode="before")
