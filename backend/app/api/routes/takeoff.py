@@ -1,10 +1,10 @@
 """API routes for AI takeoff generation."""
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,78 +32,30 @@ settings = get_settings()
 class GenerateTakeoffRequest(BaseModel):
     """Request to generate AI takeoff."""
 
-    condition_id: str
+    condition_id: uuid.UUID
     provider: str | None = None  # Optional provider override
-
-    @field_validator("condition_id")
-    @classmethod
-    def validate_condition_id(cls, v: str) -> str:
-        try:
-            uuid.UUID(v)
-            return v
-        except (ValueError, AttributeError):
-            raise ValueError(f"Invalid UUID format: {v}")
 
 
 class AutonomousTakeoffRequest(BaseModel):
     """Request for autonomous AI takeoff - AI determines elements."""
 
     provider: str | None = None  # Optional provider override
-    project_id: str | None = None  # Optional: auto-create conditions in this project
-
-    @field_validator("project_id")
-    @classmethod
-    def validate_project_id(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        try:
-            uuid.UUID(v)
-            return v
-        except (ValueError, AttributeError):
-            raise ValueError(f"Invalid UUID format: {v}")
+    project_id: uuid.UUID | None = None  # Optional: auto-create conditions in this project
 
 
 class CompareProvidersRequest(BaseModel):
     """Request to compare providers."""
 
-    condition_id: str
+    condition_id: uuid.UUID
     providers: list[str] | None = None  # None = all available
-
-    @field_validator("condition_id")
-    @classmethod
-    def validate_condition_id(cls, v: str) -> str:
-        try:
-            uuid.UUID(v)
-            return v
-        except (ValueError, AttributeError):
-            raise ValueError(f"Invalid UUID format: {v}")
 
 
 class BatchTakeoffRequest(BaseModel):
     """Request for batch AI takeoff."""
 
-    page_ids: list[str]
-    condition_id: str
+    page_ids: list[uuid.UUID]
+    condition_id: uuid.UUID
     provider: str | None = None
-
-    @field_validator("condition_id")
-    @classmethod
-    def validate_condition_id(cls, v: str) -> str:
-        try:
-            uuid.UUID(v)
-            return v
-        except (ValueError, AttributeError):
-            raise ValueError(f"Invalid UUID format: {v}")
-
-    @field_validator("page_ids")
-    @classmethod
-    def validate_page_ids(cls, v: list[str]) -> list[str]:
-        for page_id in v:
-            try:
-                uuid.UUID(page_id)
-            except (ValueError, AttributeError):
-                raise ValueError(f"Invalid UUID format in page_ids: {page_id}")
-        return v
 
 
 class TakeoffTaskResponse(BaseModel):
@@ -130,23 +82,38 @@ class AvailableProvidersResponse(BaseModel):
     task_config: dict[str, str]
 
 
+class TaskStatusResponse(BaseModel):
+    """Response for task status."""
+
+    task_id: str
+    status: str
+    result: Any | None = None
+    error: str | None = None
+
+
 # ============================================================================
-# Endpoints
+# Dependencies
 # ============================================================================
 
 
-@router.post("/pages/{page_id}/ai-takeoff", response_model=TakeoffTaskResponse)
-async def generate_ai_takeoff(
+class CalibratedPageData:
+    """Data class for calibrated page with its document."""
+
+    def __init__(self, page: Page, document: Document):
+        self.page = page
+        self.document = document
+
+
+async def get_calibrated_page(
     page_id: uuid.UUID,
-    request: GenerateTakeoffRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> TakeoffTaskResponse:
-    """Generate AI takeoff for a page.
-
-    Optionally specify an LLM provider to use.
-    Available providers: anthropic, openai, google, xai
+) -> CalibratedPageData:
+    """Dependency to fetch and validate a calibrated page.
+    
+    Raises:
+        HTTPException 404: If page not found
+        HTTPException 400: If page not calibrated
     """
-    # Verify page exists and get its project via document
     result = await db.execute(
         select(Page, Document)
         .join(Document, Page.document_id == Document.id)
@@ -159,19 +126,52 @@ async def generate_ai_takeoff(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Page not found",
         )
-    
+
     page, document = row
 
-    # Verify page is calibrated
     if not page.scale_calibrated:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Page must be calibrated before AI takeoff. Please set the scale first.",
         )
 
+    return CalibratedPageData(page=page, document=document)
+
+
+def validate_provider(provider: str | None) -> str | None:
+    """Validate that provider is available if specified.
+    
+    Raises:
+        HTTPException 400: If provider not available
+    """
+    if provider and provider not in settings.available_providers:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Provider '{provider}' not available. "
+            f"Available: {settings.available_providers}",
+        )
+    return provider
+
+
+# ============================================================================
+# Endpoints
+# ============================================================================
+
+
+@router.post("/pages/{page_id}/ai-takeoff", response_model=TakeoffTaskResponse)
+async def generate_ai_takeoff(
+    page_id: uuid.UUID,
+    request: GenerateTakeoffRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    page_data: Annotated[CalibratedPageData, Depends(get_calibrated_page)],
+) -> TakeoffTaskResponse:
+    """Generate AI takeoff for a page.
+
+    Optionally specify an LLM provider to use.
+    Available providers: anthropic, openai, google, xai
+    """
     # Verify condition exists
-    condition_uuid = uuid.UUID(request.condition_id)
-    result = await db.execute(select(Condition).where(Condition.id == condition_uuid))
+    result = await db.execute(select(Condition).where(Condition.id == request.condition_id))
     condition = result.scalar_one_or_none()
 
     if not condition:
@@ -181,25 +181,19 @@ async def generate_ai_takeoff(
         )
 
     # Verify page and condition belong to the same project
-    if document.project_id != condition.project_id:
+    if page_data.document.project_id != condition.project_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Page and condition must belong to the same project",
         )
 
-    # Validate provider if specified
-    provider = request.provider
-    if provider and provider not in settings.available_providers:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Provider '{provider}' not available. "
-            f"Available: {settings.available_providers}",
-        )
+    # Validate provider
+    provider = validate_provider(request.provider)
 
     # Queue the task
     task = generate_ai_takeoff_task.delay(
         str(page_id),
-        request.condition_id,
+        str(request.condition_id),
         provider=provider,
     )
 
@@ -216,7 +210,7 @@ async def generate_ai_takeoff(
 async def autonomous_ai_takeoff(
     page_id: uuid.UUID,
     request: AutonomousTakeoffRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    page_data: Annotated[CalibratedPageData, Depends(get_calibrated_page)],
 ) -> TakeoffTaskResponse:
     """Autonomous AI takeoff - AI identifies ALL concrete elements on its own.
 
@@ -230,50 +224,21 @@ async def autonomous_ai_takeoff(
     If project_id is provided, conditions will be auto-created for each
     element type the AI discovers.
     """
-    # Verify page exists and get its project via document
-    result = await db.execute(
-        select(Page, Document)
-        .join(Document, Page.document_id == Document.id)
-        .where(Page.id == page_id)
-    )
-    row = result.one_or_none()
-
-    if not row:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Page not found",
-        )
-    
-    page, document = row
-
-    # Verify page is calibrated
-    if not page.scale_calibrated:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Page must be calibrated before AI takeoff. Please set the scale first.",
-        )
-
-    # Validate provider if specified
-    provider = request.provider
-    if provider and provider not in settings.available_providers:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Provider '{provider}' not available. "
-            f"Available: {settings.available_providers}",
-        )
+    # Validate provider
+    provider = validate_provider(request.provider)
 
     # If project_id is provided, verify it matches the page's project
-    project_id_to_use = request.project_id
-    if project_id_to_use:
-        project_uuid = uuid.UUID(project_id_to_use)
-        if project_uuid != document.project_id:
+    project_id_to_use: str
+    if request.project_id:
+        if request.project_id != page_data.document.project_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Provided project_id does not match the page's project",
             )
+        project_id_to_use = str(request.project_id)
     else:
         # Use the page's actual project
-        project_id_to_use = str(document.project_id)
+        project_id_to_use = str(page_data.document.project_id)
 
     # Queue the autonomous task
     task = autonomous_ai_takeoff_task.delay(
@@ -296,39 +261,17 @@ async def compare_providers(
     page_id: uuid.UUID,
     request: CompareProvidersRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
+    page_data: Annotated[CalibratedPageData, Depends(get_calibrated_page)],
 ) -> TakeoffTaskResponse:
     """Compare AI takeoff results across multiple providers.
 
     Useful for benchmarking which provider works best for specific content.
     Does not create measurements - just returns comparison data.
     """
-    # Verify page exists and get its project via document
-    result = await db.execute(
-        select(Page, Document)
-        .join(Document, Page.document_id == Document.id)
-        .where(Page.id == page_id)
-    )
-    row = result.one_or_none()
-
-    if not row:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Page not found",
-        )
-    
-    page, document = row
-
-    if not page.scale_calibrated:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Page must be calibrated before comparison",
-        )
-
     # Verify condition exists
-    condition_uuid = uuid.UUID(request.condition_id)
-    result = await db.execute(select(Condition).where(Condition.id == condition_uuid))
+    result = await db.execute(select(Condition).where(Condition.id == request.condition_id))
     condition = result.scalar_one_or_none()
-    
+
     if not condition:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -336,7 +279,7 @@ async def compare_providers(
         )
 
     # Verify page and condition belong to the same project
-    if document.project_id != condition.project_id:
+    if page_data.document.project_id != condition.project_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Page and condition must belong to the same project",
@@ -355,7 +298,7 @@ async def compare_providers(
 
     task = compare_providers_task.delay(
         str(page_id),
-        request.condition_id,
+        str(request.condition_id),
         providers=providers,
     )
 
@@ -373,13 +316,12 @@ async def batch_ai_takeoff(
     """Generate AI takeoff for multiple pages.
 
     Queues individual tasks for each page.
-    All pages must belong to the same project as the condition.
+    All pages must belong to the same project as the condition and be calibrated.
     """
     # Verify condition exists
-    condition_uuid = uuid.UUID(request.condition_id)
-    result = await db.execute(select(Condition).where(Condition.id == condition_uuid))
+    result = await db.execute(select(Condition).where(Condition.id == request.condition_id))
     condition = result.scalar_one_or_none()
-    
+
     if not condition:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -387,25 +329,19 @@ async def batch_ai_takeoff(
         )
 
     # Validate provider if specified
-    if request.provider and request.provider not in settings.available_providers:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Provider '{request.provider}' not available. "
-            f"Available: {settings.available_providers}",
-        )
+    validate_provider(request.provider)
 
     # Verify all pages exist and belong to the condition's project
-    page_uuids = [uuid.UUID(pid) for pid in request.page_ids]
     result = await db.execute(
         select(Page, Document)
         .join(Document, Page.document_id == Document.id)
-        .where(Page.id.in_(page_uuids))
+        .where(Page.id.in_(request.page_ids))
     )
     rows = result.all()
-    
-    if len(rows) != len(page_uuids):
-        found_ids = {str(row[0].id) for row in rows}
-        missing = [pid for pid in request.page_ids if pid not in found_ids]
+
+    if len(rows) != len(request.page_ids):
+        found_ids = {row[0].id for row in rows}
+        missing = [str(pid) for pid in request.page_ids if pid not in found_ids]
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Pages not found: {missing}",
@@ -413,7 +349,7 @@ async def batch_ai_takeoff(
 
     # Check all pages belong to the condition's project
     invalid_pages = [
-        str(page.id) for page, doc in rows 
+        str(page.id) for page, doc in rows
         if doc.project_id != condition.project_id
     ]
     if invalid_pages:
@@ -424,7 +360,7 @@ async def batch_ai_takeoff(
 
     # Check all pages are calibrated
     uncalibrated_pages = [
-        str(page.id) for page, doc in rows 
+        str(page.id) for page, doc in rows
         if not page.scale_calibrated
     ]
     if uncalibrated_pages:
@@ -435,8 +371,8 @@ async def batch_ai_takeoff(
 
     # Queue batch task
     task = batch_ai_takeoff_task.delay(
-        request.page_ids,
-        request.condition_id,
+        [str(pid) for pid in request.page_ids],
+        str(request.condition_id),
         provider=request.provider,
     )
 
@@ -460,8 +396,8 @@ async def get_available_providers() -> AvailableProvidersResponse:
     )
 
 
-@router.get("/tasks/{task_id}/status")
-async def get_task_status(task_id: str) -> dict:
+@router.get("/tasks/{task_id}/status", response_model=TaskStatusResponse)
+async def get_task_status(task_id: str) -> TaskStatusResponse:
     """Get status of a Celery task.
 
     Returns the task state and result if complete.
@@ -471,15 +407,17 @@ async def get_task_status(task_id: str) -> dict:
 
     result = AsyncResult(task_id, app=celery_app)
 
-    response = {
+    response_data = {
         "task_id": task_id,
         "status": result.status,
+        "result": None,
+        "error": None,
     }
 
     if result.ready():
         if result.successful():
-            response["result"] = result.result
+            response_data["result"] = result.result
         else:
-            response["error"] = str(result.result) if result.result else "Task failed"
+            response_data["error"] = str(result.result) if result.result else "Task failed"
 
-    return response
+    return TaskStatusResponse(**response_data)

@@ -195,17 +195,23 @@ def generate_ai_takeoff_task(
                     db.add(measurement)
                     measurements_created += 1
 
-            # Update condition totals
+            # Update condition totals with row lock to prevent race conditions
+            # when multiple tasks update the same condition concurrently
             if measurements_created > 0:
                 from sqlalchemy import func
+                
+                # Lock the condition row to prevent concurrent updates
+                locked_condition = db.query(Condition).filter(
+                    Condition.id == condition.id
+                ).with_for_update().one()
                 
                 totals = db.query(
                     func.sum(Measurement.quantity),
                     func.count(Measurement.id),
                 ).filter(Measurement.condition_id == condition.id).one()
                 
-                condition.total_quantity = totals[0] or 0.0
-                condition.measurement_count = totals[1] or 0
+                locked_condition.total_quantity = totals[0] or 0.0
+                locked_condition.measurement_count = totals[1] or 0
 
             db.commit()
 
@@ -427,6 +433,8 @@ def get_or_create_condition_for_element(
     Returns:
         Tuple of (condition, was_created)
     """
+    from sqlalchemy import func
+    
     # Normalize element type
     normalized = element_type.lower().replace(" ", "_").replace("-", "_")
     
@@ -449,6 +457,11 @@ def get_or_create_condition_for_element(
     if condition:
         return condition, False
     
+    # Get max sort_order for this project to place new condition at end
+    max_order = db.query(func.max(Condition.sort_order)).filter(
+        Condition.project_id == project_id
+    ).scalar() or 0
+    
     # Create new condition
     condition = Condition(
         id=uuid.uuid4(),
@@ -460,6 +473,7 @@ def get_or_create_condition_for_element(
         unit=mapping["unit"],
         color="#4CAF50",  # Default green
         is_ai_generated=True,
+        sort_order=max_order + 1,
     )
     db.add(condition)
     db.flush()  # Get the ID
@@ -565,15 +579,21 @@ def autonomous_ai_takeoff_task(
                             db.add(measurement)
                             measurements_created += 1
 
-                    # Update condition totals
+                    # Update condition totals with row lock to prevent race conditions
                     from sqlalchemy import func
+                    
+                    # Lock the condition row to prevent concurrent updates
+                    locked_condition = db.query(Condition).filter(
+                        Condition.id == condition.id
+                    ).with_for_update().one()
+                    
                     totals = db.query(
                         func.sum(Measurement.quantity),
                         func.count(Measurement.id),
                     ).filter(Measurement.condition_id == condition.id).one()
 
-                    condition.total_quantity = totals[0] or 0.0
-                    condition.measurement_count = totals[1] or 0
+                    locked_condition.total_quantity = totals[0] or 0.0
+                    locked_condition.measurement_count = totals[1] or 0
 
                 db.commit()
 
