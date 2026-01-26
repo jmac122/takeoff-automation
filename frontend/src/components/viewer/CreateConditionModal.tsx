@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -63,6 +63,7 @@ export function CreateConditionModal({
   const [measurementType, setMeasurementType] = useState<MeasurementType>('area');
   const [thickness, setThickness] = useState('');
   const [color, setColor] = useState<string>(DEFAULT_COLOR);
+  const hasTouchedThicknessRef = useRef(false);
   const resolvedCategory = defaultCategory || 'other';
 
   const { data: templates } = useConditionTemplates();
@@ -81,10 +82,16 @@ export function CreateConditionModal({
     setMeasurementType('area');
     setThickness('');
     setColor(DEFAULT_COLOR);
+    hasTouchedThicknessRef.current = false;
   };
 
   useEffect(() => {
-    if (!defaultCategory || thickness) return;
+    if (!open) return;
+    hasTouchedThicknessRef.current = false;
+  }, [open]);
+
+  useEffect(() => {
+    if (!defaultCategory || thickness || hasTouchedThicknessRef.current) return;
     const templatesForCategory = groupedTemplates[defaultCategory] || [];
     const templateDepth = templatesForCategory.find((template) => {
       const hasThickness = template.thickness !== null && template.thickness !== undefined;
@@ -225,7 +232,10 @@ export function CreateConditionModal({
                   id="depth"
                   type="number"
                   value={thickness}
-                  onChange={(event) => setThickness(event.target.value)}
+                onChange={(event) => {
+                  hasTouchedThicknessRef.current = true;
+                  setThickness(event.target.value);
+                }}
                   placeholder="e.g., 4"
                 />
               </div>
