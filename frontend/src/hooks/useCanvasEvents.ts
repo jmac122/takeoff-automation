@@ -201,7 +201,7 @@ export function useCanvasEvents({
             const point = getImagePointFromStage(stage);
             if (point) {
                 drawing.updatePreview(point);
-                if (drawing.tool === 'polygon' && drawing.points.length >= 2) {
+                if (drawing.tool === 'polygon' && drawing.points.length >= 3) {
                     const first = drawing.points[0];
                     const distance = Math.hypot(point.x - first.x, point.y - first.y);
                     setIsCloseToStart(distance <= CLOSE_DISTANCE);

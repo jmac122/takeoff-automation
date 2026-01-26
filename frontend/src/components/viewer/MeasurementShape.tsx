@@ -42,10 +42,30 @@ export function MeasurementShape({
     const geometryBeforeDragRef = useRef<JsonObject | null>(null);
     const rectRef = useRef<Konva.Rect>(null);
     const circleRef = useRef<Konva.Circle>(null);
+    const cursorRef = useRef<string | null>(null);
 
     useEffect(() => {
         setLocalGeometry(measurement.geometry_data as JsonObject);
     }, [measurement.geometry_data]);
+
+    const setCursor = useCallback((cursor: string) => {
+        document.body.style.cursor = cursor;
+        cursorRef.current = cursor;
+    }, []);
+
+    const clearCursor = useCallback(() => {
+        if (cursorRef.current && document.body.style.cursor === cursorRef.current) {
+            document.body.style.cursor = '';
+        }
+        cursorRef.current = null;
+    }, []);
+
+    useEffect(() => () => {
+        if (cursorRef.current && document.body.style.cursor === cursorRef.current) {
+            document.body.style.cursor = '';
+        }
+        cursorRef.current = null;
+    }, []);
 
     const strokeWidth = (condition.line_width || 2) / scale;
     const fillOpacity = condition.fill_opacity || 0.3;
@@ -55,13 +75,13 @@ export function MeasurementShape({
 
     const handleMouseEnter = useCallback(() => {
         setIsHovered(true);
-        document.body.style.cursor = isEditing ? 'move' : 'pointer';
-    }, [isEditing]);
+        setCursor(isEditing ? 'move' : 'pointer');
+    }, [isEditing, setCursor]);
 
     const handleMouseLeave = useCallback(() => {
         setIsHovered(false);
-        document.body.style.cursor = '';
-    }, []);
+        clearCursor();
+    }, [clearCursor]);
 
     const handleGroupDragStart = useCallback(() => {
         geometryBeforeDragRef.current = localGeometry;
@@ -198,15 +218,16 @@ export function MeasurementShape({
                     handleVertexDragEnd(index, { x: e.target.x(), y: e.target.y() })
                 }
                 onMouseEnter={() => {
-                    document.body.style.cursor = 'crosshair';
+                    setCursor('crosshair');
                 }}
                 onMouseLeave={() => {
-                    document.body.style.cursor = '';
+                    clearCursor();
                 }}
             />
         ));
     }, [
         condition.color,
+        clearCursor,
         handleVertexDragEnd,
         handleVertexDragMove,
         handleVertexDragStart,
@@ -215,6 +236,7 @@ export function MeasurementShape({
         localGeometry,
         measurement.geometry_type,
         scale,
+        setCursor,
     ]);
 
     switch (measurement.geometry_type) {
