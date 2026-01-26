@@ -154,17 +154,25 @@ export function TakeoffViewer() {
                             setSelectedMeasurementId((prev) => (prev === measurementId ? null : prev));
                         },
                         redo: async () => {
-                            const recreated = await measurements.createMeasurementAsync({
-                                conditionId: selectedConditionId,
-                                pageId,
-                                geometryType: geometry.geometryType,
-                                geometryData: geometry.geometryData as unknown as JsonObject,
-                            });
-                            if (recreated?.id) {
-                                measurementId = recreated.id as string;
-                                setSelectedMeasurementId(measurementId);
-                                setSelectedConditionId(selectedConditionId);
-                            }
+                                try {
+                                    const recreated = await measurements.createMeasurementAsync({
+                                        conditionId: selectedConditionId,
+                                        pageId,
+                                        geometryType: geometry.geometryType,
+                                        geometryData: geometry.geometryData as unknown as JsonObject,
+                                    });
+                                    if (recreated?.id) {
+                                        measurementId = recreated.id as string;
+                                        setSelectedMeasurementId(measurementId);
+                                        setSelectedConditionId(selectedConditionId);
+                                    }
+                                } catch (error) {
+                                    const message =
+                                        error instanceof Error
+                                            ? error.message
+                                            : 'Failed to redo measurement creation.';
+                                    addNotification('error', 'Redo failed', message);
+                                }
                         },
                     });
 
