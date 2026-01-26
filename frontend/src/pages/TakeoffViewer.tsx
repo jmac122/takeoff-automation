@@ -150,8 +150,18 @@ export function TakeoffViewer() {
 
                     undoRedo.push({
                         undo: async () => {
-                            await measurements.deleteMeasurementAsync(measurementId);
-                            setSelectedMeasurementId((prev) => (prev === measurementId ? null : prev));
+                            try {
+                                await measurements.deleteMeasurementAsync(measurementId);
+                                setSelectedMeasurementId((prev) =>
+                                    prev === measurementId ? null : prev
+                                );
+                            } catch (error) {
+                                const message =
+                                    error instanceof Error
+                                        ? error.message
+                                        : 'Failed to undo measurement creation.';
+                                addNotification('error', 'Undo failed', message);
+                            }
                         },
                         redo: async () => {
                                 try {
@@ -307,8 +317,18 @@ export function TakeoffViewer() {
                             }
                         },
                         redo: async () => {
-                            await measurements.deleteMeasurementAsync(measurementId);
-                            setSelectedMeasurementId((prev) => (prev === measurementId ? null : prev));
+                            try {
+                                await measurements.deleteMeasurementAsync(measurementId);
+                                setSelectedMeasurementId((prev) =>
+                                    prev === measurementId ? null : prev
+                                );
+                            } catch (error) {
+                                const message =
+                                    error instanceof Error
+                                        ? error.message
+                                        : 'Failed to redo measurement deletion.';
+                                addNotification('error', 'Redo failed', message);
+                            }
                         },
                     });
                 } catch (error) {
@@ -335,16 +355,32 @@ export function TakeoffViewer() {
                     });
                     undoRedo.push({
                         undo: async () => {
-                            await measurements.updateMeasurementAsync({
-                                measurementId: id,
-                                geometryData: before,
-                            });
+                            try {
+                                await measurements.updateMeasurementAsync({
+                                    measurementId: id,
+                                    geometryData: before,
+                                });
+                            } catch (error) {
+                                const message =
+                                    error instanceof Error
+                                        ? error.message
+                                        : 'Failed to undo measurement update.';
+                                addNotification('error', 'Undo failed', message);
+                            }
                         },
                         redo: async () => {
-                            await measurements.updateMeasurementAsync({
-                                measurementId: id,
-                                geometryData,
-                            });
+                            try {
+                                await measurements.updateMeasurementAsync({
+                                    measurementId: id,
+                                    geometryData,
+                                });
+                            } catch (error) {
+                                const message =
+                                    error instanceof Error
+                                        ? error.message
+                                        : 'Failed to redo measurement update.';
+                                addNotification('error', 'Redo failed', message);
+                            }
                         },
                     });
                 } catch (error) {
@@ -383,7 +419,15 @@ export function TakeoffViewer() {
 
                     undoRedo.push({
                         undo: async () => {
-                            await measurements.deleteMeasurementAsync(measurementId);
+                            try {
+                                await measurements.deleteMeasurementAsync(measurementId);
+                            } catch (error) {
+                                const message =
+                                    error instanceof Error
+                                        ? error.message
+                                        : 'Failed to undo measurement duplication.';
+                                addNotification('error', 'Undo failed', message);
+                            }
                         },
                         redo: async () => {
                             try {

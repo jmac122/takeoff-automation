@@ -40,6 +40,7 @@ export function MeasurementShape({
         measurement.geometry_data as JsonObject
     );
     const geometryBeforeDragRef = useRef<JsonObject | null>(null);
+    const geometryBeforeTransformRef = useRef<JsonObject | null>(null);
     const rectRef = useRef<Konva.Rect>(null);
     const circleRef = useRef<Konva.Circle>(null);
     const cursorRef = useRef<string | null>(null);
@@ -133,10 +134,14 @@ export function MeasurementShape({
         [localGeometry, onUpdate]
     );
 
+    const handleRectTransformStart = useCallback(() => {
+        geometryBeforeTransformRef.current = localGeometry;
+    }, [localGeometry]);
+
     const handleRectTransformEnd = useCallback(() => {
         const node = rectRef.current;
         if (!node) return;
-        const previous = localGeometry;
+        const previous = geometryBeforeTransformRef.current ?? localGeometry;
         const scaleX = node.scaleX();
         const scaleY = node.scaleY();
 
@@ -153,12 +158,17 @@ export function MeasurementShape({
         };
         setLocalGeometry(next as unknown as JsonObject);
         onUpdate(next as unknown as JsonObject, previous);
+        geometryBeforeTransformRef.current = null;
     }, [localGeometry, onUpdate]);
+
+    const handleCircleTransformStart = useCallback(() => {
+        geometryBeforeTransformRef.current = localGeometry;
+    }, [localGeometry]);
 
     const handleCircleTransformEnd = useCallback(() => {
         const node = circleRef.current;
         if (!node) return;
-        const previous = localGeometry;
+        const previous = geometryBeforeTransformRef.current ?? localGeometry;
         const scaleX = node.scaleX();
         const scaleY = node.scaleY();
         const radiusScale = Math.max(scaleX, scaleY);
@@ -172,6 +182,7 @@ export function MeasurementShape({
         };
         setLocalGeometry(next as unknown as JsonObject);
         onUpdate(next as unknown as JsonObject, previous);
+        geometryBeforeTransformRef.current = null;
     }, [localGeometry, onUpdate]);
 
     const commonGroupProps = {
@@ -334,6 +345,7 @@ export function MeasurementShape({
                         fill={condition.color}
                         opacity={fillOpacity}
                         dash={dash}
+                        onTransformStart={handleRectTransformStart}
                         onTransformEnd={handleRectTransformEnd}
                     />
                     <Text
@@ -380,6 +392,7 @@ export function MeasurementShape({
                         fill={condition.color}
                         opacity={fillOpacity}
                         dash={dash}
+                        onTransformStart={handleCircleTransformStart}
                         onTransformEnd={handleCircleTransformEnd}
                     />
                     <Text

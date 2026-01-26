@@ -24,6 +24,7 @@ import {
 import type { Condition } from '@/types';
 import { useUpdateCondition } from '@/hooks/useConditions';
 import { recalculateConditionMeasurements } from '@/api/measurements';
+import { useNotificationContext } from '@/contexts/NotificationContext';
 
 interface EditConditionModalProps {
   condition: Condition;
@@ -43,6 +44,7 @@ const MEASUREMENT_TYPES = [
 export function EditConditionModal({ condition, open, onOpenChange }: EditConditionModalProps) {
   const queryClient = useQueryClient();
   const updateConditionMutation = useUpdateCondition(condition.project_id);
+  const { addNotification } = useNotificationContext();
 
   const [name, setName] = useState(condition.name);
   const [measurementType, setMeasurementType] = useState<MeasurementType>(
@@ -103,10 +105,18 @@ export function EditConditionModal({ condition, open, onOpenChange }: EditCondit
       {
         onSuccess: () => {
           if (shouldRecalculate) {
-            void recalculateConditionMeasurements(condition.id).then(() => {
-              queryClient.invalidateQueries({ queryKey: ['measurements'] });
-              queryClient.invalidateQueries({ queryKey: ['conditions', condition.project_id] });
-            });
+            void recalculateConditionMeasurements(condition.id)
+              .then(() => {
+                queryClient.invalidateQueries({ queryKey: ['measurements'] });
+                queryClient.invalidateQueries({ queryKey: ['conditions', condition.project_id] });
+              })
+              .catch((error) => {
+                const message =
+                  error instanceof Error
+                    ? error.message
+                    : 'Failed to recalculate measurements.';
+                addNotification('error', 'Recalculate failed', message);
+              });
           }
           onOpenChange(false);
         },

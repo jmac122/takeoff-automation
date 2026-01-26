@@ -143,6 +143,12 @@ export function useCanvasEvents({
                         drawing.finishDrawing(); // Reset state
                     } else {
                         // For polyline/polygon: just add points, finish on double-click
+                        if (
+                            (drawing.tool === 'polyline' || drawing.tool === 'polygon') &&
+                            e.evt.detail > 1
+                        ) {
+                            return;
+                        }
                         drawing.addPoint(point);
                     }
                 }
