@@ -171,19 +171,22 @@ async def recalculate_measurement(
         )
 
 
-@router.post("/pages/{page_id}/recalculate-all")
-async def recalculate_page_measurements(
-    page_id: uuid.UUID,
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Recalculate all measurements on a page (after scale change)."""
-    result = await db.execute(
-        select(Measurement.id).where(Measurement.page_id == page_id)
-    )
-    measurement_ids = [row[0] for row in result.all()]
+async def _recalculate_measurements_batch(
+    db: AsyncSession,
+    measurement_ids: list[uuid.UUID],
+    log_context: dict[str, str],
+) -> dict:
+    """Helper to recalculate a list of measurements and log failures.
     
+    Args:
+        db: Database session
+        measurement_ids: List of measurement UUIDs to recalculate
+        log_context: Additional context for logging (e.g., page_id or condition_id)
+        
+    Returns:
+        Dict with status, recalculated_count, failed_count, and failed_ids
+    """
     engine = get_measurement_engine()
-    
     recalculated_count = 0
     failed_ids: list[str] = []
 
@@ -196,17 +199,33 @@ async def recalculate_page_measurements(
             logger.warning(
                 "measurement_recalculate_failed",
                 measurement_id=str(mid),
-                page_id=str(page_id),
+                **log_context,
                 error=str(exc),
                 exc_info=True,
             )
-    
+
     return {
         "status": "success",
         "recalculated_count": recalculated_count,
         "failed_count": len(failed_ids),
         "failed_ids": failed_ids,
     }
+
+
+@router.post("/pages/{page_id}/recalculate-all")
+async def recalculate_page_measurements(
+    page_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Recalculate all measurements on a page (after scale change)."""
+    result = await db.execute(
+        select(Measurement.id).where(Measurement.page_id == page_id)
+    )
+    measurement_ids = [row[0] for row in result.all()]
+
+    return await _recalculate_measurements_batch(
+        db, measurement_ids, {"page_id": str(page_id)}
+    )
 
 
 @router.post("/conditions/{condition_id}/recalculate-all")
@@ -220,28 +239,6 @@ async def recalculate_condition_measurements(
     )
     measurement_ids = [row[0] for row in result.all()]
 
-    engine = get_measurement_engine()
-
-    recalculated_count = 0
-    failed_ids: list[str] = []
-
-    for mid in measurement_ids:
-        try:
-            await engine.recalculate_measurement(db, mid)
-            recalculated_count += 1
-        except ValueError as exc:
-            failed_ids.append(str(mid))
-            logger.warning(
-                "measurement_recalculate_failed",
-                measurement_id=str(mid),
-                condition_id=str(condition_id),
-                error=str(exc),
-                exc_info=True,
-            )
-
-    return {
-        "status": "success",
-        "recalculated_count": recalculated_count,
-        "failed_count": len(failed_ids),
-        "failed_ids": failed_ids,
-    }
+    return await _recalculate_measurements_batch(
+        db, measurement_ids, {"condition_id": str(condition_id)}
+    )
