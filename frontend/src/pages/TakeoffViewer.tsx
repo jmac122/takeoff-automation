@@ -77,6 +77,12 @@ export function TakeoffViewer() {
         },
         enabled: !!pageId,
     });
+    // #region agent log
+    useEffect(() => {
+        if (!page) return;
+        fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run2',hypothesisId:'H3',location:'TakeoffViewer.tsx:80',message:'page scale data loaded',data:{pageId:page.id,scaleCalibrated:page.scale_calibrated,scaleDetectionMethod:page.scale_detection_method,scaleText:page.scale_text,scaleValue:page.scale_value,scaleUnit:page.scale_unit,hasManualCalibration:!!page.scale_calibration_data?.manual_calibration,hasCalibration:!!page.scale_calibration_data?.calibration},timestamp:Date.now()})}).catch(()=>{});
+    }, [page]);
+    // #endregion
 
     const projectId = page?.document?.project_id;
     const { data: conditionsData } = useConditions(projectId);
@@ -93,6 +99,12 @@ export function TakeoffViewer() {
 
     // Load page image
     const image = usePageImage(page?.image_url);
+    const isImageReady = Boolean(image && image.complete && image.width > 0 && image.height > 0);
+    // #region agent log
+    useEffect(() => {
+        fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H6',location:'TakeoffViewer.tsx:102',message:'image state',data:{pageId,imageUrl:page?.image_url,imageWidth:image?.width,imageHeight:image?.height,imageComplete:image?.complete},timestamp:Date.now()})}).catch(()=>{});
+    }, [pageId, page?.image_url, image]);
+    // #endregion
 
     // Custom hooks
     const canvasControls = useCanvasControls({
@@ -121,6 +133,12 @@ export function TakeoffViewer() {
             setSelectedMeasurementId(null);
         }
     }, []);
+    // #region agent log
+    useEffect(() => {
+        if (!pageId) return;
+        fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run2',hypothesisId:'H4',location:'TakeoffViewer.tsx:132',message:'condition selection changed',data:{pageId,selectedConditionId},timestamp:Date.now()})}).catch(()=>{});
+    }, [pageId, selectedConditionId]);
+    // #endregion
 
     const handleMeasurementSelect = useCallback((id: string | null, conditionId?: string | null) => {
         setSelectedMeasurementId(id);
@@ -245,9 +263,19 @@ export function TakeoffViewer() {
         ? visibleMeasurements.filter((m: Measurement) => m.condition_id === selectedConditionId)
         : [];
 
+    // #region agent log
     useEffect(() => {
+        if (!pageId) return;
+        fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H1',location:'TakeoffViewer.tsx:264',message:'measurements query snapshot',data:{pageId,hasMeasurementsData:!!measurementsData,isArray:Array.isArray(measurementsData?.measurements),measurementsCount:measurementsList.length},timestamp:Date.now()})}).catch(()=>{});
+    }, [pageId, measurementsData, measurementsList.length]);
+    // #endregion
+
+    useEffect(() => {
+        // #region agent log
+        fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H2',location:'TakeoffViewer.tsx:272',message:'measurement order sync',data:{measurementsCount:measurementsList.length,prevOrderCount:measurementOrder.length},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         if (measurementsList.length === 0) {
-            setMeasurementOrder([]);
+            setMeasurementOrder((prev) => (prev.length === 0 ? prev : []));
             return;
         }
         setMeasurementOrder((prev) => {
@@ -263,8 +291,11 @@ export function TakeoffViewer() {
     }, [measurementsList]);
 
     useEffect(() => {
+        // #region agent log
+        fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H3',location:'TakeoffViewer.tsx:293',message:'hidden measurements sync',data:{measurementsCount:measurementsList.length,hiddenCount:hiddenMeasurementIds.size},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         if (measurementsList.length === 0) {
-            setHiddenMeasurementIds(new Set());
+            setHiddenMeasurementIds((prev) => (prev.size === 0 ? prev : new Set()));
             return;
         }
         setHiddenMeasurementIds((prev) => {
@@ -1006,7 +1037,7 @@ export function TakeoffViewer() {
                         >
                             {/* Background image */}
                             <Layer>
-                                {image && <KonvaImage image={image} />}
+                                {isImageReady && <KonvaImage image={image} />}
                             </Layer>
 
                             {/* Measurements */}

@@ -22,7 +22,7 @@ export function useCanvasControls({ image, containerId }: UseCanvasControlsOptio
 
     // Initialize stage size and fit image on load
     useEffect(() => {
-        if (image && image.complete) {
+        if (image && image.complete && image.width > 0 && image.height > 0) {
             const container = document.getElementById(containerId);
             if (container) {
                 const widthScale = container.clientWidth / image.width;
@@ -37,6 +37,9 @@ export function useCanvasControls({ image, containerId }: UseCanvasControlsOptio
                     width: container.clientWidth,
                     height: container.clientHeight,
                 });
+                // #region agent log
+                fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H4',location:'useCanvasControls.ts:37',message:'stage init',data:{containerId,containerWidth:container.clientWidth,containerHeight:container.clientHeight,imageWidth:image.width,imageHeight:image.height,zoom:scale},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
             }
         }
     }, [image, containerId]);
@@ -51,6 +54,9 @@ export function useCanvasControls({ image, containerId }: UseCanvasControlsOptio
 
                 setStageSize(prev => {
                     if (prev.width !== newWidth || prev.height !== newHeight) {
+                        // #region agent log
+                        fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H5',location:'useCanvasControls.ts:55',message:'stage resize',data:{containerId,newWidth,newHeight,prevWidth:prev.width,prevHeight:prev.height},timestamp:Date.now()})}).catch(()=>{});
+                        // #endregion
                         return { width: newWidth, height: newHeight };
                     }
                     return prev;
@@ -85,7 +91,7 @@ export function useCanvasControls({ image, containerId }: UseCanvasControlsOptio
     }, []);
 
     const handleFitToScreen = useCallback(() => {
-        if (!image || !stageSize.width || !stageSize.height) return;
+        if (!image || image.width === 0 || image.height === 0 || !stageSize.width || !stageSize.height) return;
 
         const scaleX = stageSize.width / image.width;
         const scaleY = stageSize.height / image.height;

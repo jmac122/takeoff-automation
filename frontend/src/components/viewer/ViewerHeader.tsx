@@ -56,14 +56,11 @@ export function ViewerHeader({
     const hasScaleLocation = page?.scale_calibration_data?.best_scale?.bbox;
     const hasTitleBlockRegion = page?.document?.title_block_region;
     
-    // AI Takeoff requires MANUAL calibration - auto-detected scale is not sufficient
-    const isManuallyCalibrated = Boolean(
-        page?.scale_calibrated && (
-            page?.scale_detection_method === 'manual_calibration' ||
-            page?.scale_calibration_data?.manual_calibration ||
-            page?.scale_calibration_data?.calibration
-        )
-    );
+    // AI Takeoff requires a calibrated scale (manual or auto-detected)
+    const isPageCalibrated = Boolean(page?.scale_calibrated && page?.scale_value);
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run2',hypothesisId:'H1',location:'ViewerHeader.tsx:67',message:'calibration gating',data:{scaleCalibrated:page?.scale_calibrated,scaleValue:page?.scale_value,scaleDetectionMethod:page?.scale_detection_method,hasManualCalibration:!!page?.scale_calibration_data?.manual_calibration,hasCalibration:!!page?.scale_calibration_data?.calibration,isPageCalibrated},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     return (
         <div className="flex items-center gap-4 px-4 py-3 border-b border-neutral-700 bg-neutral-900" style={{ minHeight: '70px' }}>
             {/* Back Button */}
@@ -179,12 +176,12 @@ export function ViewerHeader({
             {/* Visual Separator */}
             <div className="h-10 w-px bg-neutral-700" />
 
-            {/* AI Takeoff Button - requires MANUAL calibration */}
+            {/* AI Takeoff Button - requires calibrated scale */}
             {pageId && projectId && (
                 <AutonomousAITakeoffButton
                     pageId={pageId}
                     projectId={projectId}
-                    isPageCalibrated={isManuallyCalibrated}
+                    isPageCalibrated={isPageCalibrated}
                     onComplete={onAutonomousTakeoffComplete}
                 />
             )}

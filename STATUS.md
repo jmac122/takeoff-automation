@@ -1,8 +1,8 @@
 # ForgeX Takeoffs - Project Status
 
-**Last Updated:** January 22, 2026  
+**Last Updated:** January 26, 2026  
 **Current Phase:** ✅ Phase 3B Complete - Condition Management (Phase 3A still in progress)  
-**Recent Updates:** Condition templates, duplication/reorder endpoints, upgraded Conditions UI, lint cleanup, and dev-test support in Docker
+**Recent Updates:** Takeoff viewer stability guard for invalid geometry, autonomous AI takeoff gating on calibrated scale, and condition UI improvements
 
 ---
 
@@ -158,6 +158,8 @@
 - ✅ Konva.js canvas with pan/zoom controls
 - ✅ Calibration overlay with pixel distance preview
 - ✅ Backend calibration API endpoint (`POST /pages/{id}/calibrate`)
+- ✅ Measurement geometry validation guards to prevent Konva crashes
+- ✅ Autonomous AI takeoff enabled when page scale is calibrated
 
 **Key Implementation Notes:**
 - **Manual Calibration**: Draw line over known dimension → Enter distance → Scale saved

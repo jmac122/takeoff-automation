@@ -41,6 +41,7 @@ export function MeasurementShape({
     );
     const geometryBeforeDragRef = useRef<JsonObject | null>(null);
     const geometryBeforeTransformRef = useRef<JsonObject | null>(null);
+    const invalidLoggedRef = useRef<Set<string>>(new Set());
     const rectRef = useRef<Konva.Rect>(null);
     const circleRef = useRef<Konva.Circle>(null);
     const cursorRef = useRef<string | null>(null);
@@ -204,6 +205,73 @@ export function MeasurementShape({
         () => `${measurement.quantity.toFixed(1)} ${measurement.unit}`,
         [measurement.quantity, measurement.unit]
     );
+
+    const isFiniteNumber = (value: unknown): value is number =>
+        typeof value === 'number' && Number.isFinite(value);
+
+    const isValidPoint = (point: Point | undefined) =>
+        Boolean(point && isFiniteNumber(point.x) && isFiniteNumber(point.y));
+
+    const getPointsBounds = (points: Point[]) => {
+        const xs = points.map((point) => point.x);
+        const ys = points.map((point) => point.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        return { width: maxX - minX, height: maxY - minY };
+    };
+
+    const isValidGeometry = useMemo(() => {
+        switch (measurement.geometry_type) {
+            case 'line': {
+                const data = localGeometry as unknown as LineData;
+                if (!isValidPoint(data.start) || !isValidPoint(data.end)) return false;
+                return data.start.x !== data.end.x || data.start.y !== data.end.y;
+            }
+            case 'polyline':
+            case 'polygon': {
+                const data = localGeometry as unknown as PolylineData;
+                if (!Array.isArray(data.points)) return false;
+                const minPoints = measurement.geometry_type === 'polygon' ? 3 : 2;
+                if (data.points.length < minPoints) return false;
+                if (!data.points.every(isValidPoint)) return false;
+                const bounds = getPointsBounds(data.points);
+                return bounds.width > 0 || bounds.height > 0;
+            }
+            case 'rectangle': {
+                const data = localGeometry as unknown as RectangleData;
+                return (
+                    isFiniteNumber(data.x) &&
+                    isFiniteNumber(data.y) &&
+                    isFiniteNumber(data.width) &&
+                    isFiniteNumber(data.height) &&
+                    data.width > 0 &&
+                    data.height > 0
+                );
+            }
+            case 'circle': {
+                const data = localGeometry as unknown as CircleData;
+                return isValidPoint(data.center) && isFiniteNumber(data.radius) && data.radius > 0;
+            }
+            case 'point': {
+                const data = localGeometry as unknown as PointData;
+                return isFiniteNumber(data.x) && isFiniteNumber(data.y);
+            }
+            default:
+                return false;
+        }
+    }, [localGeometry, measurement.geometry_type]);
+
+    if (!isValidGeometry) {
+        if (!invalidLoggedRef.current.has(measurement.id)) {
+            invalidLoggedRef.current.add(measurement.id);
+            // #region agent log
+            fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run5',hypothesisId:'H1',location:'MeasurementShape.tsx:88',message:'invalid measurement geometry',data:{measurementId:measurement.id,geometryType:measurement.geometry_type,geometryData:measurement.geometry_data},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+        }
+        return null;
+    }
 
     const vertexHandles = useMemo(() => {
         if (!isSelected || !isEditing) return null;

@@ -1029,6 +1029,23 @@ All implementations follow industrial/tactical UI aesthetic:
 
 ---
 
+### Takeoff Viewer Stability & AI Takeoff Gating
+
+**Issue:** Page-specific black screen after saving measurements; AI takeoff button disabled despite calibrated scale.
+
+**Solution:**
+- Skip invalid measurement geometry at render time to avoid Konva cache crashes.
+- Only render the plan image once dimensions are valid.
+- Enable autonomous AI takeoff when page scale is calibrated (auto or manual).
+
+**Files Modified:**
+- `frontend/src/components/viewer/MeasurementShape.tsx`
+- `frontend/src/hooks/usePageImage.ts`
+- `frontend/src/hooks/useCanvasControls.ts`
+- `frontend/src/components/viewer/ViewerHeader.tsx`
+
+---
+
 ## Future Enhancements
 
 ### Phase 2B: Scale Calibration
