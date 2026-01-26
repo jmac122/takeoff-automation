@@ -46,17 +46,23 @@ def scale_coordinates(
     scale_y = original_height / llm_height
     
     if geometry_type == "point":
+        # Use `or 0` to handle both missing keys AND explicit null values
+        x = geometry_data.get("x") or 0
+        y = geometry_data.get("y") or 0
         return {
-            "x": geometry_data.get("x", 0) * scale_x,
-            "y": geometry_data.get("y", 0) * scale_y,
+            "x": x * scale_x,
+            "y": y * scale_y,
         }
     else:
         # polygon, polyline, line - all have "points" array
         scaled_points = []
         for point in geometry_data.get("points", []):
+            # Use `or 0` to handle both missing keys AND explicit null values
+            x = point.get("x") or 0
+            y = point.get("y") or 0
             scaled_points.append({
-                "x": point.get("x", 0) * scale_x,
-                "y": point.get("y", 0) * scale_y,
+                "x": x * scale_x,
+                "y": y * scale_y,
             })
         return {"points": scaled_points}
 
@@ -381,8 +387,14 @@ class AITakeoffService:
                 geometry_type = elem.get("geometry_type", "polygon")
 
                 if geometry_type == "point":
-                    geometry_data = {"x": elem.get("x", 0), "y": elem.get("y", 0)}
+                    # Use `or 0` to handle both missing keys AND explicit null values
+                    geometry_data = {"x": elem.get("x") or 0, "y": elem.get("y") or 0}
                 else:
+                    # Normalize "line" to "polyline" for consistent handling
+                    # measurement_engine expects "line" to have {start, end} format,
+                    # but AI returns {points} format. Polyline handles both correctly.
+                    if geometry_type == "line":
+                        geometry_type = "polyline"
                     geometry_data = {"points": elem.get("points", [])}
 
                 # Scale coordinates from LLM image space to original image space
@@ -510,8 +522,14 @@ class AITakeoffService:
                 depth_inches = float(raw_depth) if raw_depth is not None else None
 
                 if geometry_type == "point":
-                    geometry_data = {"x": elem.get("x", 0), "y": elem.get("y", 0)}
+                    # Use `or 0` to handle both missing keys AND explicit null values
+                    geometry_data = {"x": elem.get("x") or 0, "y": elem.get("y") or 0}
                 else:
+                    # Normalize "line" to "polyline" for consistent handling
+                    # measurement_engine expects "line" to have {start, end} format,
+                    # but AI returns {points} format. Polyline handles both correctly.
+                    if geometry_type == "line":
+                        geometry_type = "polyline"
                     geometry_data = {"points": elem.get("points", [])}
 
                 # Scale coordinates from LLM image space to original image space

@@ -77,7 +77,9 @@ def create_measurement_from_element(
         extra_metadata["area_sf"] = round(quantity, 2)
         extra_metadata["perimeter_lf"] = round(calculation.get("perimeter_lf", 0), 2)
 
-    elif element.geometry_type in ("line", "polyline"):
+    elif element.geometry_type == "polyline":
+        # Note: "line" geometry_type is normalized to "polyline" in ai_takeoff.py
+        # to ensure consistent {points} format handling
         points = element.geometry_data.get("points", [])
         if len(points) < 2:
             return None
