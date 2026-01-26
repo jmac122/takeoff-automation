@@ -82,7 +82,7 @@ export function EditConditionModal({ condition, open, onOpenChange }: EditCondit
     const thicknessValue = thickness ? Number(thickness) : null;
     const depthValue =
       measurementType === 'area' || measurementType === 'volume' ? thicknessValue : null;
-    const previousDepthValue = condition.depth ?? condition.thickness ?? null;
+    const previousDepthValue = condition.thickness ?? condition.depth ?? null;
     const shouldRecalculate =
       unit !== condition.unit ||
       measurementType !== condition.measurement_type ||
@@ -96,7 +96,7 @@ export function EditConditionModal({ condition, open, onOpenChange }: EditCondit
           measurement_type: measurementType,
           unit,
           depth: depthValue,
-          thickness: depthValue,
+          thickness: thicknessValue,
           color,
         },
       },

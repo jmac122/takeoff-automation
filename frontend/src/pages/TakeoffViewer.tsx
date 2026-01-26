@@ -161,11 +161,12 @@ export function TakeoffViewer() {
                                         geometryType: geometry.geometryType,
                                         geometryData: geometry.geometryData as unknown as JsonObject,
                                     });
-                                    if (recreated?.id) {
-                                        measurementId = recreated.id as string;
-                                        setSelectedMeasurementId(measurementId);
-                                        setSelectedConditionId(selectedConditionId);
+                                    if (!recreated?.id) {
+                                        throw new Error('Failed to recreate measurement during redo.');
                                     }
+                                    measurementId = recreated.id as string;
+                                    setSelectedMeasurementId(measurementId);
+                                    setSelectedConditionId(selectedConditionId);
                                 } catch (error) {
                                     const message =
                                         error instanceof Error
@@ -228,7 +229,7 @@ export function TakeoffViewer() {
         });
     }, [measurementOrder, measurementsList]);
     const visibleMeasurements = orderedMeasurements.filter(
-        (measurement) => !hiddenMeasurementIds.has(measurement.id)
+        (measurement: Measurement) => !hiddenMeasurementIds.has(measurement.id)
     );
     const filteredMeasurements = selectedConditionId
         ? visibleMeasurements.filter((m: Measurement) => m.condition_id === selectedConditionId)
@@ -240,11 +241,13 @@ export function TakeoffViewer() {
             return;
         }
         setMeasurementOrder((prev) => {
-            const availableIds = new Set(measurementsList.map((measurement) => measurement.id));
-            const filtered = prev.filter((id) => availableIds.has(id));
+            const availableIds = new Set(
+                measurementsList.map((measurement: Measurement) => measurement.id)
+            );
+            const filtered = prev.filter((id: string) => availableIds.has(id));
             const missing = measurementsList
-                .map((measurement) => measurement.id)
-                .filter((id) => !filtered.includes(id));
+                .map((measurement: Measurement) => measurement.id)
+                .filter((id: string) => !filtered.includes(id));
             return [...filtered, ...missing];
         });
     }, [measurementsList]);
@@ -255,7 +258,9 @@ export function TakeoffViewer() {
             return;
         }
         setHiddenMeasurementIds((prev) => {
-            const availableIds = new Set(measurementsList.map((measurement) => measurement.id));
+            const availableIds = new Set(
+                measurementsList.map((measurement: Measurement) => measurement.id)
+            );
             const next = new Set<string>();
             prev.forEach((id) => {
                 if (availableIds.has(id)) {
@@ -280,16 +285,25 @@ export function TakeoffViewer() {
 
                     undoRedo.push({
                         undo: async () => {
-                            const recreated = await measurements.createMeasurementAsync({
-                                conditionId: measurement.condition_id,
-                                pageId,
-                                geometryType: measurement.geometry_type,
-                                geometryData: measurement.geometry_data as unknown as JsonObject,
-                            });
-                            if (recreated?.id) {
+                            try {
+                                const recreated = await measurements.createMeasurementAsync({
+                                    conditionId: measurement.condition_id,
+                                    pageId,
+                                    geometryType: measurement.geometry_type,
+                                    geometryData: measurement.geometry_data as unknown as JsonObject,
+                                });
+                                if (!recreated?.id) {
+                                    throw new Error('Failed to recreate measurement during undo.');
+                                }
                                 measurementId = recreated.id as string;
                                 setSelectedMeasurementId(measurementId);
                                 setSelectedConditionId(measurement.condition_id);
+                            } catch (error) {
+                                const message =
+                                    error instanceof Error
+                                        ? error.message
+                                        : 'Failed to undo measurement deletion.';
+                                addNotification('error', 'Undo failed', message);
                             }
                         },
                         redo: async () => {
@@ -372,16 +386,25 @@ export function TakeoffViewer() {
                             await measurements.deleteMeasurementAsync(measurementId);
                         },
                         redo: async () => {
-                            const recreated = await measurements.createMeasurementAsync({
-                                conditionId: measurement.condition_id,
-                                pageId,
-                                geometryType: measurement.geometry_type,
-                                geometryData: duplicatedGeometry as JsonObject,
-                            });
-                            if (recreated?.id) {
+                            try {
+                                const recreated = await measurements.createMeasurementAsync({
+                                    conditionId: measurement.condition_id,
+                                    pageId,
+                                    geometryType: measurement.geometry_type,
+                                    geometryData: duplicatedGeometry as JsonObject,
+                                });
+                                if (!recreated?.id) {
+                                    throw new Error('Failed to recreate measurement during redo.');
+                                }
                                 measurementId = recreated.id as string;
                                 setSelectedMeasurementId(measurementId);
                                 setSelectedConditionId(measurement.condition_id);
+                            } catch (error) {
+                                const message =
+                                    error instanceof Error
+                                        ? error.message
+                                        : 'Failed to redo measurement duplication.';
+                                addNotification('error', 'Redo failed', message);
                             }
                         },
                     });

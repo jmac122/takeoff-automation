@@ -86,11 +86,13 @@ export function CreateConditionModal({
   useEffect(() => {
     if (!defaultCategory || thickness) return;
     const templatesForCategory = groupedTemplates[defaultCategory] || [];
-    const templateDepth = templatesForCategory.find(
-      (template) => template.thickness || template.depth
-    );
+    const templateDepth = templatesForCategory.find((template) => {
+      const hasThickness = template.thickness !== null && template.thickness !== undefined;
+      const hasDepth = template.depth !== null && template.depth !== undefined;
+      return hasThickness || hasDepth;
+    });
     const defaultDepth = templateDepth?.thickness ?? templateDepth?.depth;
-    if (defaultDepth) {
+    if (defaultDepth !== null && defaultDepth !== undefined) {
       setThickness(String(defaultDepth));
     }
   }, [defaultCategory, groupedTemplates, thickness]);
@@ -106,7 +108,7 @@ export function CreateConditionModal({
         measurement_type: measurementType,
         unit: selected?.unit || 'SF',
         depth: depthValue,
-        thickness: depthValue,
+        thickness: thicknessValue,
         color,
         scope: 'concrete',
         category: resolvedCategory,

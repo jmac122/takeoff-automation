@@ -40,9 +40,10 @@ export function useDrawingState() {
         index: -1,
     });
 
-    const canUndo = isDrawing && pointHistoryState.index > 0;
+    const canUndo = pointHistoryState.index > 0;
     const canRedo =
-        isDrawing && pointHistoryState.index >= 0 && pointHistoryState.index < pointHistoryState.history.length - 1;
+        pointHistoryState.index >= 0 &&
+        pointHistoryState.index < pointHistoryState.history.length - 1;
 
     const startDrawing = useCallback((point: Point) => {
         setIsDrawing(true);
@@ -138,7 +139,6 @@ export function useDrawingState() {
     }, []);
 
     const undo = useCallback(() => {
-        if (!isDrawing) return;
         setPointHistoryState((prev) => {
             if (prev.index <= 0) {
                 return prev;
@@ -147,10 +147,9 @@ export function useDrawingState() {
             setPoints(prev.history[nextIndex]);
             return { ...prev, index: nextIndex };
         });
-    }, [isDrawing]);
+    }, []);
 
     const redo = useCallback(() => {
-        if (!isDrawing) return;
         setPointHistoryState((prev) => {
             if (prev.index < 0 || prev.index >= prev.history.length - 1) {
                 return prev;
@@ -159,7 +158,7 @@ export function useDrawingState() {
             setPoints(prev.history[nextIndex]);
             return { ...prev, index: nextIndex };
         });
-    }, [isDrawing]);
+    }, []);
 
     return {
         tool,

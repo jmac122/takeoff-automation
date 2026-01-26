@@ -37,6 +37,40 @@ export interface MeasurementResult {
 
 type GeometryType = MeasurementResult['tool'];
 
+const hasNumber = (value: unknown): value is number => typeof value === 'number';
+
+const isPoint = (value: unknown): value is Point =>
+    typeof value === 'object' &&
+    value !== null &&
+    hasNumber((value as Point).x) &&
+    hasNumber((value as Point).y);
+
+const isLineData = (value: unknown): value is { start: Point; end: Point } =>
+    typeof value === 'object' &&
+    value !== null &&
+    isPoint((value as { start?: Point }).start) &&
+    isPoint((value as { end?: Point }).end);
+
+const isPointsData = (value: unknown): value is { points: Point[] } =>
+    typeof value === 'object' &&
+    value !== null &&
+    Array.isArray((value as { points?: Point[] }).points) &&
+    (value as { points: Point[] }).points.every(isPoint);
+
+const isRectangleData = (value: unknown): value is RectangleData =>
+    typeof value === 'object' &&
+    value !== null &&
+    hasNumber((value as RectangleData).x) &&
+    hasNumber((value as RectangleData).y) &&
+    hasNumber((value as RectangleData).width) &&
+    hasNumber((value as RectangleData).height);
+
+const isCircleData = (value: unknown): value is CircleData =>
+    typeof value === 'object' &&
+    value !== null &&
+    isPoint((value as CircleData).center) &&
+    hasNumber((value as CircleData).radius);
+
 export function offsetGeometryData(
     geometryType: GeometryType,
     geometryData: import('@/types').JsonObject,
@@ -45,7 +79,10 @@ export function offsetGeometryData(
 ): import('@/types').JsonObject {
     switch (geometryType) {
         case 'line': {
-            const data = geometryData as unknown as { start: Point; end: Point };
+            if (!isLineData(geometryData)) {
+                return geometryData;
+            }
+            const data = geometryData;
             return {
                 start: { x: data.start.x + dx, y: data.start.y + dy },
                 end: { x: data.end.x + dx, y: data.end.y + dy },
@@ -53,7 +90,10 @@ export function offsetGeometryData(
         }
         case 'polyline':
         case 'polygon': {
-            const data = geometryData as unknown as { points: Point[] };
+            if (!isPointsData(geometryData)) {
+                return geometryData;
+            }
+            const data = geometryData;
             return {
                 points: data.points.map((point) => ({
                     x: point.x + dx,
@@ -62,7 +102,10 @@ export function offsetGeometryData(
             };
         }
         case 'rectangle': {
-            const data = geometryData as unknown as RectangleData;
+            if (!isRectangleData(geometryData)) {
+                return geometryData;
+            }
+            const data = geometryData;
             return {
                 x: data.x + dx,
                 y: data.y + dy,
@@ -71,14 +114,20 @@ export function offsetGeometryData(
             };
         }
         case 'circle': {
-            const data = geometryData as unknown as CircleData;
+            if (!isCircleData(geometryData)) {
+                return geometryData;
+            }
+            const data = geometryData;
             return {
                 center: { x: data.center.x + dx, y: data.center.y + dy },
                 radius: data.radius,
             };
         }
         case 'point': {
-            const data = geometryData as unknown as Point;
+            if (!isPoint(geometryData)) {
+                return geometryData;
+            }
+            const data = geometryData;
             return {
                 x: data.x + dx,
                 y: data.y + dy,

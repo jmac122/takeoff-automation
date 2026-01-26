@@ -82,15 +82,15 @@ export async function recalculateMeasurement(measurementId: string): Promise<Mea
 /**
  * Recalculate all measurements on a page
  */
-export async function recalculatePageMeasurements(pageId: string): Promise<{status: string; recalculated_count: number}> {
-  const response = await apiClient.post<{status: string; recalculated_count: number}>(`/pages/${pageId}/recalculate-all`);
+export async function recalculatePageMeasurements(pageId: string): Promise<{status: string; recalculated_count: number; failed_count: number; failed_ids: string[]}> {
+  const response = await apiClient.post<{status: string; recalculated_count: number; failed_count: number; failed_ids: string[]}>(`/pages/${pageId}/recalculate-all`);
   return response.data;
 }
 
 /**
  * Recalculate all measurements for a condition
  */
-export async function recalculateConditionMeasurements(conditionId: string): Promise<{status: string; recalculated_count: number}> {
-  const response = await apiClient.post<{status: string; recalculated_count: number}>(`/conditions/${conditionId}/recalculate-all`);
+export async function recalculateConditionMeasurements(conditionId: string): Promise<{status: string; recalculated_count: number; failed_count: number; failed_ids: string[]}> {
+  const response = await apiClient.post<{status: string; recalculated_count: number; failed_count: number; failed_ids: string[]}>(`/conditions/${conditionId}/recalculate-all`);
   return response.data;
 }

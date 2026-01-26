@@ -198,6 +198,7 @@ async def recalculate_page_measurements(
                 measurement_id=str(mid),
                 page_id=str(page_id),
                 error=str(exc),
+                exc_info=True,
             )
     
     return {
@@ -235,6 +236,7 @@ async def recalculate_condition_measurements(
                 measurement_id=str(mid),
                 condition_id=str(condition_id),
                 error=str(exc),
+                exc_info=True,
             )
 
     return {
