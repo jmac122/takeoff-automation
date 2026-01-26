@@ -46,6 +46,10 @@ def create_measurement_from_element(
 ) -> Measurement | None:
     """Create a Measurement record from a detected element.
     
+    Uses the condition's unit as the source of truth to ensure measurements
+    sum correctly. If AI draws a linear element (LF) as a polygon, we use
+    the perimeter. If AI draws an area element (SF) as a polyline, we skip it.
+    
     Calculates both SF (square feet) and CY (cubic yards) for area elements.
     """
     extra_metadata = {
@@ -53,7 +57,10 @@ def create_measurement_from_element(
         "ai_latency_ms": result.llm_latency_ms,
     }
     
-    # Calculate quantity based on geometry type
+    # Use condition's unit as source of truth to ensure totals are consistent
+    condition_unit = condition.unit or "SF"
+    
+    # Calculate based on geometry type, but assign quantity based on condition unit
     if element.geometry_type == "polygon":
         points = element.geometry_data.get("points", [])
         if len(points) < 3:
@@ -64,18 +71,33 @@ def create_measurement_from_element(
         depth_inches = element.depth_inches or condition.depth
         
         calculation = calculator.calculate_polygon(points, depth_inches)
-        quantity = calculation.get("area_sf", 0)
-        unit = "SF"
         pixel_area = calculation.get("pixel_area")
         pixel_length = calculation.get("pixel_perimeter")
         
-        # Store CY calculation in metadata
+        # Store all calculated values in metadata
+        area_sf = calculation.get("area_sf", 0)
+        perimeter_lf = calculation.get("perimeter_lf", 0)
         volume_cy = calculation.get("volume_cy")
+        
         if volume_cy:
             extra_metadata["volume_cy"] = round(volume_cy, 2)
             extra_metadata["depth_inches"] = depth_inches
-        extra_metadata["area_sf"] = round(quantity, 2)
-        extra_metadata["perimeter_lf"] = round(calculation.get("perimeter_lf", 0), 2)
+        extra_metadata["area_sf"] = round(area_sf, 2)
+        extra_metadata["perimeter_lf"] = round(perimeter_lf, 2)
+        
+        # Assign quantity based on condition's expected unit
+        if condition_unit == "LF":
+            # Condition expects linear - use perimeter of polygon
+            quantity = perimeter_lf
+            unit = "LF"
+        elif condition_unit == "EA":
+            # Condition expects count - treat polygon as 1 item
+            quantity = 1
+            unit = "EA"
+        else:
+            # Default: use area (SF)
+            quantity = area_sf
+            unit = "SF"
 
     elif element.geometry_type == "polyline":
         # Note: "line" geometry_type is normalized to "polyline" in ai_takeoff.py
@@ -84,18 +106,49 @@ def create_measurement_from_element(
         if len(points) < 2:
             return None
         calculation = calculator.calculate_polyline(points)
-        quantity = calculation.get("length_feet", 0)
-        unit = "LF"
+        length_lf = calculation.get("length_feet", 0)
         pixel_length = calculation.get("pixel_length")
         pixel_area = None
-        extra_metadata["length_lf"] = round(quantity, 2)
+        extra_metadata["length_lf"] = round(length_lf, 2)
+        
+        # Assign quantity based on condition's expected unit
+        if condition_unit == "SF":
+            # Condition expects area but AI drew a line - skip this measurement
+            # (can't derive area from a line without width)
+            logger.warning(
+                "Skipping polyline measurement for area condition",
+                condition_name=condition.name,
+                condition_unit=condition_unit,
+                geometry_type=element.geometry_type,
+            )
+            return None
+        elif condition_unit == "EA":
+            # Condition expects count - treat polyline as 1 item
+            quantity = 1
+            unit = "EA"
+        else:
+            # Default: use length (LF)
+            quantity = length_lf
+            unit = "LF"
 
     elif element.geometry_type == "point":
-        quantity = 1
-        unit = "EA"
         pixel_length = None
         pixel_area = None
         extra_metadata["count"] = 1
+        
+        # Points are always count=1, but respect condition unit
+        if condition_unit in ("SF", "LF"):
+            # Condition expects area/length but AI drew a point - skip
+            logger.warning(
+                "Skipping point measurement for area/linear condition",
+                condition_name=condition.name,
+                condition_unit=condition_unit,
+                geometry_type=element.geometry_type,
+            )
+            return None
+        else:
+            quantity = 1
+            unit = "EA"
 
     else:
         return None
