@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import type { MouseEvent } from 'react';
 import {
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Copy,
   Edit,
@@ -36,13 +38,15 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +65,7 @@ import {
 
 import { CreateConditionModal } from './CreateConditionModal';
 import { EditConditionModal } from './EditConditionModal';
+import { ConditionContextMenu } from './ConditionContextMenu';
 
 interface ConditionsPanelProps {
   projectId: string;
@@ -69,6 +74,10 @@ interface ConditionsPanelProps {
   pageId?: string;
   isPageCalibrated?: boolean;
   onAITakeoff?: (conditionId: string, conditionName: string) => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  hiddenConditionIds?: Set<string>;
+  onToggleConditionVisibility?: (conditionId: string) => void;
 }
 
 export function ConditionsPanel({
@@ -78,10 +87,20 @@ export function ConditionsPanel({
   pageId: _pageId, // Available for future use
   isPageCalibrated = false,
   onAITakeoff,
+  isCollapsed = false,
+  onToggleCollapse = () => {},
+  hiddenConditionIds,
+  onToggleConditionVisibility,
 }: ConditionsPanelProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingCondition, setEditingCondition] = useState<Condition | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<Condition | null>(null);
+  const [createCategory, setCreateCategory] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    condition: Condition;
+    position: { x: number; y: number };
+  } | null>(null);
+  const [localHiddenConditionIds, setLocalHiddenConditionIds] = useState<Set<string>>(new Set());
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(['foundations', 'slabs', 'paving', 'vertical', 'miscellaneous', 'other'])
   );
@@ -92,6 +111,7 @@ export function ConditionsPanel({
   const reorderMutation = useReorderConditions(projectId);
 
   const conditions = data?.conditions ?? [];
+  const hiddenIds = hiddenConditionIds ?? localHiddenConditionIds;
 
   const groupedConditions = conditions.reduce((acc, condition) => {
     const category = condition.category || 'other';
@@ -109,6 +129,27 @@ export function ConditionsPanel({
         next.delete(category);
       } else {
         next.add(category);
+      }
+      return next;
+    });
+  };
+
+  const handleOpenCreate = (category?: string) => {
+    setCreateCategory(category ?? null);
+    setIsCreateOpen(true);
+  };
+
+  const toggleHiddenCondition = (conditionId: string) => {
+    if (onToggleConditionVisibility) {
+      onToggleConditionVisibility(conditionId);
+      return;
+    }
+    setLocalHiddenConditionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(conditionId)) {
+        next.delete(conditionId);
+      } else {
+        next.add(conditionId);
       }
       return next;
     });
@@ -155,6 +196,21 @@ export function ConditionsPanel({
     return acc;
   }, {} as Record<string, number>);
 
+  if (isCollapsed) {
+    return (
+      <div className="absolute bottom-4 left-4 z-10">
+        <Button
+          size="icon"
+          onClick={onToggleCollapse}
+          className="h-10 w-10 rounded-md border border-border bg-card/95 text-foreground shadow-lg"
+          aria-label="Expand conditions panel"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="absolute bottom-4 left-4 bg-card/95 backdrop-blur border border-border rounded-md shadow-xl max-w-sm max-h-[32rem] overflow-hidden z-10 flex flex-col">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border text-xs font-mono uppercase tracking-widest text-muted-foreground">
@@ -172,10 +228,21 @@ export function ConditionsPanel({
         <h3 className="text-sm font-semibold text-foreground font-mono uppercase tracking-wider">
           Conditions
         </h3>
-        <Button size="sm" onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" />
-          Add Condition
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => handleOpenCreate()}>
+            <Plus className="h-4 w-4 mr-1" />
+            + New Condition
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCollapse}
+            className="h-8 w-8"
+            aria-label="Collapse conditions panel"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto">
@@ -187,9 +254,9 @@ export function ConditionsPanel({
             title="No conditions yet"
             description="Create your first condition to start measuring."
             action={
-              <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+              <Button size="sm" onClick={() => handleOpenCreate()}>
                 <Plus className="h-4 w-4 mr-1" />
-                Create Condition
+                + New Condition
               </Button>
             }
           />
@@ -225,10 +292,19 @@ export function ConditionsPanel({
                         key={condition.id}
                         condition={condition}
                         isSelected={condition.id === selectedConditionId}
+                        isHidden={hiddenIds.has(condition.id)}
                         onSelect={() => onConditionSelect(condition.id)}
                         onEdit={() => setEditingCondition(condition)}
                         onDuplicate={() => duplicateMutation.mutate(condition.id)}
                         onDelete={() => setDeleteCandidate(condition)}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setContextMenu({
+                            condition,
+                            position: { x: event.clientX, y: event.clientY },
+                          });
+                        }}
                         onAITakeoff={isPageCalibrated && onAITakeoff ? () => onAITakeoff(condition.id, condition.name) : undefined}
                       />
                     ))}
@@ -257,7 +333,13 @@ export function ConditionsPanel({
       <CreateConditionModal
         projectId={projectId}
         open={isCreateOpen}
-        onOpenChange={setIsCreateOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreateCategory(null);
+          }
+          setIsCreateOpen(open);
+        }}
+        defaultCategory={createCategory}
       />
 
       {editingCondition && (
@@ -268,21 +350,26 @@ export function ConditionsPanel({
         />
       )}
 
-      <Dialog open={!!deleteCandidate} onOpenChange={(open) => !open && setDeleteCandidate(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="uppercase tracking-wide">Confirm Delete</DialogTitle>
-            <DialogDescription>
-              Delete "{deleteCandidate?.name}" and all linked measurements? This action cannot be
-              undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setDeleteCandidate(null)}>
+      <AlertDialog
+        open={!!deleteCandidate}
+        onOpenChange={(open) => !open && setDeleteCandidate(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="uppercase tracking-wide">
+              Delete Condition?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteCandidate?.name}"? This will also delete{' '}
+              {deleteCandidate?.measurement_count ?? 0} measurements.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel onClick={() => setDeleteCandidate(null)}>
               Cancel
-            </Button>
-            <Button
-              variant="destructive"
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 if (!deleteCandidate) return;
                 deleteMutation.mutate(deleteCandidate.id, {
@@ -296,10 +383,25 @@ export function ConditionsPanel({
               }}
             >
               Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {contextMenu && (
+        <ConditionContextMenu
+          position={contextMenu.position}
+          isHidden={hiddenIds.has(contextMenu.condition.id)}
+          onEdit={() => setEditingCondition(contextMenu.condition)}
+          onDuplicate={() => duplicateMutation.mutate(contextMenu.condition.id)}
+          onDelete={() => setDeleteCandidate(contextMenu.condition)}
+          onAddInCategory={() =>
+            handleOpenCreate(contextMenu.condition.category || 'other')
+          }
+          onToggleHidden={() => toggleHiddenCondition(contextMenu.condition.id)}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }
@@ -307,18 +409,22 @@ export function ConditionsPanel({
 function SortableConditionItem({
   condition,
   isSelected,
+  isHidden,
   onSelect,
   onEdit,
   onDuplicate,
   onDelete,
+  onContextMenu,
   onAITakeoff,
 }: {
   condition: Condition;
   isSelected: boolean;
+  isHidden: boolean;
   onSelect: () => void;
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onContextMenu: (event: MouseEvent) => void;
   onAITakeoff?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
@@ -336,8 +442,10 @@ function SortableConditionItem({
       style={style}
       className={cn(
         'flex items-center gap-2 px-2 py-1.5 ml-4 mr-2 rounded border border-transparent',
-        isSelected ? 'bg-primary/10 border-primary/40' : 'hover:bg-muted'
+        isSelected ? 'bg-primary/10 border-primary/40' : 'hover:bg-muted',
+        isHidden && 'opacity-60'
       )}
+      onContextMenu={onContextMenu}
     >
       <button
         type="button"

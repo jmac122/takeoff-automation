@@ -424,14 +424,17 @@ async def duplicate_condition(
     )
     max_order = result.scalar() or 0
 
-    suffix = " (Copy)"
-    base_name = condition.name
-    if len(base_name) + len(suffix) > 255:
-        base_name = base_name[: max(0, 255 - len(suffix))]
+    prefix = "Copy of "
+    base_name = condition.name or ""
+    max_base_length = 255 - len(prefix)
+    if max_base_length <= 0:
+        base_name = ""
+    elif len(base_name) > max_base_length:
+        base_name = base_name[:max_base_length]
 
     duplicate = Condition(
         project_id=condition.project_id,
-        name=f"{base_name}{suffix}",
+        name=f"{prefix}{base_name}",
         description=condition.description,
         scope=condition.scope,
         category=condition.category,

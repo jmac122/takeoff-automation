@@ -13,7 +13,7 @@ interface UseCanvasEventsOptions {
         startDrawing: (point: Position) => void;
         addPoint: (point: Position) => void;
         updatePreview: (point: Position) => void;
-        finishDrawing: () => {
+        finishDrawing: (overridePoints?: Position[]) => {
             tool: DrawingTool;
             points: Position[];
             previewShape: {
@@ -24,6 +24,7 @@ interface UseCanvasEventsOptions {
     };
     onMeasurementCreate: (result: import('@/utils/measurementUtils').MeasurementResult) => void;
     onMeasurementSelect: (id: string | null) => void;
+    onConditionSelect?: (id: string | null) => void;
     onConditionRequired: () => boolean;
     handleWheel: (e: WheelEvent, pointerPos: Position) => void;
 }
@@ -34,12 +35,16 @@ export function useCanvasEvents({
     drawing,
     onMeasurementCreate,
     onMeasurementSelect,
+    onConditionSelect,
     onConditionRequired,
     handleWheel,
 }: UseCanvasEventsOptions) {
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState<Position>({ x: 0, y: 0 });
     const [panStartPos, setPanStartPos] = useState<Position>({ x: 0, y: 0 });
+    const [isCloseToStart, setIsCloseToStart] = useState(false);
+
+    const CLOSE_DISTANCE = 12;
 
     // Global mouseup listener to prevent stuck panning state
     useEffect(() => {
@@ -52,6 +57,12 @@ export function useCanvasEvents({
         window.addEventListener('mouseup', handleGlobalMouseUp);
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
     }, [isPanning]);
+
+    useEffect(() => {
+        if (!drawing.isDrawing || drawing.tool !== 'polygon') {
+            setIsCloseToStart(false);
+        }
+    }, [drawing.isDrawing, drawing.tool]);
 
     // Convert screen coordinates to image coordinates
     // Note: We no longer need zoom/pan since getRelativePointerPosition handles it
@@ -132,6 +143,12 @@ export function useCanvasEvents({
                         drawing.finishDrawing(); // Reset state
                     } else {
                         // For polyline/polygon: just add points, finish on double-click
+                        if (
+                            (drawing.tool === 'polyline' || drawing.tool === 'polygon') &&
+                            e.evt.detail > 1
+                        ) {
+                            return;
+                        }
                         drawing.addPoint(point);
                     }
                 }
@@ -139,19 +156,33 @@ export function useCanvasEvents({
             }
 
             // If select tool or no tool, allow panning with left click
-            setIsPanning(true);
-            setPanStart({ x: pointerPos.x, y: pointerPos.y });
-            setPanStartPos({ x: pan.x, y: pan.y });
-            stage.draggable(false);
-
             // If select tool, handle selection
             if (drawing.tool === 'select') {
                 if (e.target === e.target.getStage()) {
                     onMeasurementSelect(null);
+                    onConditionSelect?.(null);
+                    setIsPanning(true);
+                    setPanStart({ x: pointerPos.x, y: pointerPos.y });
+                    setPanStartPos({ x: pan.x, y: pan.y });
+                    stage.draggable(false);
                 }
+                return;
             }
+
+            setIsPanning(true);
+            setPanStart({ x: pointerPos.x, y: pointerPos.y });
+            setPanStartPos({ x: pan.x, y: pan.y });
+            stage.draggable(false);
         }
-    }, [pan, drawing, getImagePointFromStage, onMeasurementCreate, onMeasurementSelect, onConditionRequired]);
+    }, [
+        pan,
+        drawing,
+        getImagePointFromStage,
+        onMeasurementCreate,
+        onMeasurementSelect,
+        onConditionSelect,
+        onConditionRequired,
+    ]);
 
     const handleStageMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
         const stage = e.target.getStage();
@@ -176,6 +207,15 @@ export function useCanvasEvents({
             const point = getImagePointFromStage(stage);
             if (point) {
                 drawing.updatePreview(point);
+                if (drawing.tool === 'polygon' && drawing.points.length >= 3) {
+                    const first = drawing.points[0];
+                    const distance = Math.hypot(point.x - first.x, point.y - first.y);
+                    setIsCloseToStart(distance <= CLOSE_DISTANCE);
+                } else {
+                    setIsCloseToStart(false);
+                }
+            } else {
+                setIsCloseToStart(false);
             }
         }
     }, [isPanning, panStart, panStartPos, drawing, getImagePointFromStage, setPan]);
@@ -223,6 +263,7 @@ export function useCanvasEvents({
         if (isPanning) {
             setIsPanning(false);
         }
+        setIsCloseToStart(false);
     }, [isPanning]);
 
     const handleWheelEvent = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -235,21 +276,50 @@ export function useCanvasEvents({
         handleWheel(e.evt, pointerPos);
     }, [handleWheel]);
 
-    const handleStageDoubleClick = useCallback(() => {
+    const handleStageDoubleClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+        const stage = e.target.getStage();
+        if (!stage) return;
+
         // Double-click finishes drawing for polyline and polygon
         // (Line tool auto-finishes after 2 points, so no double-click needed)
-        if (drawing.tool === 'polyline' || drawing.tool === 'polygon') {
-            if (drawing.isDrawing && drawing.points.length >= 2) {
-                const result = drawing.finishDrawing();
-                if (result.tool !== 'select' && result.points.length >= 2) {
-                    onMeasurementCreate(result as import('@/utils/measurementUtils').MeasurementResult);
-                }
+        if (drawing.tool === 'polyline' && drawing.isDrawing && drawing.points.length >= 2) {
+            const point = getImagePointFromStage(stage);
+            const lastPoint = drawing.points[drawing.points.length - 1];
+            const isNearLast =
+                point && lastPoint
+                    ? Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) <= CLOSE_DISTANCE
+                    : false;
+            const finalPoints = point && !isNearLast ? [...drawing.points, point] : drawing.points;
+            const result = drawing.finishDrawing(finalPoints);
+            if (result.tool !== 'select' && result.points.length >= 2) {
+                onMeasurementCreate(result as import('@/utils/measurementUtils').MeasurementResult);
             }
         }
-    }, [drawing, onMeasurementCreate]);
+
+        if (drawing.tool === 'polygon' && drawing.isDrawing && drawing.points.length >= 2) {
+            const point = getImagePointFromStage(stage);
+            if (!point) return;
+
+            const first = drawing.points[0];
+            const distance = Math.hypot(point.x - first.x, point.y - first.y);
+            const shouldCloseToStart = drawing.points.length >= 3 && distance <= CLOSE_DISTANCE;
+            const lastPoint = drawing.points[drawing.points.length - 1];
+            const isNearLast =
+                lastPoint &&
+                Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) <= CLOSE_DISTANCE;
+            const finalPoints =
+                shouldCloseToStart || isNearLast ? drawing.points : [...drawing.points, point];
+
+            const result = drawing.finishDrawing(finalPoints);
+            if (result.tool !== 'select' && result.points.length >= 3) {
+                onMeasurementCreate(result as import('@/utils/measurementUtils').MeasurementResult);
+            }
+        }
+    }, [drawing, getImagePointFromStage, onMeasurementCreate]);
 
     return {
         isPanning,
+        isCloseToStart,
         handleStageMouseDown,
         handleStageMouseMove,
         handleStageMouseUp,
