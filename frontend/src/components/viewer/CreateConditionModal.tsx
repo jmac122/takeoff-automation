@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ interface CreateConditionModalProps {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultCategory?: string | null;
 }
 
 const DEFAULT_COLOR = MEASUREMENT_COLORS.default;
@@ -55,12 +56,15 @@ export function CreateConditionModal({
   projectId,
   open,
   onOpenChange,
+  defaultCategory,
 }: CreateConditionModalProps) {
   const [tab, setTab] = useState<'template' | 'custom'>('template');
   const [name, setName] = useState('');
   const [measurementType, setMeasurementType] = useState<MeasurementType>('area');
-  const [depth, setDepth] = useState('');
+  const [thickness, setThickness] = useState('');
   const [color, setColor] = useState<string>(DEFAULT_COLOR);
+  const hasTouchedThicknessRef = useRef(false);
+  const resolvedCategory = defaultCategory || 'other';
 
   const { data: templates } = useConditionTemplates();
   const createFromTemplateMutation = useCreateConditionFromTemplate(projectId);
@@ -76,21 +80,45 @@ export function CreateConditionModal({
   const resetForm = () => {
     setName('');
     setMeasurementType('area');
-    setDepth('');
+    setThickness('');
     setColor(DEFAULT_COLOR);
+    hasTouchedThicknessRef.current = false;
   };
+
+  useEffect(() => {
+    if (!open) return;
+    hasTouchedThicknessRef.current = false;
+  }, [open]);
+
+  useEffect(() => {
+    if (!defaultCategory || thickness || hasTouchedThicknessRef.current) return;
+    const templatesForCategory = groupedTemplates[defaultCategory] || [];
+    const templateDepth = templatesForCategory.find((template) => {
+      const hasThickness = template.thickness !== null && template.thickness !== undefined;
+      const hasDepth = template.depth !== null && template.depth !== undefined;
+      return hasThickness || hasDepth;
+    });
+    const defaultDepth = templateDepth?.thickness ?? templateDepth?.depth;
+    if (defaultDepth !== null && defaultDepth !== undefined) {
+      setThickness(String(defaultDepth));
+    }
+  }, [defaultCategory, groupedTemplates, thickness]);
 
   const handleCreateCustom = () => {
     const selected = MEASUREMENT_TYPES.find((t) => t.value === measurementType);
+    const thicknessValue = thickness ? Number(thickness) : null;
+    const depthValue =
+      measurementType === 'area' || measurementType === 'volume' ? thicknessValue : null;
     createCustomMutation.mutate(
       {
         name,
         measurement_type: measurementType,
         unit: selected?.unit || 'SF',
-        depth: depth ? Number(depth) : null,
+        depth: depthValue,
+        thickness: thicknessValue,
         color,
         scope: 'concrete',
-        category: 'other',
+        category: resolvedCategory,
         line_width: 2,
         fill_opacity: 0.3,
       },
@@ -113,7 +141,7 @@ export function CreateConditionModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="uppercase tracking-wide">Add Condition</DialogTitle>
+          <DialogTitle className="uppercase tracking-wide">New Condition</DialogTitle>
           <DialogDescription>
             <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest text-muted-foreground">
               <span>Status: {createCustomMutation.isPending ? 'Processing' : 'Ready'}</span>
@@ -199,12 +227,15 @@ export function CreateConditionModal({
 
             {(measurementType === 'area' || measurementType === 'volume') && (
               <div className="space-y-2">
-                <Label htmlFor="depth">Depth/Thickness (inches)</Label>
+                <Label htmlFor="depth">Thickness/Depth (inches)</Label>
                 <Input
                   id="depth"
                   type="number"
-                  value={depth}
-                  onChange={(event) => setDepth(event.target.value)}
+                  value={thickness}
+                onChange={(event) => {
+                  hasTouchedThicknessRef.current = true;
+                  setThickness(event.target.value);
+                }}
                   placeholder="e.g., 4"
                 />
               </div>

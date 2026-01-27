@@ -3,7 +3,7 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, Float, Integer, ForeignKey, Text
+from sqlalchemy import String, Float, Integer, ForeignKey, Text, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -56,6 +56,9 @@ class Condition(Base, UUIDMixin, TimestampMixin):
 
     # Sort order
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # AI generation tracking
+    is_ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # Extra metadata
     extra_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

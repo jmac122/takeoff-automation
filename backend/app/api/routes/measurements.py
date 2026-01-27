@@ -3,6 +3,8 @@
 import uuid
 from typing import Annotated
 
+import structlog
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +21,7 @@ from app.schemas.measurement import (
 from app.services.measurement_engine import get_measurement_engine
 
 router = APIRouter()
+logger = structlog.get_logger()
 
 
 @router.get("/conditions/{condition_id}/measurements", response_model=MeasurementListResponse)
@@ -168,6 +171,47 @@ async def recalculate_measurement(
         )
 
 
+async def _recalculate_measurements_batch(
+    db: AsyncSession,
+    measurement_ids: list[uuid.UUID],
+    log_context: dict[str, str],
+) -> dict:
+    """Helper to recalculate a list of measurements and log failures.
+    
+    Args:
+        db: Database session
+        measurement_ids: List of measurement UUIDs to recalculate
+        log_context: Additional context for logging (e.g., page_id or condition_id)
+        
+    Returns:
+        Dict with status, recalculated_count, failed_count, and failed_ids
+    """
+    engine = get_measurement_engine()
+    recalculated_count = 0
+    failed_ids: list[str] = []
+
+    for mid in measurement_ids:
+        try:
+            await engine.recalculate_measurement(db, mid)
+            recalculated_count += 1
+        except ValueError as exc:
+            failed_ids.append(str(mid))
+            logger.warning(
+                "measurement_recalculate_failed",
+                measurement_id=str(mid),
+                **log_context,
+                error=str(exc),
+                exc_info=True,
+            )
+
+    return {
+        "status": "success",
+        "recalculated_count": recalculated_count,
+        "failed_count": len(failed_ids),
+        "failed_ids": failed_ids,
+    }
+
+
 @router.post("/pages/{page_id}/recalculate-all")
 async def recalculate_page_measurements(
     page_id: uuid.UUID,
@@ -178,16 +222,23 @@ async def recalculate_page_measurements(
         select(Measurement.id).where(Measurement.page_id == page_id)
     )
     measurement_ids = [row[0] for row in result.all()]
-    
-    engine = get_measurement_engine()
-    
-    for mid in measurement_ids:
-        try:
-            await engine.recalculate_measurement(db, mid)
-        except ValueError:
-            pass  # Skip measurements that can't be recalculated
-    
-    return {
-        "status": "success",
-        "recalculated_count": len(measurement_ids),
-    }
+
+    return await _recalculate_measurements_batch(
+        db, measurement_ids, {"page_id": str(page_id)}
+    )
+
+
+@router.post("/conditions/{condition_id}/recalculate-all")
+async def recalculate_condition_measurements(
+    condition_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Recalculate all measurements for a condition (after unit/type change)."""
+    result = await db.execute(
+        select(Measurement.id).where(Measurement.condition_id == condition_id)
+    )
+    measurement_ids = [row[0] for row in result.all()]
+
+    return await _recalculate_measurements_batch(
+        db, measurement_ids, {"condition_id": str(condition_id)}
+    )

@@ -40,6 +40,7 @@ Complete documentation for the ForgeX Takeoffs platform.
 ### `/development/` - Development Workflow
 - **DOCKER_WORKFLOW.md** - ⭐ **Docker-first development guide** (start here!)
 - **DOCKER_QUICK_REFERENCE.md** - Quick Docker commands
+- **PAGE_LOAD_BLACK_SCREEN.md** - Takeoff Viewer black screen diagnosis/fix
 
 ### `/design/` - Design System
 - **DESIGN-SYSTEM.md** - UI components and design patterns
@@ -147,4 +148,4 @@ When adding new documentation:
 
 ---
 
-**Last Updated:** January 22, 2026 - Phase 3B Complete
+**Last Updated:** January 26, 2026 - Takeoff viewer stability update

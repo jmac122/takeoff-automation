@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import type { DrawingTool } from '@/components/viewer/DrawingToolbar';
-import type { JsonObject } from '@/types';
 
 export interface Point {
     x: number;
@@ -27,33 +26,41 @@ export type PreviewShape =
     | { type: 'rectangle'; data: RectanglePreviewData }
     | { type: 'circle'; data: CirclePreviewData };
 
-interface HistoryState {
-    action: 'create' | 'update' | 'delete';
-    measurementId: string;
-    data: JsonObject | null;
-}
-
 export function useDrawingState() {
     const [tool, setTool] = useState<DrawingTool>('select');
     const [isDrawing, setIsDrawing] = useState(false);
     const [points, setPoints] = useState<Point[]>([]);
     const [previewShape, setPreviewShape] = useState<DrawingState['previewShape']>(null);
 
-    // Undo/Redo
-    const [history, setHistory] = useState<HistoryState[]>([]);
-    const [historyIndex, setHistoryIndex] = useState(-1);
+    const [pointHistoryState, setPointHistoryState] = useState<{
+        history: Point[][];
+        index: number;
+    }>({
+        history: [],
+        index: -1,
+    });
 
-    const canUndo = historyIndex >= 0;
-    const canRedo = historyIndex < history.length - 1;
+    const canUndo = pointHistoryState.index > 0;
+    const canRedo =
+        pointHistoryState.index >= 0 &&
+        pointHistoryState.index < pointHistoryState.history.length - 1;
 
     const startDrawing = useCallback((point: Point) => {
         setIsDrawing(true);
-        setPoints([point]);
+        const nextPoints = [point];
+        setPointHistoryState({ history: [nextPoints], index: 0 });
+        setPoints(nextPoints);
     }, []);
 
     const addPoint = useCallback((point: Point) => {
-        setPoints((prev) => [...prev, point]);
-    }, []);
+        setPointHistoryState((prev) => {
+            const basePoints = prev.index >= 0 ? prev.history[prev.index] : points;
+            const nextPoints = [...basePoints, point];
+            const nextHistory = [...prev.history.slice(0, prev.index + 1), nextPoints];
+            setPoints(nextPoints);
+            return { history: nextHistory, index: nextHistory.length - 1 };
+        });
+    }, [points]);
 
     const updatePreview = useCallback((mousePos: Point) => {
         if (!isDrawing || points.length === 0) return;
@@ -112,12 +119,14 @@ export function useDrawingState() {
         }
     }, [tool, isDrawing, points]);
 
-    const finishDrawing = useCallback(() => {
-        const result = { tool, points, previewShape };
+    const finishDrawing = useCallback((overridePoints?: Point[]) => {
+        const finalPoints = overridePoints ?? points;
+        const result = { tool, points: finalPoints, previewShape };
 
         setIsDrawing(false);
         setPoints([]);
         setPreviewShape(null);
+        setPointHistoryState({ history: [], index: -1 });
 
         return result;
     }, [tool, points, previewShape]);
@@ -126,26 +135,30 @@ export function useDrawingState() {
         setIsDrawing(false);
         setPoints([]);
         setPreviewShape(null);
+        setPointHistoryState({ history: [], index: -1 });
     }, []);
 
     const undo = useCallback(() => {
-        if (canUndo) {
-            setHistoryIndex((prev) => prev - 1);
-            return history[historyIndex];
-        }
-    }, [canUndo, history, historyIndex]);
+        setPointHistoryState((prev) => {
+            if (prev.index <= 0) {
+                return prev;
+            }
+            const nextIndex = prev.index - 1;
+            setPoints(prev.history[nextIndex]);
+            return { ...prev, index: nextIndex };
+        });
+    }, []);
 
     const redo = useCallback(() => {
-        if (canRedo) {
-            setHistoryIndex((prev) => prev + 1);
-            return history[historyIndex + 1];
-        }
-    }, [canRedo, history, historyIndex]);
-
-    const addToHistory = useCallback((state: HistoryState) => {
-        setHistory((prev) => [...prev.slice(0, historyIndex + 1), state]);
-        setHistoryIndex((prev) => prev + 1);
-    }, [historyIndex]);
+        setPointHistoryState((prev) => {
+            if (prev.index < 0 || prev.index >= prev.history.length - 1) {
+                return prev;
+            }
+            const nextIndex = prev.index + 1;
+            setPoints(prev.history[nextIndex]);
+            return { ...prev, index: nextIndex };
+        });
+    }, []);
 
     return {
         tool,
@@ -162,6 +175,5 @@ export function useDrawingState() {
         canRedo,
         undo,
         redo,
-        addToHistory,
     };
 }

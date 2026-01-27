@@ -63,8 +63,33 @@ test: ## Run all tests
 backend-test: ## Run backend tests
 	cd backend && pytest --cov=app --cov-report=term-missing
 
+backend-test-ai: ## Run AI takeoff tests only
+	cd backend && pytest tests/test_ai_takeoff.py -v
+
 frontend-test: ## Run frontend tests
 	cd frontend && npm test -- --watchAll=false
+
+test-integration: ## Run integration tests against Docker services
+	bash scripts/run_tests.sh integration
+
+test-rebuild: ## Rebuild Docker and run all tests
+	bash scripts/run_tests.sh rebuild
+
+# E2E Testing commands
+test-e2e: ## Run E2E tests in Docker (requires services running)
+	cd docker && docker compose exec -e PYTHONPATH=/app api pytest tests/e2e/ -v -s --tb=short
+
+test-e2e-quick: ## Quick E2E health checks only
+	cd docker && docker compose exec -e PYTHONPATH=/app api pytest tests/e2e/test_takeoff_workflow.py::TestPlatformHealth -v -s --tb=short
+
+test-e2e-ai: ## Run AI takeoff E2E tests (makes real LLM calls)
+	cd docker && docker compose exec -e PYTHONPATH=/app api pytest tests/e2e/test_takeoff_workflow.py::TestAITakeoff -v -s --tb=short
+
+test-e2e-accuracy: ## Run measurement accuracy tests
+	cd docker && docker compose exec -e PYTHONPATH=/app api pytest tests/e2e/test_takeoff_workflow.py::TestMeasurementAccuracy -v -s --tb=short
+
+test-docker: ## Run all backend tests in Docker container
+	cd docker && docker compose exec -e PYTHONPATH=/app api pytest tests/ -v --tb=short
 
 # Code quality commands
 lint: ## Run all linters

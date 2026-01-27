@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,8 @@ import {
 } from '@/components/ui/select';
 import type { Condition } from '@/types';
 import { useUpdateCondition } from '@/hooks/useConditions';
+import { recalculateConditionMeasurements } from '@/api/measurements';
+import { useNotificationContext } from '@/contexts/NotificationContext';
 
 interface EditConditionModalProps {
   condition: Condition;
@@ -39,41 +42,84 @@ const MEASUREMENT_TYPES = [
 ];
 
 export function EditConditionModal({ condition, open, onOpenChange }: EditConditionModalProps) {
+  const queryClient = useQueryClient();
   const updateConditionMutation = useUpdateCondition(condition.project_id);
+  const { addNotification } = useNotificationContext();
 
   const [name, setName] = useState(condition.name);
   const [measurementType, setMeasurementType] = useState<MeasurementType>(
     condition.measurement_type
   );
-  const [depth, setDepth] = useState(condition.depth?.toString() || '');
+  const [unit, setUnit] = useState(condition.unit);
+  const [thickness, setThickness] = useState(
+    condition.thickness?.toString() || condition.depth?.toString() || ''
+  );
   const [color, setColor] = useState(condition.color);
 
   useEffect(() => {
     setName(condition.name);
     setMeasurementType(condition.measurement_type);
-    setDepth(condition.depth?.toString() || '');
+    setUnit(condition.unit);
+    setThickness(condition.thickness?.toString() || condition.depth?.toString() || '');
     setColor(condition.color);
   }, [condition]);
 
+  const handleMeasurementTypeChange = (value: string) => {
+    const nextType = value as MeasurementType;
+    setMeasurementType(nextType);
+    const nextUnit = MEASUREMENT_TYPES.find((type) => type.value === nextType)?.unit;
+    if (nextUnit) {
+      setUnit(nextUnit);
+    }
+  };
+
+  const handleUnitChange = (value: string) => {
+    setUnit(value);
+    const nextType =
+      value === 'LF' ? 'linear' : value === 'SF' ? 'area' : value === 'CY' ? 'volume' : 'count';
+    setMeasurementType(nextType);
+  };
+
   const handleSave = () => {
-    const selected = MEASUREMENT_TYPES.find((t) => t.value === measurementType);
+    const thicknessValue = thickness ? Number(thickness) : null;
+    const depthValue =
+      measurementType === 'area' || measurementType === 'volume' ? thicknessValue : null;
+    const previousDepthValue = condition.thickness ?? condition.depth ?? null;
+    const shouldRecalculate =
+      unit !== condition.unit ||
+      measurementType !== condition.measurement_type ||
+      depthValue !== previousDepthValue;
+
     updateConditionMutation.mutate(
       {
         conditionId: condition.id,
         data: {
           name,
           measurement_type: measurementType,
-          unit: selected?.unit || condition.unit,
-          depth: measurementType === 'area' || measurementType === 'volume'
-            ? depth
-              ? Number(depth)
-              : null
-            : null,
+          unit,
+          depth: depthValue,
+          thickness: thicknessValue,
           color,
         },
       },
       {
-        onSuccess: () => onOpenChange(false),
+        onSuccess: () => {
+          if (shouldRecalculate) {
+            void recalculateConditionMeasurements(condition.id)
+              .then(() => {
+                queryClient.invalidateQueries({ queryKey: ['measurements'] });
+                queryClient.invalidateQueries({ queryKey: ['conditions', condition.project_id] });
+              })
+              .catch((error) => {
+                const message =
+                  error instanceof Error
+                    ? error.message
+                    : 'Failed to recalculate measurements.';
+                addNotification('error', 'Recalculate failed', message);
+              });
+          }
+          onOpenChange(false);
+        },
       }
     );
   };
@@ -105,7 +151,7 @@ export function EditConditionModal({ condition, open, onOpenChange }: EditCondit
             <Label htmlFor="edit-measurement-type">Measurement Type</Label>
             <Select
               value={measurementType}
-              onValueChange={(value: string) => setMeasurementType(value as MeasurementType)}
+              onValueChange={handleMeasurementTypeChange}
             >
               <SelectTrigger id="edit-measurement-type">
                 <SelectValue placeholder="Select type" />
@@ -120,14 +166,29 @@ export function EditConditionModal({ condition, open, onOpenChange }: EditCondit
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="edit-unit">Unit of Measure</Label>
+            <Select value={unit} onValueChange={handleUnitChange}>
+              <SelectTrigger id="edit-unit">
+                <SelectValue placeholder="Select unit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="LF">LF - Linear Feet</SelectItem>
+                <SelectItem value="SF">SF - Square Feet</SelectItem>
+                <SelectItem value="CY">CY - Cubic Yards</SelectItem>
+                <SelectItem value="EA">EA - Each</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {(measurementType === 'area' || measurementType === 'volume') && (
             <div className="space-y-2">
-              <Label htmlFor="edit-depth">Depth/Thickness (inches)</Label>
+              <Label htmlFor="edit-depth">Thickness/Depth (inches)</Label>
               <Input
                 id="edit-depth"
                 type="number"
-                value={depth}
-                onChange={(event) => setDepth(event.target.value)}
+                value={thickness}
+                onChange={(event) => setThickness(event.target.value)}
               />
             </div>
           )}

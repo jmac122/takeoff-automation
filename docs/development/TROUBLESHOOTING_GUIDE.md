@@ -4,7 +4,7 @@
 
 This guide documents common issues, their root causes, and solutions discovered during development and testing. Each entry includes the problem, diagnosis steps, solution, and preventive measures.
 
-**Last Updated:** January 21, 2026
+**Last Updated:** January 26, 2026
 
 ---
 
@@ -111,7 +111,37 @@ const safeScale = scale > 0 && Number.isFinite(scale) ? scale : 1;
 
 ---
 
-### Issue 2: TakeoffViewer Vertical Scrollbar
+### Issue 4: TakeoffViewer Page Loads Black After Drawing Measurements
+
+**Symptoms:**
+- Specific pages render a black canvas after saving shapes
+- Other pages in the same document load normally
+- DevTools shows `InvalidStateError: drawImage ... canvas element with width or height of 0`
+
+**Root Cause:**
+Invalid measurement geometry (zero-length line, empty/degenerate polyline/polygon, invalid dimensions) causes Konva to draw a 0x0 cached canvas and crash the stage.
+
+**Solution:**
+```tsx
+// MeasurementShape.tsx - Skip invalid geometry
+if (!isValidGeometry) {
+  return null;
+}
+```
+
+**Files Modified:**
+- `frontend/src/components/viewer/MeasurementShape.tsx`
+- `frontend/src/pages/TakeoffViewer.tsx`
+- `frontend/src/hooks/usePageImage.ts`
+- `frontend/src/hooks/useCanvasControls.ts`
+
+**Prevention:**
+- Validate geometry before saving measurements
+- Guard rendering against invalid shapes
+
+---
+
+### Issue 5: TakeoffViewer Vertical Scrollbar
 
 **Symptoms:**
 - Unwanted vertical scrollbar in TakeoffViewer

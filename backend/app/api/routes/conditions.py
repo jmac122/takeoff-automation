@@ -424,14 +424,17 @@ async def duplicate_condition(
     )
     max_order = result.scalar() or 0
 
-    suffix = " (Copy)"
-    base_name = condition.name
-    if len(base_name) + len(suffix) > 255:
-        base_name = base_name[: max(0, 255 - len(suffix))]
+    prefix = "Copy of "
+    base_name = condition.name or ""
+    max_base_length = 255 - len(prefix)
+    if max_base_length <= 0:
+        base_name = ""
+    elif len(base_name) > max_base_length:
+        base_name = base_name[:max_base_length]
 
     duplicate = Condition(
         project_id=condition.project_id,
-        name=f"{base_name}{suffix}",
+        name=f"{prefix}{base_name}",
         description=condition.description,
         scope=condition.scope,
         category=condition.category,
@@ -467,6 +470,16 @@ async def reorder_conditions(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Duplicate condition IDs provided",
+        )
+
+    # Lock the project row to prevent concurrent reorder races
+    project_result = await db.execute(
+        select(Project).where(Project.id == project_id).with_for_update()
+    )
+    if not project_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
         )
 
     result = await db.execute(

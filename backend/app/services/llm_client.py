@@ -39,6 +39,23 @@ class LLMProvider(str, Enum):
     XAI = "xai"
 
 
+# Per-provider maximum image resolutions (longest edge in pixels)
+# These are based on each provider's API limits for vision models:
+# - Anthropic Claude: 1568px (auto-resizes larger images)
+# - OpenAI GPT-4o: 2048px (high detail mode)
+# - Google Gemini: 3072px (supports larger images)
+# - xAI Grok: 2048px (OpenAI-compatible API)
+PROVIDER_MAX_RESOLUTION: dict[LLMProvider, int] = {
+    LLMProvider.ANTHROPIC: 1568,
+    LLMProvider.OPENAI: 2048,
+    LLMProvider.GOOGLE: 3072,
+    LLMProvider.XAI: 2048,
+}
+
+# Default if provider not found
+DEFAULT_MAX_RESOLUTION = 1568
+
+
 @dataclass
 class LLMResponse:
     """Standardized response from LLM providers."""
@@ -49,6 +66,9 @@ class LLMResponse:
     input_tokens: int
     output_tokens: int
     latency_ms: float
+    # Image dimensions actually sent to the LLM (after resizing)
+    image_width: int | None = None
+    image_height: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -226,22 +246,38 @@ class LLMClient:
         """Analyze image with a specific provider."""
         self._init_client(provider)
 
-        # Resize image for LLM if needed (max 1568px on longest edge)
-        max_dim = settings.llm_image_max_dimension
+        # Use provider-specific max resolution for optimal quality
+        # Each provider has different limits - send highest resolution they accept
+        max_dim = PROVIDER_MAX_RESOLUTION.get(provider, DEFAULT_MAX_RESOLUTION)
+        
         resized_bytes, new_width, new_height = resize_image_for_llm(
             image_bytes, max_dimension=max_dim, fmt="PNG"
         )
 
-        # Log if resize occurred
+        # Log resize details
         from PIL import Image
         import io
         original_img = Image.open(io.BytesIO(image_bytes))
-        if (original_img.width, original_img.height) != (new_width, new_height):
+        original_width, original_height = original_img.width, original_img.height
+        
+        original_format = original_img.format or "unknown"
+        
+        if (original_width, original_height) != (new_width, new_height):
             logger.info(
-                "Resized image for LLM",
-                original_size=f"{original_img.width}x{original_img.height}",
+                "Resized image for LLM (provider-specific)",
+                provider=provider.value,
+                original_format=original_format,
+                original_size=f"{original_width}x{original_height}",
                 new_size=f"{new_width}x{new_height}",
                 max_dimension=max_dim,
+            )
+        else:
+            logger.info(
+                "Using original image resolution for LLM",
+                provider=provider.value,
+                original_format=original_format,
+                size=f"{new_width}x{new_height}",
+                provider_max=max_dim,
             )
 
         start_time = time.time()
@@ -268,6 +304,9 @@ class LLMClient:
 
         latency_ms = (time.time() - start_time) * 1000
         result.latency_ms = latency_ms
+        # Store the actual image dimensions sent to the LLM for coordinate scaling
+        result.image_width = new_width
+        result.image_height = new_height
 
         logger.info(
             "LLM analysis complete",
@@ -276,6 +315,7 @@ class LLMClient:
             latency_ms=round(latency_ms, 2),
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
+            image_size=f"{new_width}x{new_height}",
         )
 
         return result

@@ -9,6 +9,12 @@ interface CreateMeasurementData {
     geometryData: JsonObject;
 }
 
+interface UpdateMeasurementData {
+    measurementId: string;
+    geometryData: JsonObject;
+    notes?: string | null;
+}
+
 export function useMeasurements(pageId: string | undefined, projectId?: string) {
     const queryClient = useQueryClient();
 
@@ -38,6 +44,30 @@ export function useMeasurements(pageId: string | undefined, projectId?: string) 
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['measurements', pageId] });
+            // Also invalidate conditions to refresh total_quantity and measurement_count
+            if (projectId) {
+                queryClient.invalidateQueries({ queryKey: ['conditions', projectId] });
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['conditions'] });
+            }
+        },
+    });
+
+    const updateMeasurementMutation = useMutation({
+        mutationFn: async (data: UpdateMeasurementData) => {
+            const response = await apiClient.put(`/measurements/${data.measurementId}`, {
+                geometry_data: data.geometryData,
+                notes: data.notes ?? null,
+            });
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['measurements', pageId] });
+            if (projectId) {
+                queryClient.invalidateQueries({ queryKey: ['conditions', projectId] });
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['conditions'] });
+            }
         },
     });
 
@@ -49,10 +79,31 @@ export function useMeasurements(pageId: string | undefined, projectId?: string) 
         deleteMeasurementMutation.mutate(measurementId);
     };
 
+    const updateMeasurement = (data: UpdateMeasurementData) => {
+        updateMeasurementMutation.mutate(data);
+    };
+
+    const createMeasurementAsync = (data: CreateMeasurementData) => {
+        return createMeasurementMutation.mutateAsync(data);
+    };
+
+    const deleteMeasurementAsync = (measurementId: string) => {
+        return deleteMeasurementMutation.mutateAsync(measurementId);
+    };
+
+    const updateMeasurementAsync = (data: UpdateMeasurementData) => {
+        return updateMeasurementMutation.mutateAsync(data);
+    };
+
     return {
         createMeasurement,
         deleteMeasurement,
+        updateMeasurement,
+        createMeasurementAsync,
+        deleteMeasurementAsync,
+        updateMeasurementAsync,
         isCreating: createMeasurementMutation.isPending,
         isDeleting: deleteMeasurementMutation.isPending,
+        isUpdating: updateMeasurementMutation.isPending,
     };
 }

@@ -58,6 +58,9 @@ export function DrawingToolbar({
     orientation = 'horizontal',
 }: DrawingToolbarProps) {
     const isVertical = orientation === 'vertical';
+    const modeLabel = activeTool === 'select' ? 'Selection mode' : 'Drawing mode';
+    const toolLabel = getToolLabel(activeTool);
+    const toolInstructions = getInstructions(activeTool);
     return (
         <div
             className={cn(
@@ -135,10 +138,18 @@ export function DrawingToolbar({
                     isVertical ? 'text-center whitespace-normal' : 'ml-auto'
                 )}
             >
-                {getInstructions(activeTool)}
+                <div className="uppercase text-[10px] text-neutral-500">{modeLabel}</div>
+                <div>
+                    {toolLabel}: {toolInstructions}
+                </div>
             </div>
         </div>
     );
+}
+
+export function getToolLabel(tool: DrawingTool): string {
+    const match = TOOLS.find((item) => item.id === tool);
+    return match?.label ?? 'Tool';
 }
 
 function getInstructions(tool: DrawingTool): string {

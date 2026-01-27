@@ -155,6 +155,7 @@ class MeasurementEngine:
                 calculation,
                 condition.measurement_type,
             )
+            measurement.unit = condition.unit
             measurement.pixel_length = calculation.get("pixel_length")
             measurement.pixel_area = calculation.get("pixel_area")
             measurement.extra_metadata = {"calculation": calculation}
@@ -221,6 +222,7 @@ class MeasurementEngine:
             calculation,
             condition.measurement_type,
         )
+        measurement.unit = condition.unit
         measurement.pixel_length = calculation.get("pixel_length")
         measurement.pixel_area = calculation.get("pixel_area")
         measurement.extra_metadata = {"calculation": calculation}

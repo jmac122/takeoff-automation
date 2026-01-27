@@ -8,12 +8,15 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     libmagic1 \
     poppler-utils \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
 COPY backend/requirements.txt .
 COPY backend/requirements-base.txt .
 COPY backend/requirements-dev.txt .
+# Use core requirements (no ML/AI packages)
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
 # Copy source code
