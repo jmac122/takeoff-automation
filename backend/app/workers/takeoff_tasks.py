@@ -135,6 +135,16 @@ def create_measurement_from_element(
                 geometry_type=element.geometry_type,
             )
             return None
+        elif condition_unit == "CY":
+            # Condition expects volume but AI drew a line - skip
+            # (can't derive volume from a line)
+            logger.warning(
+                "Skipping polyline measurement for volume condition",
+                condition_name=condition.name,
+                condition_unit=condition_unit,
+                geometry_type=element.geometry_type,
+            )
+            return None
         elif condition_unit == "EA":
             # Condition expects count - treat polyline as 1 item
             quantity = 1
@@ -150,10 +160,10 @@ def create_measurement_from_element(
         extra_metadata["count"] = 1
         
         # Points are always count=1, but respect condition unit
-        if condition_unit in ("SF", "LF"):
-            # Condition expects area/length but AI drew a point - skip
+        if condition_unit in ("SF", "LF", "CY"):
+            # Condition expects area/length/volume but AI drew a point - skip
             logger.warning(
-                "Skipping point measurement for area/linear condition",
+                "Skipping point measurement for non-count condition",
                 condition_name=condition.name,
                 condition_unit=condition_unit,
                 geometry_type=element.geometry_type,
@@ -555,7 +565,9 @@ def get_or_create_condition_for_element(
         Condition.project_id == project_id
     ).scalar() or 0
     
-    # Create new condition
+    # Create new condition using a savepoint to avoid rolling back the entire transaction
+    # if there's an IntegrityError (which would lose all previous work in the transaction)
+    savepoint = db.begin_nested()
     try:
         condition = Condition(
             id=uuid.uuid4(),
@@ -576,7 +588,8 @@ def get_or_create_condition_for_element(
     except IntegrityError:
         # Another transaction created the condition between our check and insert
         # (shouldn't happen with row locking, but handle defensively)
-        db.rollback()
+        # Roll back only the savepoint, not the entire transaction
+        savepoint.rollback()
         condition = db.query(Condition).filter(
             Condition.project_id == project_id,
             Condition.name == display_name,
