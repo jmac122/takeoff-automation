@@ -516,7 +516,8 @@ class AITakeoffService:
             elements = []
             for elem in data.get("elements", []):
                 geometry_type = elem.get("geometry_type", "polygon")
-                element_type = elem.get("element_type", "unknown")
+                # Use `or "unknown"` to handle both missing keys AND explicit null values
+                element_type = elem.get("element_type") or "unknown"
                 # Convert depth_inches to float - LLM may return string or number
                 raw_depth = elem.get("depth_inches")
                 depth_inches = float(raw_depth) if raw_depth is not None else None

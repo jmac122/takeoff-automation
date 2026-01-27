@@ -94,6 +94,19 @@ def create_measurement_from_element(
             # Condition expects count - treat polygon as 1 item
             quantity = 1
             unit = "EA"
+        elif condition_unit == "CY":
+            # Condition expects volume - use cubic yards
+            if volume_cy:
+                quantity = volume_cy
+                unit = "CY"
+            else:
+                # No depth available to calculate volume, skip
+                logger.warning(
+                    "Skipping polygon measurement for CY condition - no depth available",
+                    condition_name=condition.name,
+                    condition_unit=condition_unit,
+                )
+                return None
         else:
             # Default: use area (SF)
             quantity = area_sf
@@ -293,9 +306,20 @@ def generate_ai_takeoff_task(
                 "llm_latency_ms": result.llm_latency_ms,
             }
 
-    except Exception as e:
+    except ValueError as e:
+        # Validation errors (not found, not calibrated, etc.) should fail immediately
+        # without retrying - they won't succeed on retry
         logger.error(
-            "AI takeoff failed",
+            "AI takeoff validation failed (not retrying)",
+            page_id=page_id,
+            condition_id=condition_id,
+            error=str(e),
+        )
+        raise
+    except Exception as e:
+        # Transient errors (network, API rate limits, etc.) can be retried
+        logger.error(
+            "AI takeoff failed (will retry)",
             page_id=page_id,
             condition_id=condition_id,
             error=str(e),
@@ -485,10 +509,19 @@ def get_or_create_condition_for_element(
 ) -> tuple[Condition, bool]:
     """Get or create a condition for an AI-detected element type.
     
+    Uses SELECT FOR UPDATE on the project row to prevent race conditions
+    when multiple concurrent tasks try to create the same condition.
+    
     Returns:
         Tuple of (condition, was_created)
     """
     from sqlalchemy import func
+    from sqlalchemy.exc import IntegrityError
+    from app.models.project import Project
+    
+    # Handle null element_type from AI (explicit null, not missing key)
+    if not element_type:
+        element_type = "unknown"
     
     # Normalize element type
     normalized = element_type.lower().replace(" ", "_").replace("-", "_")
@@ -502,6 +535,11 @@ def get_or_create_condition_for_element(
     
     # Normalize name for display
     display_name = element_type.replace("_", " ").title()
+    
+    # Lock the project row to serialize condition creation for this project
+    # This prevents race conditions where concurrent tasks both see no condition
+    # and both try to create one with the same name
+    db.query(Project).filter(Project.id == project_id).with_for_update().one()
     
     # Check if condition exists (by name or normalized name)
     condition = db.query(Condition).filter(
@@ -518,22 +556,32 @@ def get_or_create_condition_for_element(
     ).scalar() or 0
     
     # Create new condition
-    condition = Condition(
-        id=uuid.uuid4(),
-        project_id=project_id,
-        name=display_name,
-        scope="concrete",
-        category=mapping["category"],
-        measurement_type=mapping["measurement_type"],
-        unit=mapping["unit"],
-        color="#4CAF50",  # Default green
-        is_ai_generated=True,
-        sort_order=max_order + 1,
-    )
-    db.add(condition)
-    db.flush()  # Get the ID
-    
-    return condition, True
+    try:
+        condition = Condition(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            name=display_name,
+            scope="concrete",
+            category=mapping["category"],
+            measurement_type=mapping["measurement_type"],
+            unit=mapping["unit"],
+            color="#4CAF50",  # Default green
+            is_ai_generated=True,
+            sort_order=max_order + 1,
+        )
+        db.add(condition)
+        db.flush()  # Get the ID
+        
+        return condition, True
+    except IntegrityError:
+        # Another transaction created the condition between our check and insert
+        # (shouldn't happen with row locking, but handle defensively)
+        db.rollback()
+        condition = db.query(Condition).filter(
+            Condition.project_id == project_id,
+            Condition.name == display_name,
+        ).one()
+        return condition, False
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -682,9 +730,19 @@ def autonomous_ai_takeoff_task(
                 "llm_latency_ms": result.llm_latency_ms,
             }
 
-    except Exception as e:
+    except ValueError as e:
+        # Validation errors (not found, not calibrated, etc.) should fail immediately
+        # without retrying - they won't succeed on retry
         logger.error(
-            "AUTONOMOUS AI takeoff failed",
+            "AUTONOMOUS AI takeoff validation failed (not retrying)",
+            page_id=page_id,
+            error=str(e),
+        )
+        raise
+    except Exception as e:
+        # Transient errors (network, API rate limits, etc.) can be retried
+        logger.error(
+            "AUTONOMOUS AI takeoff failed (will retry)",
             page_id=page_id,
             error=str(e),
         )
