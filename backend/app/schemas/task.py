@@ -39,6 +39,7 @@ class TaskListResponse(BaseModel):
     running: int
     completed: int
     failed: int
+    cancelled: int
 
 
 class StartTaskResponse(BaseModel):

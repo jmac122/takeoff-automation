@@ -37,7 +37,9 @@ def _build_task_response(
     """
     # Start from Celery's authoritative runtime state
     celery_status = celery_result.status
-    celery_meta = celery_result.info if isinstance(celery_result.info, dict) else {}
+    celery_meta = {}
+    if celery_status == TaskStatus.PROGRESS and isinstance(celery_result.info, dict):
+        celery_meta = celery_result.info
 
     progress = TaskProgress(
         percent=celery_meta.get("percent", 0.0),
@@ -156,6 +158,7 @@ async def list_project_tasks(
             func.count().filter(TaskRecord.status.in_(running_statuses)).label("running"),
             func.count().filter(TaskRecord.status == TaskStatus.SUCCESS).label("completed"),
             func.count().filter(TaskRecord.status == TaskStatus.FAILURE).label("failed"),
+            func.count().filter(TaskRecord.status == TaskStatus.REVOKED).label("cancelled"),
         )
         .select_from(TaskRecord)
         .where(*project_filters)
@@ -179,4 +182,5 @@ async def list_project_tasks(
         running=breakdown.running or 0,
         completed=breakdown.completed or 0,
         failed=breakdown.failed or 0,
+        cancelled=breakdown.cancelled or 0,
     )
