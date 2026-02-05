@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,6 +37,13 @@ def _build_task_response(
     """
     # Start from Celery's authoritative runtime state
     celery_status = celery_result.status
+    response_status = celery_status
+    if (
+        record
+        and celery_status == TaskStatus.PENDING
+        and record.status in (TaskStatus.SUCCESS, TaskStatus.FAILURE, TaskStatus.REVOKED)
+    ):
+        response_status = record.status
     celery_meta = {}
     if celery_status == TaskStatus.PROGRESS and isinstance(celery_result.info, dict):
         celery_meta = celery_result.info
@@ -67,7 +74,7 @@ def _build_task_response(
                 step=record.progress_step,
             )
         # Use DB result/error if Celery state is terminal
-        if celery_status in (TaskStatus.SUCCESS, TaskStatus.FAILURE, TaskStatus.REVOKED):
+        if response_status in (TaskStatus.SUCCESS, TaskStatus.FAILURE, TaskStatus.REVOKED):
             if record.result_summary and not result_data:
                 result_data = record.result_summary
             if record.error_message and not error:
@@ -77,7 +84,7 @@ def _build_task_response(
         task_id=celery_result.id,
         task_type=record.task_type if record else None,
         task_name=record.task_name if record else None,
-        status=celery_status,
+        status=response_status,
         progress=progress,
         result=result_data,
         error=error,

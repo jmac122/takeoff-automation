@@ -40,6 +40,12 @@ sync_engine = create_engine(
 SyncSession = sessionmaker(bind=sync_engine)
 
 
+def _report_progress(task, db, percent: float, step: str) -> None:
+    """Send progress updates to Celery and the DB."""
+    task.update_state(state="PROGRESS", meta={"percent": percent, "step": step})
+    TaskTracker.update_progress_sync(db, task.request.id, percent, step)
+
+
 def create_measurement_from_element(
     page: Page,
     condition: Condition,
@@ -226,8 +232,7 @@ def generate_ai_takeoff_task(
             # Mark task as started
             TaskTracker.mark_started_sync(db, self.request.id)
 
-            self.update_state(state="PROGRESS", meta={"percent": 10, "step": "Loading page data"})
-            TaskTracker.update_progress_sync(db, self.request.id, 10, "Loading page data")
+            _report_progress(self, db, 10, "Loading page data")
 
             page_uuid = uuid.UUID(page_id)
             condition_uuid = uuid.UUID(condition_id)
@@ -255,8 +260,7 @@ def generate_ai_takeoff_task(
             image_bytes = storage.download_file(page.image_key)
 
             # Get AI takeoff service
-            self.update_state(state="PROGRESS", meta={"percent": 30, "step": "Running AI analysis"})
-            TaskTracker.update_progress_sync(db, self.request.id, 30, "Running AI analysis")
+            _report_progress(self, db, 30, "Running AI analysis")
 
             ai_service = get_ai_takeoff_service(provider=provider)
 
@@ -272,8 +276,7 @@ def generate_ai_takeoff_task(
             )
 
             # Create measurements from detected elements
-            self.update_state(state="PROGRESS", meta={"percent": 70, "step": "Creating measurements"})
-            TaskTracker.update_progress_sync(db, self.request.id, 70, "Creating measurements")
+            _report_progress(self, db, 70, "Creating measurements")
 
             calculator = MeasurementCalculator(
                 pixels_per_foot=page.scale_value
@@ -306,8 +309,7 @@ def generate_ai_takeoff_task(
                 locked_condition.total_quantity = totals[0] or 0.0
                 locked_condition.measurement_count = totals[1] or 0
 
-            self.update_state(state="PROGRESS", meta={"percent": 90, "step": "Finalizing"})
-            TaskTracker.update_progress_sync(db, self.request.id, 90, "Finalizing")
+            _report_progress(self, db, 90, "Finalizing")
 
             result_summary = {
                 "page_id": page_id,

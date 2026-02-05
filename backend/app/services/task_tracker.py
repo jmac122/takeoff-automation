@@ -106,7 +106,7 @@ class TaskTracker:
         is used to avoid accidentally committing partial work.
         """
         if db.new or db.dirty or db.deleted:
-            isolated_db = Session(bind=db.get_bind())
+            isolated_db = Session(db.bind)
             try:
                 TaskTracker._apply_progress_update(
                     isolated_db,

@@ -61,19 +61,9 @@ class BatchTakeoffRequest(BaseModel):
     provider: str | None = None
 
 
-class TakeoffTaskResponse(BaseModel):
-    """Response with task ID."""
-
-    task_id: str
-    message: str
-    provider: str | None = None
-
-
-class BatchTakeoffResponse(BaseModel):
+class BatchTakeoffResponse(StartTaskResponse):
     """Response for batch takeoff."""
 
-    task_id: str
-    message: str
     pages_count: int
 
 
@@ -213,12 +203,12 @@ async def generate_ai_takeoff(
     )
 
 
-@router.post("/pages/{page_id}/autonomous-takeoff", response_model=TakeoffTaskResponse)
+@router.post("/pages/{page_id}/autonomous-takeoff", response_model=StartTaskResponse)
 async def autonomous_ai_takeoff(
     page_id: uuid.UUID,
     request: AutonomousTakeoffRequest,
     page_data: Annotated[CalibratedPageData, Depends(get_calibrated_page)],
-) -> TakeoffTaskResponse:
+) -> StartTaskResponse:
     """Autonomous AI takeoff - AI identifies ALL concrete elements on its own.
 
     Unlike the standard ai-takeoff endpoint, this does NOT require a pre-defined
@@ -255,21 +245,23 @@ async def autonomous_ai_takeoff(
     )
 
     provider_msg = f" using {provider}" if provider else ""
+    task_name = f"Autonomous AI takeoff for page {page_id}{provider_msg}"
 
-    return TakeoffTaskResponse(
+    return StartTaskResponse(
         task_id=task.id,
+        task_type="autonomous_ai_takeoff",
+        task_name=task_name,
         message=f"Autonomous AI takeoff started for page {page_id}{provider_msg}",
-        provider=provider,
     )
 
 
-@router.post("/pages/{page_id}/compare-providers", response_model=TakeoffTaskResponse)
+@router.post("/pages/{page_id}/compare-providers", response_model=StartTaskResponse)
 async def compare_providers(
     page_id: uuid.UUID,
     request: CompareProvidersRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     page_data: Annotated[CalibratedPageData, Depends(get_calibrated_page)],
-) -> TakeoffTaskResponse:
+) -> StartTaskResponse:
     """Compare AI takeoff results across multiple providers.
 
     Useful for benchmarking which provider works best for specific content.
@@ -308,9 +300,12 @@ async def compare_providers(
         str(request.condition_id),
         providers=providers,
     )
+    task_name = f"Provider comparison for page {page_id}"
 
-    return TakeoffTaskResponse(
+    return StartTaskResponse(
         task_id=task.id,
+        task_type="compare_providers",
+        task_name=task_name,
         message=f"Provider comparison started for page {page_id}",
     )
 
@@ -391,10 +386,14 @@ async def batch_ai_takeoff(
         provider=request.provider,
     )
 
+    pages_count = len(request.page_ids)
+    task_name = f"Batch AI takeoff for {pages_count} pages"
     return BatchTakeoffResponse(
         task_id=task.id,
-        message=f"Batch AI takeoff queued for {len(request.page_ids)} pages",
-        pages_count=len(request.page_ids),
+        task_type="batch_ai_takeoff",
+        task_name=task_name,
+        message=f"Batch AI takeoff queued for {pages_count} pages",
+        pages_count=pages_count,
     )
 
 
