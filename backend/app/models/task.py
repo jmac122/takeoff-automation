@@ -1,5 +1,7 @@
 """TaskRecord model for unified async task tracking."""
 
+import enum
+import uuid as _uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, Float, Index, String, Text
@@ -8,6 +10,17 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
+
+
+class TaskStatus(str, enum.Enum):
+    """Possible lifecycle states for an async task."""
+
+    PENDING = "PENDING"
+    STARTED = "STARTED"
+    PROGRESS = "PROGRESS"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
+    REVOKED = "REVOKED"
 
 
 class TaskRecord(Base, TimestampMixin):
@@ -22,7 +35,7 @@ class TaskRecord(Base, TimestampMixin):
     task_id: Mapped[str] = mapped_column(String(255), primary_key=True)
 
     # Project association
-    project_id: Mapped[str | None] = mapped_column(
+    project_id: Mapped[_uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=True,
@@ -34,8 +47,8 @@ class TaskRecord(Base, TimestampMixin):
 
     # Status tracking
     status: Mapped[str] = mapped_column(
-        String(50), default="PENDING", nullable=False
-    )  # PENDING | STARTED | PROGRESS | SUCCESS | FAILURE | REVOKED
+        String(50), default=TaskStatus.PENDING, nullable=False
+    )
 
     # Progress
     progress_percent: Mapped[float] = mapped_column(Float, default=0.0)

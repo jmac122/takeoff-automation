@@ -4,7 +4,7 @@ import uuid
 from typing import Annotated
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -416,11 +416,11 @@ async def get_available_providers() -> AvailableProvidersResponse:
 @router.get(
     "/tasks/{task_id}/status",
     include_in_schema=False,
-    status_code=status.HTTP_301_MOVED_PERMANENTLY,
 )
-async def get_task_status_legacy(task_id: str) -> RedirectResponse:
+async def get_task_status_legacy(task_id: str, request: Request) -> RedirectResponse:
     """Legacy task status endpoint — redirects to the unified Task API."""
+    new_url = request.url_for("get_task_status", task_id=task_id)
     return RedirectResponse(
-        url=f"/api/v1/tasks/{task_id}",
+        url=str(new_url),
         status_code=status.HTTP_301_MOVED_PERMANENTLY,
     )

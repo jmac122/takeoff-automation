@@ -10,9 +10,17 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.models.task import TaskRecord
+from app.models.task import TaskRecord, TaskStatus
 
 logger = structlog.get_logger()
+
+
+def _get_record_sync(db: Session, task_id: str, caller: str) -> TaskRecord | None:
+    """Fetch a TaskRecord by PK, logging a warning if missing."""
+    record = db.get(TaskRecord, task_id)
+    if not record:
+        logger.warning("TaskRecord not found", task_id=task_id, caller=caller)
+    return record
 
 
 class TaskTracker:
@@ -41,7 +49,7 @@ class TaskTracker:
             project_id=project_id,
             task_type=task_type,
             task_name=task_name,
-            status="PENDING",
+            status=TaskStatus.PENDING,
             progress_percent=0.0,
             task_metadata=metadata,
         )
@@ -62,11 +70,10 @@ class TaskTracker:
     @staticmethod
     def mark_started_sync(db: Session, task_id: str) -> None:
         """Mark a task as started."""
-        record = db.query(TaskRecord).filter(TaskRecord.task_id == task_id).one_or_none()
+        record = _get_record_sync(db, task_id, "mark_started")
         if not record:
-            logger.warning("TaskRecord not found for mark_started", task_id=task_id)
             return
-        record.status = "STARTED"
+        record.status = TaskStatus.STARTED
         record.started_at = datetime.now(timezone.utc)
         db.commit()
 
@@ -77,11 +84,11 @@ class TaskTracker:
         percent: float,
         step: str | None,
     ) -> None:
-        record = db.query(TaskRecord).filter(TaskRecord.task_id == task_id).one_or_none()
+        """Internal helper that writes progress to the DB."""
+        record = _get_record_sync(db, task_id, "update_progress")
         if not record:
-            logger.warning("TaskRecord not found for update_progress", task_id=task_id)
             return
-        record.status = "PROGRESS"
+        record.status = TaskStatus.PROGRESS
         record.progress_percent = percent
         record.progress_step = step
         db.commit()
@@ -93,9 +100,12 @@ class TaskTracker:
         percent: float,
         step: str | None = None,
     ) -> None:
-        """Update task progress from a worker."""
+        """Update task progress from a worker.
+
+        If the caller's session has uncommitted changes, an isolated session
+        is used to avoid accidentally committing partial work.
+        """
         if db.new or db.dirty or db.deleted:
-            # Avoid committing unrelated pending changes in the caller's session.
             isolated_db = Session(bind=db.get_bind())
             try:
                 TaskTracker._apply_progress_update(
@@ -124,11 +134,10 @@ class TaskTracker:
         commit: bool = True,
     ) -> None:
         """Mark a task as successfully completed."""
-        record = db.query(TaskRecord).filter(TaskRecord.task_id == task_id).one_or_none()
+        record = _get_record_sync(db, task_id, "mark_completed")
         if not record:
-            logger.warning("TaskRecord not found for mark_completed", task_id=task_id)
             return
-        record.status = "SUCCESS"
+        record.status = TaskStatus.SUCCESS
         record.progress_percent = 100.0
         record.completed_at = datetime.now(timezone.utc)
         record.result_summary = result_summary
@@ -143,11 +152,10 @@ class TaskTracker:
         error_traceback: str | None = None,
     ) -> None:
         """Mark a task as failed."""
-        record = db.query(TaskRecord).filter(TaskRecord.task_id == task_id).one_or_none()
+        record = _get_record_sync(db, task_id, "mark_failed")
         if not record:
-            logger.warning("TaskRecord not found for mark_failed", task_id=task_id)
             return
-        record.status = "FAILURE"
+        record.status = TaskStatus.FAILURE
         record.completed_at = datetime.now(timezone.utc)
         record.error_message = error_message
         record.error_traceback = error_traceback

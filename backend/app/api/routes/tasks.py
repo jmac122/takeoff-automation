@@ -14,7 +14,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.models.task import TaskRecord
+from app.models.task import TaskRecord, TaskStatus
 from app.schemas.task import (
     CancelTaskResponse,
     TaskListResponse,
@@ -30,7 +30,11 @@ def _build_task_response(
     celery_result: AsyncResult,
     record: TaskRecord | None,
 ) -> TaskResponse:
-    """Merge live Celery state with persisted TaskRecord."""
+    """Merge live Celery state with persisted TaskRecord.
+
+    NOTE: traceback is deliberately excluded from the API response to avoid
+    leaking internal details.  It remains stored in the DB for debugging.
+    """
     # Start from Celery's authoritative runtime state
     celery_status = celery_result.status
     celery_meta = celery_result.info if isinstance(celery_result.info, dict) else {}
@@ -42,14 +46,12 @@ def _build_task_response(
 
     result_data = None
     error = None
-    traceback = None
 
     if celery_result.ready():
         if celery_result.successful():
             result_data = celery_result.result
         else:
             error = str(celery_result.result) if celery_result.result else "Task failed"
-            traceback = celery_result.traceback
 
     # Overlay with DB record when available (richer metadata)
     if record:
@@ -63,13 +65,11 @@ def _build_task_response(
                 step=record.progress_step,
             )
         # Use DB result/error if Celery state is terminal
-        if celery_status in ("SUCCESS", "FAILURE", "REVOKED"):
+        if celery_status in (TaskStatus.SUCCESS, TaskStatus.FAILURE, TaskStatus.REVOKED):
             if record.result_summary and not result_data:
                 result_data = record.result_summary
             if record.error_message and not error:
                 error = record.error_message
-            if record.error_traceback and not traceback:
-                traceback = record.error_traceback
 
     return TaskResponse(
         task_id=celery_result.id,
@@ -79,7 +79,6 @@ def _build_task_response(
         progress=progress,
         result=result_data,
         error=error,
-        traceback=traceback,
         created_at=record.created_at if record else None,
         started_at=record.started_at if record else None,
         completed_at=record.completed_at if record else None,
@@ -117,14 +116,14 @@ async def cancel_task(
         select(TaskRecord).where(TaskRecord.task_id == task_id)
     )
     record = result.scalar_one_or_none()
-    if record and record.status not in ("SUCCESS", "FAILURE", "REVOKED"):
-        record.status = "REVOKED"
+    if record and record.status not in (TaskStatus.SUCCESS, TaskStatus.FAILURE, TaskStatus.REVOKED):
+        record.status = TaskStatus.REVOKED
         record.completed_at = datetime.now(timezone.utc)
         await db.commit()
 
     return CancelTaskResponse(
         task_id=task_id,
-        status="REVOKED",
+        status=TaskStatus.REVOKED,
         message="Cancellation signal sent",
     )
 
@@ -148,29 +147,18 @@ async def list_project_tasks(
 
     base = select(TaskRecord).where(*base_filters)
 
-    # Counts
-    count_q = select(func.count()).select_from(
-        base.subquery()
+    # Single aggregation query for all counts (filtered total + global breakdowns)
+    running_statuses = (TaskStatus.PENDING, TaskStatus.STARTED, TaskStatus.PROGRESS)
+    counts_q = (
+        select(
+            func.count().label("total"),
+            func.count().filter(TaskRecord.status.in_(running_statuses)).label("running"),
+            func.count().filter(TaskRecord.status == TaskStatus.SUCCESS).label("completed"),
+            func.count().filter(TaskRecord.status == TaskStatus.FAILURE).label("failed"),
+        )
+        .select_from(base.subquery())
     )
-    total = (await db.execute(count_q)).scalar() or 0
-
-    running_q = select(func.count()).where(
-        *base_filters,
-        TaskRecord.status.in_(["PENDING", "STARTED", "PROGRESS"]),
-    )
-    running = (await db.execute(running_q)).scalar() or 0
-
-    completed_q = select(func.count()).where(
-        *base_filters,
-        TaskRecord.status == "SUCCESS",
-    )
-    completed = (await db.execute(completed_q)).scalar() or 0
-
-    failed_q = select(func.count()).where(
-        *base_filters,
-        TaskRecord.status == "FAILURE",
-    )
-    failed = (await db.execute(failed_q)).scalar() or 0
+    counts = (await db.execute(counts_q)).one()
 
     # Fetch records
     query = base.order_by(TaskRecord.created_at.desc()).limit(limit).offset(offset)
@@ -184,8 +172,8 @@ async def list_project_tasks(
 
     return TaskListResponse(
         tasks=tasks,
-        total=total,
-        running=running,
-        completed=completed,
-        failed=failed,
+        total=counts.total or 0,
+        running=counts.running or 0,
+        completed=counts.completed or 0,
+        failed=counts.failed or 0,
     )

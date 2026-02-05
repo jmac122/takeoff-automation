@@ -25,7 +25,6 @@ class TaskResponse(BaseModel):
     progress: TaskProgress = TaskProgress()
     result: Any | None = None
     error: str | None = None
-    traceback: str | None = None
     created_at: datetime | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
