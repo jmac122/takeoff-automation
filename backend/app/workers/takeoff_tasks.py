@@ -362,12 +362,13 @@ def generate_ai_takeoff_task(
             condition_id=condition_id,
             error=str(e),
         )
+        original_traceback = tb_module.format_exc()
         try:
             raise self.retry(exc=e, countdown=60)
         except MaxRetriesExceededError:
             with SyncSession() as db:
                 TaskTracker.mark_failed_sync(
-                    db, self.request.id, str(e), tb_module.format_exc()
+                    db, self.request.id, str(e), original_traceback
                 )
             raise
 

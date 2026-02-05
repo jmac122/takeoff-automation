@@ -3,7 +3,6 @@
 import uuid
 from typing import Annotated
 
-from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
@@ -17,7 +16,6 @@ from app.models.document import Document
 from app.models.condition import Condition
 from app.schemas.task import StartTaskResponse
 from app.services.task_tracker import TaskTracker
-from app.workers.celery_app import celery_app
 from app.workers.takeoff_tasks import (
     generate_ai_takeoff_task,
     compare_providers_task,

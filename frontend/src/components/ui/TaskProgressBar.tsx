@@ -8,7 +8,7 @@ import { Check, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import type { TaskStatus } from '@/hooks/useTaskPolling';
+import { RUNNING_STATUSES, type TaskStatus } from '@/hooks/useTaskPolling';
 
 interface TaskProgressBarProps {
   task: TaskStatus;
@@ -30,8 +30,7 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
-const isRunning = (status: string) =>
-  ['PENDING', 'STARTED', 'PROGRESS'].includes(status);
+const isRunning = (status: string) => RUNNING_STATUSES.includes(status);
 
 export function TaskProgressBar({
   task,

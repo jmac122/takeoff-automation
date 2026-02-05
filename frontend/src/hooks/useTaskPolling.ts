@@ -26,14 +26,14 @@ export interface TaskStatus {
   progress: TaskProgress;
   result: unknown;
   error: string | null;
-  traceback: string | null;
   created_at: string | null;
   started_at: string | null;
   completed_at: string | null;
   project_id: string | null;
 }
 
-const TERMINAL_STATUSES = ['SUCCESS', 'FAILURE', 'REVOKED'];
+export const TERMINAL_STATUSES = ['SUCCESS', 'FAILURE', 'REVOKED'];
+export const RUNNING_STATUSES = ['PENDING', 'STARTED', 'PROGRESS'];
 
 export interface UseTaskPollingOptions {
   onSuccess?: (result: unknown) => void;

@@ -138,30 +138,33 @@ async def list_project_tasks(
     offset: int = Query(0, ge=0),
 ) -> TaskListResponse:
     """List all tasks for a project with optional filters."""
-    base_filters = [TaskRecord.project_id == project_id]
+    project_filters = [TaskRecord.project_id == project_id]
+    list_filters = list(project_filters)
 
     if status_filter:
-        base_filters.append(TaskRecord.status == status_filter)
+        list_filters.append(TaskRecord.status == status_filter)
     if task_type:
-        base_filters.append(TaskRecord.task_type == task_type)
+        list_filters.append(TaskRecord.task_type == task_type)
 
-    base = select(TaskRecord).where(*base_filters)
+    list_query = select(TaskRecord).where(*list_filters)
 
-    # Single aggregation query for all counts (filtered total + global breakdowns)
+    # Aggregations: filtered total + project-wide breakdowns
     running_statuses = (TaskStatus.PENDING, TaskStatus.STARTED, TaskStatus.PROGRESS)
-    counts_q = (
+    total_q = select(func.count()).select_from(TaskRecord).where(*list_filters)
+    breakdown_q = (
         select(
-            func.count().label("total"),
             func.count().filter(TaskRecord.status.in_(running_statuses)).label("running"),
             func.count().filter(TaskRecord.status == TaskStatus.SUCCESS).label("completed"),
             func.count().filter(TaskRecord.status == TaskStatus.FAILURE).label("failed"),
         )
-        .select_from(base.subquery())
+        .select_from(TaskRecord)
+        .where(*project_filters)
     )
-    counts = (await db.execute(counts_q)).one()
+    total_count = (await db.execute(total_q)).scalar_one()
+    breakdown = (await db.execute(breakdown_q)).one()
 
     # Fetch records
-    query = base.order_by(TaskRecord.created_at.desc()).limit(limit).offset(offset)
+    query = list_query.order_by(TaskRecord.created_at.desc()).limit(limit).offset(offset)
     result = await db.execute(query)
     records = result.scalars().all()
 
@@ -172,8 +175,8 @@ async def list_project_tasks(
 
     return TaskListResponse(
         tasks=tasks,
-        total=counts.total or 0,
-        running=counts.running or 0,
-        completed=counts.completed or 0,
-        failed=counts.failed or 0,
+        total=total_count or 0,
+        running=breakdown.running or 0,
+        completed=breakdown.completed or 0,
+        failed=breakdown.failed or 0,
     )
