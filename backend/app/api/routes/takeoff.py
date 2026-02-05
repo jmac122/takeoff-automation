@@ -196,28 +196,29 @@ async def generate_ai_takeoff(
     # Validate provider
     provider = validate_provider(request.provider)
 
-    # Queue the task
-    task = generate_ai_takeoff_task.delay(
-        str(page_id),
-        str(request.condition_id),
-        provider=provider,
-    )
-
-    # Register task in the unified task tracker
+    # Register task in the unified task tracker before queueing
+    task_id = str(uuid.uuid4())
     provider_msg = f" using {provider}" if provider else ""
     task_name = f"AI takeoff for page {page_id}{provider_msg}"
 
     await TaskTracker.register_async(
         db,
-        task_id=task.id,
+        task_id=task_id,
         task_type="ai_takeoff",
         task_name=task_name,
         project_id=str(page_data.document.project_id),
         metadata={"page_id": str(page_id), "condition_id": str(request.condition_id), "provider": provider},
     )
 
+    # Queue the task
+    generate_ai_takeoff_task.apply_async(
+        args=[str(page_id), str(request.condition_id)],
+        kwargs={"provider": provider},
+        task_id=task_id,
+    )
+
     return StartTaskResponse(
-        task_id=task.id,
+        task_id=task_id,
         task_type="ai_takeoff",
         task_name=task_name,
         message=f"AI takeoff started for page {page_id}{provider_msg}",

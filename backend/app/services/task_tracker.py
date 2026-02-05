@@ -71,6 +71,22 @@ class TaskTracker:
         db.commit()
 
     @staticmethod
+    def _apply_progress_update(
+        db: Session,
+        task_id: str,
+        percent: float,
+        step: str | None,
+    ) -> None:
+        record = db.query(TaskRecord).filter(TaskRecord.task_id == task_id).one_or_none()
+        if not record:
+            logger.warning("TaskRecord not found for update_progress", task_id=task_id)
+            return
+        record.status = "PROGRESS"
+        record.progress_percent = percent
+        record.progress_step = step
+        db.commit()
+
+    @staticmethod
     def update_progress_sync(
         db: Session,
         task_id: str,
@@ -82,32 +98,22 @@ class TaskTracker:
             # Avoid committing unrelated pending changes in the caller's session.
             isolated_db = Session(bind=db.get_bind())
             try:
-                record = (
-                    isolated_db.query(TaskRecord)
-                    .filter(TaskRecord.task_id == task_id)
-                    .one_or_none()
+                TaskTracker._apply_progress_update(
+                    isolated_db,
+                    task_id=task_id,
+                    percent=percent,
+                    step=step,
                 )
-                if not record:
-                    logger.warning(
-                        "TaskRecord not found for update_progress", task_id=task_id
-                    )
-                    return
-                record.status = "PROGRESS"
-                record.progress_percent = percent
-                record.progress_step = step
-                isolated_db.commit()
             finally:
                 isolated_db.close()
             return
 
-        record = db.query(TaskRecord).filter(TaskRecord.task_id == task_id).one_or_none()
-        if not record:
-            logger.warning("TaskRecord not found for update_progress", task_id=task_id)
-            return
-        record.status = "PROGRESS"
-        record.progress_percent = percent
-        record.progress_step = step
-        db.commit()
+        TaskTracker._apply_progress_update(
+            db,
+            task_id=task_id,
+            percent=percent,
+            step=step,
+        )
 
     @staticmethod
     def mark_completed_sync(

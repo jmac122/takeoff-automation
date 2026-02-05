@@ -134,12 +134,14 @@ async def list_project_tasks(
     offset: int = Query(0, ge=0),
 ) -> TaskListResponse:
     """List all tasks for a project with optional filters."""
-    base = select(TaskRecord).where(TaskRecord.project_id == project_id)
+    base_filters = [TaskRecord.project_id == project_id]
 
     if status_filter:
-        base = base.where(TaskRecord.status == status_filter)
+        base_filters.append(TaskRecord.status == status_filter)
     if task_type:
-        base = base.where(TaskRecord.task_type == task_type)
+        base_filters.append(TaskRecord.task_type == task_type)
+
+    base = select(TaskRecord).where(*base_filters)
 
     # Counts
     count_q = select(func.count()).select_from(
@@ -148,19 +150,19 @@ async def list_project_tasks(
     total = (await db.execute(count_q)).scalar() or 0
 
     running_q = select(func.count()).where(
-        TaskRecord.project_id == project_id,
+        *base_filters,
         TaskRecord.status.in_(["PENDING", "STARTED", "PROGRESS"]),
     )
     running = (await db.execute(running_q)).scalar() or 0
 
     completed_q = select(func.count()).where(
-        TaskRecord.project_id == project_id,
+        *base_filters,
         TaskRecord.status == "SUCCESS",
     )
     completed = (await db.execute(completed_q)).scalar() or 0
 
     failed_q = select(func.count()).where(
-        TaskRecord.project_id == project_id,
+        *base_filters,
         TaskRecord.status == "FAILURE",
     )
     failed = (await db.execute(failed_q)).scalar() or 0
