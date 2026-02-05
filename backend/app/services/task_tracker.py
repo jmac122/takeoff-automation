@@ -4,11 +4,9 @@ Provides both async (FastAPI) and sync (Celery worker) helpers so that
 every task records its lifecycle in the task_records table.
 """
 
-import traceback as tb_module
 from datetime import datetime, timezone
 
 import structlog
-from sqlalchemy import func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -80,6 +78,28 @@ class TaskTracker:
         step: str | None = None,
     ) -> None:
         """Update task progress from a worker."""
+        if db.new or db.dirty or db.deleted:
+            # Avoid committing unrelated pending changes in the caller's session.
+            isolated_db = Session(bind=db.get_bind())
+            try:
+                record = (
+                    isolated_db.query(TaskRecord)
+                    .filter(TaskRecord.task_id == task_id)
+                    .one_or_none()
+                )
+                if not record:
+                    logger.warning(
+                        "TaskRecord not found for update_progress", task_id=task_id
+                    )
+                    return
+                record.status = "PROGRESS"
+                record.progress_percent = percent
+                record.progress_step = step
+                isolated_db.commit()
+            finally:
+                isolated_db.close()
+            return
+
         record = db.query(TaskRecord).filter(TaskRecord.task_id == task_id).one_or_none()
         if not record:
             logger.warning("TaskRecord not found for update_progress", task_id=task_id)

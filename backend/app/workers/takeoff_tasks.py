@@ -10,6 +10,7 @@ FastAPI routes use ASYNC SQLAlchemy - this is the correct pattern.
 import traceback as tb_module
 import uuid
 
+from celery.exceptions import MaxRetriesExceededError
 import structlog
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -357,9 +358,14 @@ def generate_ai_takeoff_task(
             condition_id=condition_id,
             error=str(e),
         )
-        with SyncSession() as db:
-            TaskTracker.mark_failed_sync(db, self.request.id, str(e), tb_module.format_exc())
-        raise self.retry(exc=e, countdown=60)
+        try:
+            raise self.retry(exc=e, countdown=60)
+        except MaxRetriesExceededError:
+            with SyncSession() as db:
+                TaskTracker.mark_failed_sync(
+                    db, self.request.id, str(e), tb_module.format_exc()
+                )
+            raise
 
 
 @celery_app.task(bind=True)
