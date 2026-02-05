@@ -8,6 +8,7 @@ from app.models.document import Document
 from app.models.page import Page
 from app.models.measurement import Measurement
 from app.models.classification_history import ClassificationHistory
+from app.models.task import TaskRecord
 
 __all__ = [
     "Base",
@@ -19,4 +20,5 @@ __all__ = [
     "Page",
     "Measurement",
     "ClassificationHistory",
+    "TaskRecord",
 ]

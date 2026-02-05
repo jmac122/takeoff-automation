@@ -7,6 +7,7 @@ database connections (asyncpg) cause InterfaceError.
 FastAPI routes use ASYNC SQLAlchemy - this is the correct pattern.
 """
 
+import traceback as tb_module
 import uuid
 
 import structlog
@@ -19,6 +20,7 @@ from app.models.document import Document
 from app.models.condition import Condition
 from app.models.measurement import Measurement
 from app.services.ai_takeoff import get_ai_takeoff_service, AITakeoffResult, DetectedElement
+from app.services.task_tracker import TaskTracker
 from app.utils.storage import get_storage_service
 from app.utils.geometry import MeasurementCalculator
 from app.workers.celery_app import celery_app
@@ -220,6 +222,12 @@ def generate_ai_takeoff_task(
 
     try:
         with SyncSession() as db:
+            # Mark task as started
+            TaskTracker.mark_started_sync(db, self.request.id)
+
+            self.update_state(state="PROGRESS", meta={"percent": 10, "step": "Loading page data"})
+            TaskTracker.update_progress_sync(db, self.request.id, 10, "Loading page data")
+
             page_uuid = uuid.UUID(page_id)
             condition_uuid = uuid.UUID(condition_id)
 
@@ -246,6 +254,9 @@ def generate_ai_takeoff_task(
             image_bytes = storage.download_file(page.image_key)
 
             # Get AI takeoff service
+            self.update_state(state="PROGRESS", meta={"percent": 30, "step": "Running AI analysis"})
+            TaskTracker.update_progress_sync(db, self.request.id, 30, "Running AI analysis")
+
             ai_service = get_ai_takeoff_service(provider=provider)
 
             # Analyze page
@@ -260,6 +271,9 @@ def generate_ai_takeoff_task(
             )
 
             # Create measurements from detected elements
+            self.update_state(state="PROGRESS", meta={"percent": 70, "step": "Creating measurements"})
+            TaskTracker.update_progress_sync(db, self.request.id, 70, "Creating measurements")
+
             calculator = MeasurementCalculator(
                 pixels_per_foot=page.scale_value
             )
@@ -277,21 +291,38 @@ def generate_ai_takeoff_task(
             # when multiple tasks update the same condition concurrently
             if measurements_created > 0:
                 from sqlalchemy import func
-                
+
                 # Lock the condition row to prevent concurrent updates
                 locked_condition = db.query(Condition).filter(
                     Condition.id == condition.id
                 ).with_for_update().one()
-                
+
                 totals = db.query(
                     func.sum(Measurement.quantity),
                     func.count(Measurement.id),
                 ).filter(Measurement.condition_id == condition.id).one()
-                
+
                 locked_condition.total_quantity = totals[0] or 0.0
                 locked_condition.measurement_count = totals[1] or 0
 
+            self.update_state(state="PROGRESS", meta={"percent": 90, "step": "Finalizing"})
+            TaskTracker.update_progress_sync(db, self.request.id, 90, "Finalizing")
+
             db.commit()
+
+            result_summary = {
+                "page_id": page_id,
+                "condition_id": condition_id,
+                "elements_detected": len(result.elements),
+                "measurements_created": measurements_created,
+                "page_description": result.page_description,
+                "analysis_notes": result.analysis_notes,
+                "llm_provider": result.llm_provider,
+                "llm_model": result.llm_model,
+                "llm_latency_ms": result.llm_latency_ms,
+            }
+
+            TaskTracker.mark_completed_sync(db, self.request.id, result_summary)
 
             logger.info(
                 "AI takeoff complete",
@@ -304,17 +335,7 @@ def generate_ai_takeoff_task(
                 latency_ms=result.llm_latency_ms,
             )
 
-            return {
-                "page_id": page_id,
-                "condition_id": condition_id,
-                "elements_detected": len(result.elements),
-                "measurements_created": measurements_created,
-                "page_description": result.page_description,
-                "analysis_notes": result.analysis_notes,
-                "llm_provider": result.llm_provider,
-                "llm_model": result.llm_model,
-                "llm_latency_ms": result.llm_latency_ms,
-            }
+            return result_summary
 
     except ValueError as e:
         # Validation errors (not found, not calibrated, etc.) should fail immediately
@@ -325,6 +346,8 @@ def generate_ai_takeoff_task(
             condition_id=condition_id,
             error=str(e),
         )
+        with SyncSession() as db:
+            TaskTracker.mark_failed_sync(db, self.request.id, str(e), tb_module.format_exc())
         raise
     except Exception as e:
         # Transient errors (network, API rate limits, etc.) can be retried
@@ -334,6 +357,8 @@ def generate_ai_takeoff_task(
             condition_id=condition_id,
             error=str(e),
         )
+        with SyncSession() as db:
+            TaskTracker.mark_failed_sync(db, self.request.id, str(e), tb_module.format_exc())
         raise self.retry(exc=e, countdown=60)
 
 

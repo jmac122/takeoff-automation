@@ -1,0 +1,57 @@
+---
+description: Documentation index for the ForgeX Takeoffs project
+globs: ["**/*.md", "**/*.mdc"]
+---
+
+# Documentation Index
+
+## Plans
+
+All implementation plans are in the `plans/` directory:
+
+### Core Plans
+- `plans/01-PROJECT-SETUP.md`
+- `plans/02-DOCUMENT-INGESTION.md`
+- `plans/03-OCR-TEXT-EXTRACTION.md`
+- `plans/04-PAGE-CLASSIFICATION.md`
+- `plans/05-SCALE-DETECTION.md`
+- `plans/06-MEASUREMENT-ENGINE.md`
+- `plans/06B-MANUAL-DRAWING-TOOLS.md`
+- `plans/07-CONDITION-MANAGEMENT.md`
+- `plans/08-AI-TAKEOFF-GENERATION.md`
+- `plans/09-REVIEW-INTERFACE.md`
+- `plans/10-EXPORT-SYSTEM.md`
+- `plans/11-TESTING-QA.md`
+- `plans/12-DEPLOYMENT.md`
+
+### Updated Variants
+- `plans/07-CONDITION-MANAGEMENT-UPDATED.md`
+- `plans/08-AI-TAKEOFF-GENERATION-UPDATED.md`
+- `plans/10-EXPORT-SYSTEM-UPDATED.md`
+- `plans/11-TESTING-QA-UPDATED.md`
+- `plans/12-DEPLOYMENT-UPDATED.md`
+- `plans/00-APPLICATION-INTERFACE-UPDATED.md`
+
+### Extended / Post-MVP Plans
+- `plans/13-ASSEMBLY-SYSTEM.md`
+- `plans/14-AUTO-COUNT.md`
+- `plans/15-QUICK-ADJUST-TOOLS.md`
+- `plans/16-UNIFIED-TASK-API.md`
+- `plans/17-KREO-ARCHITECTURE-PREP.md`
+- `plans/18-UI-OVERHAUL.md`
+- `plans/18A-UI-OVERHAUL-AUDIT.md`
+- `plans/18B-UI-OVERHAUL-PHASE-CONTEXTS.md`
+
+### Master Roadmaps
+- `plans/00-MASTER-IMPLEMENTATION-PLAN-UPDATED-v3.md` (CURRENT master roadmap)
+- `plans/00-MASTER-IMPLEMENTATION-PLAN-MERGED.md`
+- `plans/00-MASTER-IMPLEMENTATION-PLAN.md`
+- `plans/00-APPLICATION-INTERFACE.md`
+
+### Enhanced Review Interface
+- `plans/09-REVIEW-INTERFACE-ENHANCED.md`
+
+## Cursor Rules
+
+- `.cursor/claude.md` — Project overview, data model, API endpoints, key patterns
+- `.cursor/rules/documentation.mdc` — This file (documentation index)

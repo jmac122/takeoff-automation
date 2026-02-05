@@ -68,6 +68,7 @@ class Page(Base, UUIDMixin, TimestampMixin):
     # Page title/name (extracted via OCR)
     title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     sheet_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    sheet_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Scale (populated by scale detection in Phase 2)
     scale_text: Mapped[str | None] = mapped_column(
@@ -86,6 +87,13 @@ class Page(Base, UUIDMixin, TimestampMixin):
     # OCR data
     ocr_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     ocr_blocks: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Vector PDF detection (for future Vector PDF Extraction — Phase 9)
+    is_vector: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_extractable_geometry: Mapped[bool] = mapped_column(Boolean, default=False)
+    vector_path_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    vector_text_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pdf_origin: Mapped[str | None] = mapped_column(String(50), nullable=True)  # autocad, revit, bluebeam, scanned, unknown
 
     # Processing
     status: Mapped[str] = mapped_column(
