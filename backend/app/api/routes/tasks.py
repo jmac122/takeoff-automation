@@ -5,6 +5,7 @@ regardless of their type (document processing, AI takeoff, export, etc.).
 """
 
 import uuid
+from datetime import datetime, timezone
 from typing import Annotated
 
 from celery.result import AsyncResult
@@ -53,7 +54,10 @@ def _build_task_response(
     # Overlay with DB record when available (richer metadata)
     if record:
         # DB progress may be more detailed than Celery meta
-        if record.progress_percent > progress.percent:
+        if (
+            record.progress_percent is not None
+            and record.progress_percent > progress.percent
+        ):
             progress = TaskProgress(
                 percent=record.progress_percent,
                 step=record.progress_step,
@@ -115,6 +119,7 @@ async def cancel_task(
     record = result.scalar_one_or_none()
     if record and record.status not in ("SUCCESS", "FAILURE", "REVOKED"):
         record.status = "REVOKED"
+        record.completed_at = datetime.now(timezone.utc)
         await db.commit()
 
     return CancelTaskResponse(

@@ -1,7 +1,7 @@
 """API routes for AI takeoff generation."""
 
 import uuid
-from typing import Annotated, Any
+from typing import Annotated
 
 from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -85,16 +85,6 @@ class AvailableProvidersResponse(BaseModel):
     available: list[str]
     default: str
     task_config: dict[str, str]
-
-
-class TaskStatusResponse(BaseModel):
-    """Response for task status."""
-
-    task_id: str
-    status: str
-    result: Any | None = None
-    error: str | None = None
-    traceback: str | None = None  # Include traceback for debugging failed tasks
 
 
 # ============================================================================

@@ -120,6 +120,8 @@ class TaskTracker:
         db: Session,
         task_id: str,
         result_summary: dict | None = None,
+        *,
+        commit: bool = True,
     ) -> None:
         """Mark a task as successfully completed."""
         record = db.query(TaskRecord).filter(TaskRecord.task_id == task_id).one_or_none()
@@ -130,7 +132,8 @@ class TaskTracker:
         record.progress_percent = 100.0
         record.completed_at = datetime.now(timezone.utc)
         record.result_summary = result_summary
-        db.commit()
+        if commit:
+            db.commit()
 
     @staticmethod
     def mark_failed_sync(

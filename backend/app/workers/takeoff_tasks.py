@@ -309,8 +309,6 @@ def generate_ai_takeoff_task(
             self.update_state(state="PROGRESS", meta={"percent": 90, "step": "Finalizing"})
             TaskTracker.update_progress_sync(db, self.request.id, 90, "Finalizing")
 
-            db.commit()
-
             result_summary = {
                 "page_id": page_id,
                 "condition_id": condition_id,
@@ -323,7 +321,13 @@ def generate_ai_takeoff_task(
                 "llm_latency_ms": result.llm_latency_ms,
             }
 
-            TaskTracker.mark_completed_sync(db, self.request.id, result_summary)
+            TaskTracker.mark_completed_sync(
+                db,
+                self.request.id,
+                result_summary,
+                commit=False,
+            )
+            db.commit()
 
             logger.info(
                 "AI takeoff complete",
