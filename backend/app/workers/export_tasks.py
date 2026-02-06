@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 import structlog
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker, Session, joinedload
 
 from app.config import get_settings
 from app.models.export_job import ExportJob
@@ -72,6 +72,7 @@ def _fetch_export_data_sync(db: Session, project_id: uuid.UUID, options: dict | 
         measurements_query = (
             db.query(Measurement)
             .filter(Measurement.condition_id == cond.id)
+            .options(joinedload(Measurement.page))
         )
         if not include_unverified:
             measurements_query = measurements_query.filter(Measurement.is_verified == True)
@@ -79,7 +80,7 @@ def _fetch_export_data_sync(db: Session, project_id: uuid.UUID, options: dict | 
         measurements = measurements_query.all()
         measurement_data_list = []
         for m in measurements:
-            page = db.query(Page).filter(Page.id == m.page_id).one_or_none()
+            page = m.page
             measurement_data_list.append(
                 MeasurementData(
                     id=m.id,

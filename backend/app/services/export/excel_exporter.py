@@ -111,7 +111,13 @@ class ExcelExporter(BaseExporter):
             base_name = _sanitize_sheet_name(cond.name)
             if base_name in seen_names:
                 seen_names[base_name] += 1
-                sheet_name = _sanitize_sheet_name(f"{cond.name} ({seen_names[base_name]})")
+                suffix = f" ({seen_names[base_name]})"
+                # Truncate base to leave room for the counter within the 31-char budget
+                sanitized = _INVALID_SHEET_CHARS.sub('_', cond.name)
+                max_base_len = _MAX_SHEET_NAME_LEN - len(suffix)
+                if len(sanitized) > max_base_len:
+                    sanitized = sanitized[:max_base_len]
+                sheet_name = sanitized + suffix
             else:
                 seen_names[base_name] = 1
                 sheet_name = base_name
