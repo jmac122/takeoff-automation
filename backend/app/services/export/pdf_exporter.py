@@ -1,6 +1,7 @@
 """PDF report exporter using ReportLab."""
 
 from io import BytesIO
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -51,11 +52,11 @@ class PDFExporter(BaseExporter):
         elements = []
 
         # Title
-        elements.append(Paragraph(data.project_name, title_style))
+        elements.append(Paragraph(escape(data.project_name), title_style))
         if data.client_name:
-            elements.append(Paragraph(f"Client: {data.client_name}", styles["Normal"]))
+            elements.append(Paragraph(f"Client: {escape(data.client_name)}", styles["Normal"]))
         if data.project_description:
-            elements.append(Paragraph(data.project_description, styles["Normal"]))
+            elements.append(Paragraph(escape(data.project_description), styles["Normal"]))
         elements.append(Spacer(1, 0.3 * inch))
 
         # Summary section
@@ -96,8 +97,8 @@ class PDFExporter(BaseExporter):
             if not cond.measurements:
                 continue
 
-            elements.append(Paragraph(f"Condition: {cond.name}", heading_style))
-            detail_info = f"Type: {cond.measurement_type}  |  Unit: {format_unit(cond.unit)}  |  Total: {cond.total_quantity:.2f}"
+            elements.append(Paragraph(f"Condition: {escape(cond.name)}", heading_style))
+            detail_info = f"Type: {escape(cond.measurement_type)}  |  Unit: {escape(format_unit(cond.unit))}  |  Total: {cond.total_quantity:.2f}"
             elements.append(Paragraph(detail_info, styles["Normal"]))
             elements.append(Spacer(1, 0.1 * inch))
 

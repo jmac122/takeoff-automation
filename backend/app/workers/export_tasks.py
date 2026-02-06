@@ -251,7 +251,11 @@ def generate_export_task(
                 except Exception:
                     pass
 
-                # Mark task failed
-                TaskTracker.mark_failed_sync(db, task_id, str(e))
+                # Mark task failed — rollback any corrupted transaction first
+                try:
+                    db.rollback()
+                    TaskTracker.mark_failed_sync(db, task_id, str(e))
+                except Exception:
+                    pass
 
                 raise
