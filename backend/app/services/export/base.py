@@ -18,7 +18,7 @@ class MeasurementData:
     condition_name: str
     condition_id: uuid.UUID
     page_id: uuid.UUID
-    page_number: int
+    page_number: int | None
     sheet_number: str | None
     sheet_title: str | None
     geometry_type: str

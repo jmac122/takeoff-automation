@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from celery.exceptions import MaxRetriesExceededError
 import structlog
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session, joinedload
+from sqlalchemy.orm import sessionmaker, Session, selectinload, joinedload
 
 from app.config import get_settings
 from app.models.export_job import ExportJob
@@ -64,23 +64,17 @@ def _fetch_export_data_sync(db: Session, project_id: uuid.UUID, options: dict | 
     conditions = (
         db.query(Condition)
         .filter(Condition.project_id == project_id)
+        .options(selectinload(Condition.measurements).joinedload(Measurement.page))
         .order_by(Condition.sort_order, Condition.name)
         .all()
     )
 
     condition_data_list = []
     for cond in conditions:
-        measurements_query = (
-            db.query(Measurement)
-            .filter(Measurement.condition_id == cond.id)
-            .options(joinedload(Measurement.page))
-        )
-        if not include_unverified:
-            measurements_query = measurements_query.filter(Measurement.is_verified == True)
-
-        measurements = measurements_query.all()
         measurement_data_list = []
-        for m in measurements:
+        for m in cond.measurements:
+            if not include_unverified and not m.is_verified:
+                continue
             page = m.page
             measurement_data_list.append(
                 MeasurementData(
@@ -88,7 +82,7 @@ def _fetch_export_data_sync(db: Session, project_id: uuid.UUID, options: dict | 
                     condition_name=cond.name,
                     condition_id=cond.id,
                     page_id=m.page_id,
-                    page_number=page.page_number if page else 0,
+                    page_number=page.page_number if page else None,
                     sheet_number=page.sheet_number if page else None,
                     sheet_title=page.sheet_title if page else None,
                     geometry_type=m.geometry_type,
@@ -170,10 +164,13 @@ def generate_export_task(
 
             # Update ExportJob status
             export_job = db.get(ExportJob, uuid.UUID(export_job_id))
-            if export_job:
-                export_job.status = "processing"
-                export_job.started_at = datetime.now(timezone.utc)
-                db.commit()
+            if not export_job:
+                logger.warning("ExportJob not found, aborting task", export_job_id=export_job_id)
+                TaskTracker.mark_failed_sync(db, task_id, f"ExportJob {export_job_id} not found")
+                return {"status": "failed", "export_job_id": export_job_id, "error": "ExportJob not found"}
+            export_job.status = "processing"
+            export_job.started_at = datetime.now(timezone.utc)
+            db.commit()
 
             # Fetch data
             TaskTracker.update_progress_sync(db, task_id, 20.0, "Fetching project data")
@@ -202,6 +199,13 @@ def generate_export_task(
                 export_job.file_key = file_key
                 export_job.file_size = len(file_bytes)
                 export_job.completed_at = datetime.now(timezone.utc)
+            else:
+                logger.warning("ExportJob disappeared during processing, cleaning up uploaded file",
+                               export_job_id=export_job_id, file_key=file_key)
+                try:
+                    storage.delete_file(file_key)
+                except Exception:
+                    pass
 
             # Mark completed
             TaskTracker.mark_completed_sync(

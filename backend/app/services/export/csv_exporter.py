@@ -6,6 +6,15 @@ from io import StringIO
 
 from app.services.export.base import BaseExporter, ExportData, format_unit
 
+_FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
+
+
+def _sanitize_csv_field(value: str) -> str:
+    """Prefix fields that could be interpreted as formulas by spreadsheet software."""
+    if value and value[0] in _FORMULA_PREFIXES:
+        return "'" + value
+    return value
+
 
 class CSVExporter(BaseExporter):
     """Export project data to CSV format."""
@@ -39,16 +48,16 @@ class CSVExporter(BaseExporter):
         for m in data.all_measurements:
             coords = json.dumps(m.geometry_data, ensure_ascii=False)
             writer.writerow([
-                m.condition_name,
+                _sanitize_csv_field(m.condition_name),
                 m.page_number,
                 m.sheet_number or "",
                 m.geometry_type,
                 f"{m.quantity:.4f}",
                 format_unit(m.unit),
-                coords,
+                _sanitize_csv_field(coords),
                 "Yes" if m.is_verified else "No",
                 "Yes" if m.is_ai_generated else "No",
-                m.notes or "",
+                _sanitize_csv_field(m.notes or ""),
             ])
 
         return buf.getvalue().encode("utf-8")

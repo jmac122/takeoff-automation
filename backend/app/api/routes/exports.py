@@ -33,8 +33,8 @@ def _export_to_response(export_job: ExportJob) -> ExportJobResponse:
         try:
             storage = get_storage_service()
             download_url = storage.get_presigned_url(export_job.file_key, expires_in=3600)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to generate presigned URL for export", export_id=export_job.id, error=str(e))
 
     return ExportJobResponse(
         id=export_job.id,
@@ -98,6 +98,8 @@ async def start_export(
         project_id=str(project_id),
         metadata={"export_job_id": str(export_job.id), "format": request.format},
     )
+
+    await db.commit()
 
     # Queue the Celery task with the pre-generated ID
     generate_export_task.apply_async(
