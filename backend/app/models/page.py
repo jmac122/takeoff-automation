@@ -95,6 +95,12 @@ class Page(Base, UUIDMixin, TimestampMixin):
     vector_text_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     pdf_origin: Mapped[str | None] = mapped_column(String(50), nullable=True)  # autocad, revit, bluebeam, scanned, unknown
 
+    # Display fields (UI Overhaul Phase A)
+    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    display_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    group_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    is_relevant: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
     # Processing
     status: Mapped[str] = mapped_column(
         String(50),
