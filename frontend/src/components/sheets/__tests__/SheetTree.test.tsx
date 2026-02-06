@@ -181,8 +181,8 @@ describe('SheetTree', () => {
     // Click group header to collapse
     fireEvent.click(screen.getByTestId('group-header-Structural'));
 
-    // Check localStorage
-    const saved = JSON.parse(localStorage.getItem('forgex-sheet-tree-state') || '{}');
+    // Check localStorage (key is scoped per project)
+    const saved = JSON.parse(localStorage.getItem('forgex-sheet-tree-state-proj-1') || '{}');
     expect(saved.expandedGroups?.Structural).toBe(false);
   });
 

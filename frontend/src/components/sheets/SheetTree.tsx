@@ -32,7 +32,6 @@ interface SheetTreeProps {
 // Component
 // ============================================================================
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function SheetTree({ projectId, sheetsData, isLoading }: SheetTreeProps) {
   const activeSheetId = useWorkspaceStore((s) => s.activeSheetId);
   const setActiveSheet = useWorkspaceStore((s) => s.setActiveSheet);
@@ -58,6 +57,17 @@ export function SheetTree({ projectId, sheetsData, isLoading }: SheetTreeProps) 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const hasInitializedRef = useRef(false);
+  const lastProjectIdRef = useRef(projectId);
+
+  // Reset initialization when the project changes so we reload
+  // persisted state (or re-initialize) for the new project.
+  if (lastProjectIdRef.current !== projectId) {
+    lastProjectIdRef.current = projectId;
+    hasInitializedRef.current = false;
+  }
+
+  // Per-project localStorage key to avoid leaking state across projects
+  const storageKey = `${LS_SHEET_TREE_STATE}-${projectId}`;
 
   // ---- Load persisted tree state OR initialize from sheetsData ----
   // Combined into a single effect to avoid race conditions between
@@ -67,7 +77,7 @@ export function SheetTree({ projectId, sheetsData, isLoading }: SheetTreeProps) 
 
     // Try to load from localStorage first
     try {
-      const saved = localStorage.getItem(LS_SHEET_TREE_STATE);
+      const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.expandedGroups && Object.keys(parsed.expandedGroups).length > 0) {
@@ -89,7 +99,7 @@ export function SheetTree({ projectId, sheetsData, isLoading }: SheetTreeProps) 
       setExpandedGroups(initial);
       hasInitializedRef.current = true;
     }
-  }, [sheetsData, setExpandedGroups]);
+  }, [sheetsData, setExpandedGroups, storageKey]);
 
   // ---- Persist tree state on change ----
   // Skips writing until state has been initialized, preventing the
@@ -99,13 +109,13 @@ export function SheetTree({ projectId, sheetsData, isLoading }: SheetTreeProps) 
     if (Object.keys(expandedGroups).length === 0) return;
     try {
       localStorage.setItem(
-        LS_SHEET_TREE_STATE,
+        storageKey,
         JSON.stringify({ expandedGroups }),
       );
     } catch {
       // ignore quota errors
     }
-  }, [expandedGroups]);
+  }, [expandedGroups, storageKey]);
 
   // ---- Filter sheets by search ----
   const filteredGroups: SheetGroup[] = useMemo(() => {
