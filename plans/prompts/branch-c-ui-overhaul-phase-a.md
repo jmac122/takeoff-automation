@@ -1,3 +1,69 @@
+# ENVIRONMENT SETUP (Run First — Before Anything Else)
+
+This project runs in a cloud environment that starts fresh. You MUST set up dependencies and services before writing or running any code.
+
+## Step 1: System Services
+
+```bash
+# Install and start PostgreSQL + Redis
+sudo apt-get update && sudo apt-get install -y postgresql redis-server libpq-dev
+sudo service postgresql start
+sudo service redis-server start
+
+# Create test database and user
+sudo -u postgres psql -c "CREATE USER test WITH PASSWORD 'test' SUPERUSER;"
+sudo -u postgres psql -c "CREATE DATABASE test OWNER test;"
+sudo -u postgres psql -c "CREATE DATABASE forgex OWNER test;"
+```
+
+## Step 2: Backend Dependencies
+
+```bash
+cd backend
+pip install -r requirements.txt --break-system-packages
+pip install -r requirements-dev.txt --break-system-packages
+```
+
+## Step 3: Frontend Dependencies (Branch C only — skip for A and B)
+
+```bash
+cd frontend
+npm install
+```
+
+## Step 4: Database Migrations
+
+```bash
+cd backend
+DATABASE_URL=postgresql+asyncpg://test:test@localhost:5432/forgex alembic upgrade head
+```
+
+## Step 5: Verify Setup
+
+```bash
+cd backend
+DATABASE_URL=postgresql+asyncpg://test:test@localhost:5432/test \
+REDIS_URL=redis://localhost:6379/0 \
+SECRET_KEY=test-secret-key-for-ci-minimum-32-chars-long \
+ENVIRONMENT=test \
+pytest tests/ -x -q --tb=short 2>&1 | head -20
+```
+
+If existing tests pass (or no tests exist yet), you're ready to proceed.
+
+## Environment Variables
+
+Set these for ALL test runs and commands:
+
+```bash
+export DATABASE_URL=postgresql+asyncpg://test:test@localhost:5432/test
+export REDIS_URL=redis://localhost:6379/0
+export SECRET_KEY=test-secret-key-for-ci-minimum-32-chars-long
+export ENVIRONMENT=test
+```
+
+---
+
 # TESTING PHILOSOPHY (Read Before Writing Any Code)
 
 Every branch follows this testing contract. **Do not skip this.**
