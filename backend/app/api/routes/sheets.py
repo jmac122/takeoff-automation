@@ -102,12 +102,12 @@ def _natural_sort_key(page_row: Any) -> tuple:
     import re
 
     # Prefer display_order if set
-    display_order = getattr(page_row, 'display_order', None) if hasattr(page_row, 'display_order') else None
+    display_order = getattr(page_row, 'display_order', None)
     if display_order is not None:
         return (0, display_order, 0)
 
     # Fall back to sheet_number natural sort
-    sheet_number = getattr(page_row, 'sheet_number', None) if hasattr(page_row, 'sheet_number') else None
+    sheet_number = getattr(page_row, 'sheet_number', None)
     if sheet_number:
         parts = re.split(r"(\d+\.?\d*)", sheet_number)
         key_parts = []
@@ -119,7 +119,7 @@ def _natural_sort_key(page_row: Any) -> tuple:
                     key_parts.append((0, p.lower()))
         return (1, 0, key_parts)
 
-    page_number = getattr(page_row, 'page_number', 0) if hasattr(page_row, 'page_number') else 0
+    page_number = getattr(page_row, 'page_number', 0)
     return (2, page_number, [])
 
 
@@ -309,21 +309,25 @@ async def batch_update_scale(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Apply the same scale to multiple pages at once."""
+    # Fetch all pages in a single query to avoid N+1
+    result = await db.execute(
+        select(Page).where(Page.id.in_(request.page_ids))
+    )
+    pages = result.scalars().all()
+
     updated = []
-    for page_id in request.page_ids:
-        result = await db.execute(select(Page).where(Page.id == page_id))
-        page = result.scalar_one_or_none()
-        if page:
-            page.scale_value = request.scale_value
-            page.scale_unit = request.scale_unit
-            page.scale_calibrated = True
-            if request.scale_text:
-                page.scale_text = request.scale_text
-            page.scale_calibration_data = {
-                **(page.scale_calibration_data or {}),
-                "batch_applied": True,
-            }
-            updated.append(str(page_id))
+    for page in pages:
+        page.scale_value = request.scale_value
+        page.scale_unit = request.scale_unit
+        page.scale_calibrated = True
+        page.scale_detection_method = "manual_calibration"
+        if request.scale_text:
+            page.scale_text = request.scale_text
+        page.scale_calibration_data = {
+            **(page.scale_calibration_data or {}),
+            "batch_applied": True,
+        }
+        updated.append(str(page.id))
 
     await db.commit()
 

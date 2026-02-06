@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { SheetInfo } from '@/api/sheets';
-import { updatePageDisplay, batchUpdateScale } from '@/api/sheets';
+import { updatePageDisplay, updatePageRelevance, batchUpdateScale } from '@/api/sheets';
 import { useQueryClient } from '@tanstack/react-query';
 import { Pencil, Ruler, Copy, Eye, EyeOff } from 'lucide-react';
 
@@ -165,7 +165,6 @@ export function SheetContextMenu({
             label={sheet.is_relevant ? 'Mark as Irrelevant' : 'Mark as Relevant'}
             onClick={async () => {
               try {
-                const { updatePageRelevance } = await import('@/api/sheets');
                 await updatePageRelevance(sheet.id, {
                   is_relevant: !sheet.is_relevant,
                 });

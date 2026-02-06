@@ -379,7 +379,7 @@ export function SheetTree({ projectId, sheetsData, isLoading }: SheetTreeProps) 
                           className="invisible rounded p-0.5 text-neutral-500 hover:text-neutral-300 group-hover:visible"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleContextMenu(e as unknown as React.MouseEvent, sheet);
+                            handleContextMenu(e, sheet);
                           }}
                         >
                           <MoreHorizontal size={12} />
