@@ -1,10 +1,10 @@
 """API routes for AI takeoff generation."""
 
 import uuid
-from typing import Annotated, Any
+from typing import Annotated
 
-from celery.result import AsyncResult
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,8 @@ from app.config import get_settings
 from app.models.page import Page
 from app.models.document import Document
 from app.models.condition import Condition
-from app.workers.celery_app import celery_app
+from app.schemas.task import StartTaskResponse
+from app.services.task_tracker import TaskTracker
 from app.workers.takeoff_tasks import (
     generate_ai_takeoff_task,
     compare_providers_task,
@@ -60,19 +61,9 @@ class BatchTakeoffRequest(BaseModel):
     provider: str | None = None
 
 
-class TakeoffTaskResponse(BaseModel):
-    """Response with task ID."""
-
-    task_id: str
-    message: str
-    provider: str | None = None
-
-
-class BatchTakeoffResponse(BaseModel):
+class BatchTakeoffResponse(StartTaskResponse):
     """Response for batch takeoff."""
 
-    task_id: str
-    message: str
     pages_count: int
 
 
@@ -82,16 +73,6 @@ class AvailableProvidersResponse(BaseModel):
     available: list[str]
     default: str
     task_config: dict[str, str]
-
-
-class TaskStatusResponse(BaseModel):
-    """Response for task status."""
-
-    task_id: str
-    status: str
-    result: Any | None = None
-    error: str | None = None
-    traceback: str | None = None  # Include traceback for debugging failed tasks
 
 
 # ============================================================================
@@ -157,17 +138,64 @@ def validate_provider(provider: str | None) -> str | None:
 
 
 # ============================================================================
+# Helpers
+# ============================================================================
+
+
+async def _register_and_dispatch(
+    db: AsyncSession,
+    *,
+    task_type: str,
+    task_name: str,
+    project_id: str,
+    metadata: dict | None,
+    celery_task,
+    args: list,
+    kwargs: dict | None = None,
+) -> StartTaskResponse:
+    """Register a task in DB then dispatch to Celery.
+
+    Centralises the ordering guarantee: the DB record is always created
+    **before** ``apply_async`` so that ``_build_task_response`` will
+    never see a Celery result without a matching ``TaskRecord``.
+    """
+    task_id = str(uuid.uuid4())
+
+    await TaskTracker.register_async(
+        db,
+        task_id=task_id,
+        task_type=task_type,
+        task_name=task_name,
+        project_id=project_id,
+        metadata=metadata,
+    )
+
+    celery_task.apply_async(
+        args=args,
+        kwargs=kwargs or {},
+        task_id=task_id,
+    )
+
+    return StartTaskResponse(
+        task_id=task_id,
+        task_type=task_type,
+        task_name=task_name,
+        message=task_name,
+    )
+
+
+# ============================================================================
 # Endpoints
 # ============================================================================
 
 
-@router.post("/pages/{page_id}/ai-takeoff", response_model=TakeoffTaskResponse)
+@router.post("/pages/{page_id}/ai-takeoff", response_model=StartTaskResponse)
 async def generate_ai_takeoff(
     page_id: uuid.UUID,
     request: GenerateTakeoffRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     page_data: Annotated[CalibratedPageData, Depends(get_calibrated_page)],
-) -> TakeoffTaskResponse:
+) -> StartTaskResponse:
     """Generate AI takeoff for a page.
 
     Optionally specify an LLM provider to use.
@@ -193,28 +221,27 @@ async def generate_ai_takeoff(
     # Validate provider
     provider = validate_provider(request.provider)
 
-    # Queue the task
-    task = generate_ai_takeoff_task.delay(
-        str(page_id),
-        str(request.condition_id),
-        provider=provider,
-    )
-
     provider_msg = f" using {provider}" if provider else ""
 
-    return TakeoffTaskResponse(
-        task_id=task.id,
-        message=f"AI takeoff started for page {page_id}{provider_msg}",
-        provider=provider,
+    return await _register_and_dispatch(
+        db,
+        task_type="ai_takeoff",
+        task_name=f"AI takeoff for page {page_id}{provider_msg}",
+        project_id=str(page_data.document.project_id),
+        metadata={"page_id": str(page_id), "condition_id": str(request.condition_id), "provider": provider},
+        celery_task=generate_ai_takeoff_task,
+        args=[str(page_id), str(request.condition_id)],
+        kwargs={"provider": provider},
     )
 
 
-@router.post("/pages/{page_id}/autonomous-takeoff", response_model=TakeoffTaskResponse)
+@router.post("/pages/{page_id}/autonomous-takeoff", response_model=StartTaskResponse)
 async def autonomous_ai_takeoff(
     page_id: uuid.UUID,
     request: AutonomousTakeoffRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
     page_data: Annotated[CalibratedPageData, Depends(get_calibrated_page)],
-) -> TakeoffTaskResponse:
+) -> StartTaskResponse:
     """Autonomous AI takeoff - AI identifies ALL concrete elements on its own.
 
     Unlike the standard ai-takeoff endpoint, this does NOT require a pre-defined
@@ -243,29 +270,27 @@ async def autonomous_ai_takeoff(
         # Use the page's actual project
         project_id_to_use = str(page_data.document.project_id)
 
-    # Queue the autonomous task
-    task = autonomous_ai_takeoff_task.delay(
-        str(page_id),
-        provider=provider,
-        project_id=project_id_to_use,
-    )
-
     provider_msg = f" using {provider}" if provider else ""
 
-    return TakeoffTaskResponse(
-        task_id=task.id,
-        message=f"Autonomous AI takeoff started for page {page_id}{provider_msg}",
-        provider=provider,
+    return await _register_and_dispatch(
+        db,
+        task_type="autonomous_ai_takeoff",
+        task_name=f"Autonomous AI takeoff for page {page_id}{provider_msg}",
+        project_id=project_id_to_use,
+        metadata={"page_id": str(page_id), "provider": provider},
+        celery_task=autonomous_ai_takeoff_task,
+        args=[str(page_id)],
+        kwargs={"provider": provider, "project_id": project_id_to_use},
     )
 
 
-@router.post("/pages/{page_id}/compare-providers", response_model=TakeoffTaskResponse)
+@router.post("/pages/{page_id}/compare-providers", response_model=StartTaskResponse)
 async def compare_providers(
     page_id: uuid.UUID,
     request: CompareProvidersRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     page_data: Annotated[CalibratedPageData, Depends(get_calibrated_page)],
-) -> TakeoffTaskResponse:
+) -> StartTaskResponse:
     """Compare AI takeoff results across multiple providers.
 
     Useful for benchmarking which provider works best for specific content.
@@ -299,15 +324,15 @@ async def compare_providers(
                 f"Available: {settings.available_providers}",
             )
 
-    task = compare_providers_task.delay(
-        str(page_id),
-        str(request.condition_id),
-        providers=providers,
-    )
-
-    return TakeoffTaskResponse(
-        task_id=task.id,
-        message=f"Provider comparison started for page {page_id}",
+    return await _register_and_dispatch(
+        db,
+        task_type="compare_providers",
+        task_name=f"Provider comparison for page {page_id}",
+        project_id=str(page_data.document.project_id),
+        metadata={"page_id": str(page_id), "condition_id": str(request.condition_id), "providers": providers},
+        celery_task=compare_providers_task,
+        args=[str(page_id), str(request.condition_id)],
+        kwargs={"providers": providers},
     )
 
 
@@ -380,17 +405,29 @@ async def batch_ai_takeoff(
             detail=f"Pages must be calibrated before AI takeoff: {uncalibrated_pages}",
         )
 
-    # Queue batch task
-    task = batch_ai_takeoff_task.delay(
-        [str(pid) for pid in request.page_ids],
-        str(request.condition_id),
-        provider=request.provider,
+    pages_count = len(request.page_ids)
+
+    base_response = await _register_and_dispatch(
+        db,
+        task_type="batch_ai_takeoff",
+        task_name=f"Batch AI takeoff for {pages_count} pages",
+        project_id=str(condition.project_id),
+        metadata={
+            "page_ids": [str(pid) for pid in request.page_ids],
+            "condition_id": str(request.condition_id),
+            "provider": request.provider,
+        },
+        celery_task=batch_ai_takeoff_task,
+        args=[[str(pid) for pid in request.page_ids], str(request.condition_id)],
+        kwargs={"provider": request.provider},
     )
 
     return BatchTakeoffResponse(
-        task_id=task.id,
-        message=f"Batch AI takeoff queued for {len(request.page_ids)} pages",
-        pages_count=len(request.page_ids),
+        task_id=base_response.task_id,
+        task_type=base_response.task_type,
+        task_name=base_response.task_name,
+        message=base_response.message,
+        pages_count=pages_count,
     )
 
 
@@ -407,28 +444,14 @@ async def get_available_providers() -> AvailableProvidersResponse:
     )
 
 
-@router.get("/tasks/{task_id}/status", response_model=TaskStatusResponse)
-async def get_task_status(task_id: str) -> TaskStatusResponse:
-    """Get status of a Celery task.
-
-    Returns the task state and result if complete.
-    """
-    result = AsyncResult(task_id, app=celery_app)
-
-    response_data = {
-        "task_id": task_id,
-        "status": result.status,
-        "result": None,
-        "error": None,
-        "traceback": None,
-    }
-
-    if result.ready():
-        if result.successful():
-            response_data["result"] = result.result
-        else:
-            response_data["error"] = str(result.result) if result.result else "Task failed"
-            if result.traceback:
-                response_data["traceback"] = result.traceback
-
-    return TaskStatusResponse(**response_data)
+@router.get(
+    "/tasks/{task_id}/status",
+    include_in_schema=False,
+)
+async def get_task_status_legacy(task_id: str, request: Request) -> RedirectResponse:
+    """Legacy task status endpoint — redirects to the unified Task API."""
+    new_url = request.url_for("get_task_status", task_id=task_id)
+    return RedirectResponse(
+        url=str(new_url),
+        status_code=status.HTTP_301_MOVED_PERMANENTLY,
+    )

@@ -1,9 +1,10 @@
 """Document model for uploaded plan sets."""
 
 import uuid
+from datetime import date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, Integer, BigInteger, ForeignKey, Text
+from sqlalchemy import Boolean, Date, String, Integer, BigInteger, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -50,8 +51,24 @@ class Document(Base, UUIDMixin, TimestampMixin):
     # Title block region (normalized coordinates, applies to all pages)
     title_block_region: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # Revision tracking (for future Plan Overlay — Phase 7B)
+    revision_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    revision_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    revision_label: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    supersedes_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    is_latest_revision: Mapped[bool] = mapped_column(Boolean, default=True)
+
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="documents")
+    supersedes: Mapped["Document | None"] = relationship(
+        "Document",
+        remote_side="Document.id",
+        foreign_keys=[supersedes_document_id],
+    )
     pages: Mapped[list["Page"]] = relationship(
         "Page",
         back_populates="document",

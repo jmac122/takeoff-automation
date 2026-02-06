@@ -369,14 +369,6 @@ services:
       - ENVIRONMENT=production
       - LOG_LEVEL=INFO
       - CORS_ORIGINS=${CORS_ORIGINS}
-      # NEW v2.0: Assembly System configuration
-      - ASSEMBLY_DEFAULT_WASTE_PERCENT=${ASSEMBLY_DEFAULT_WASTE_PERCENT:-5}
-      # NEW v2.0: Auto Count configuration
-      - AUTO_COUNT_DEFAULT_THRESHOLD=${AUTO_COUNT_DEFAULT_THRESHOLD:-0.80}
-      - AUTO_COUNT_MAX_DETECTIONS=${AUTO_COUNT_MAX_DETECTIONS:-500}
-      # NEW v2.0: Review Interface configuration
-      - REVIEW_AUTO_ACCEPT_DEFAULT_THRESHOLD=${REVIEW_AUTO_ACCEPT_DEFAULT_THRESHOLD:-0.90}
-      - REVIEW_ENABLE_KEYBOARD_SHORTCUTS=${REVIEW_ENABLE_KEYBOARD_SHORTCUTS:-true}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -3955,107 +3947,14 @@ echo "Rollback completed. Previous version restored."
 
 ---
 
+## Summary
 
----
+### Phase 6 Deliverables
 
-## NEW: Kreo-Enhanced Feature Monitoring (v2.0)
-
-Add these metrics to your monitoring configuration for the new features:
-
-### Assembly System Metrics
-
-```yaml
-# Prometheus alerting rules for assemblies
-groups:
-  - name: assembly_alerts
-    rules:
-      - alert: AssemblyCalculationError
-        expr: rate(assembly_calculation_errors_total[5m]) > 0.1
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High assembly calculation error rate"
-          
-      - alert: AssemblyFormulaEvaluationSlow
-        expr: histogram_quantile(0.95, assembly_formula_evaluation_seconds_bucket) > 1
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Assembly formula evaluation taking too long"
-```
-
-### Auto Count Metrics
-
-```yaml
-# Prometheus alerting rules for auto count
-groups:
-  - name: auto_count_alerts
-    rules:
-      - alert: AutoCountSessionTimeout
-        expr: rate(auto_count_session_timeouts_total[5m]) > 0.05
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Auto count sessions timing out"
-          
-      - alert: AutoCountLowPrecision
-        expr: auto_count_precision_ratio < 0.80
-        for: 15m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Auto count detection precision below target"
-```
-
-### Enhanced Review Metrics
-
-```yaml
-# Prometheus alerting rules for review
-groups:
-  - name: review_alerts
-    rules:
-      - alert: ReviewAutoAcceptHighVolume
-        expr: rate(review_auto_accepted_total[1h]) > 100
-        for: 5m
-        labels:
-          severity: info
-        annotations:
-          summary: "High volume of auto-accepted measurements"
-          
-      - alert: ReviewQueueBacklog
-        expr: review_pending_count > 500
-        for: 30m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Review queue backlog growing"
-```
-
-### Grafana Dashboard Additions
-
-Add these panels to your dashboards:
-
-**Assembly Dashboard:**
-- Assembly calculations per hour
-- Average calculation time
-- Formulas by type (material, labor, equipment)
-- Cost breakdowns by assembly
-
-**Auto Count Dashboard:**
-- Sessions created per day
-- Average detections per session
-- Confirmation rate (confirmed / total)
-- Measurements created from auto count
-
-**Review Dashboard:**
-- Review throughput (measurements per hour)
-- Auto-accept rate
-- Keyboard shortcut usage
-- Average time to approve
-
+| Component | Files | Status |
+|-----------|-------|--------|
+| Docker Configuration | Dockerfiles, docker-compose | ⬜ |
+| Nginx Configuration | nginx.conf, default.conf | ⬜ |
 | Terraform Modules | networking, database, compute, security | ⬜ |
 | CI/CD Pipeline | GitHub Actions workflows | ⬜ |
 | Monitoring | Prometheus, Grafana, Alertmanager | ⬜ |

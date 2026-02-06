@@ -63,6 +63,11 @@ class Condition(Base, UUIDMixin, TimestampMixin):
     # Extra metadata
     extra_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
+    # Spatial grouping (for future NL Query — Phase 10)
+    building: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    area: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    elevation: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="conditions")
     measurements: Mapped[list["Measurement"]] = relationship(

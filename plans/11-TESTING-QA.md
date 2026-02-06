@@ -3982,6 +3982,606 @@ export LLM_FALLBACK_PROVIDERS=openai,google
 
 ---
 
+
+---
+
+## NEW: Kreo-Enhanced Feature Tests (v2.0)
+
+This section covers tests for the new features added in the Kreo-enhanced update.
+
+### Task 11.NEW1: Assembly System Tests
+
+Create `backend/tests/unit/test_formula_engine.py`:
+
+```python
+"""Unit tests for formula engine."""
+
+import pytest
+from decimal import Decimal
+
+from app.services.formula_engine import FormulaEngine, FormulaContext
+
+
+class TestFormulaEngine:
+    """Tests for formula evaluation."""
+
+    def test_simple_arithmetic(self):
+        """Test basic arithmetic operations."""
+        engine = FormulaEngine()
+        context = FormulaContext(quantity=100, area=500, length=50)
+        
+        assert engine.evaluate("{quantity}", context) == Decimal("100")
+        assert engine.evaluate("{quantity} * 2", context) == Decimal("200")
+        assert engine.evaluate("{quantity} + 10", context) == Decimal("110")
+        assert engine.evaluate("{area} / 9", context) == pytest.approx(Decimal("55.56"), rel=0.01)
+
+    def test_waste_factor_formula(self):
+        """Test common waste factor calculation."""
+        engine = FormulaEngine()
+        context = FormulaContext(quantity=100, area=500, length=50)
+        
+        # 10% waste factor
+        result = engine.evaluate("{quantity} * 1.10", context)
+        assert result == Decimal("110")
+
+    def test_area_to_cubic_yards(self):
+        """Test area to volume conversion."""
+        engine = FormulaEngine()
+        # 100 SF at 4 inches thick = 1.23 CY
+        context = FormulaContext(quantity=100, area=100, length=0, depth=4)
+        
+        result = engine.evaluate("({area} * {depth} / 12) / 27", context)
+        assert result == pytest.approx(Decimal("1.23"), rel=0.01)
+
+    def test_invalid_formula(self):
+        """Test error handling for invalid formulas."""
+        engine = FormulaEngine()
+        context = FormulaContext(quantity=100)
+        
+        with pytest.raises(ValueError):
+            engine.evaluate("{invalid_var}", context)
+
+    def test_division_by_zero(self):
+        """Test handling of division by zero."""
+        engine = FormulaEngine()
+        context = FormulaContext(quantity=0)
+        
+        with pytest.raises(ZeroDivisionError):
+            engine.evaluate("100 / {quantity}", context)
+```
+
+Create `backend/tests/unit/test_assembly_service.py`:
+
+```python
+"""Unit tests for assembly service."""
+
+import pytest
+from uuid import uuid4
+
+from app.services.assembly_service import AssemblyService
+from app.schemas.assembly import AssemblyCreate, ComponentCreate
+
+
+class TestAssemblyService:
+    """Tests for assembly calculations."""
+
+    @pytest.fixture
+    def assembly_service(self, db_session):
+        return AssemblyService(db_session)
+
+    async def test_calculate_assembly_cost(self, assembly_service, sample_assembly):
+        """Test total cost calculation from components."""
+        # Assembly with known components
+        total = await assembly_service.calculate_total_cost(sample_assembly.id)
+        
+        # Should sum: material + labor + equipment
+        expected = Decimal("1500.00")  # Based on fixture data
+        assert total == expected
+
+    async def test_apply_waste_factor(self, assembly_service, sample_assembly):
+        """Test waste factor application."""
+        # Set 10% waste
+        await assembly_service.update_waste_factor(sample_assembly.id, Decimal("0.10"))
+        
+        total = await assembly_service.calculate_total_cost(sample_assembly.id)
+        base_cost = Decimal("1500.00")
+        expected = base_cost * Decimal("1.10")
+        assert total == expected
+
+    async def test_create_from_template(self, assembly_service, db_session):
+        """Test creating assembly from template."""
+        assembly = await assembly_service.create_from_template(
+            template_name="4_inch_slab",
+            condition_id=uuid4(),
+            quantity=Decimal("500"),
+        )
+        
+        assert assembly is not None
+        assert len(assembly.components) > 0
+        assert assembly.components[0].component_type in ["material", "labor", "equipment"]
+```
+
+Create `backend/tests/integration/test_api_assemblies.py`:
+
+```python
+"""Integration tests for assembly API endpoints."""
+
+import pytest
+from httpx import AsyncClient
+from uuid import uuid4
+
+
+class TestAssemblyAPI:
+    """Tests for /api/v1/assemblies endpoints."""
+
+    async def test_create_assembly(self, client: AsyncClient, project_with_condition):
+        """Test creating an assembly."""
+        condition_id = project_with_condition["condition_id"]
+        
+        response = await client.post(
+            "/api/v1/assemblies",
+            json={
+                "name": "Test Assembly",
+                "condition_id": str(condition_id),
+                "unit": "SF",
+                "waste_factor": 0.05,
+            },
+        )
+        
+        assert response.status_code == 201
+        data = response.json()
+        assert data["name"] == "Test Assembly"
+        assert data["waste_factor"] == 0.05
+
+    async def test_add_component(self, client: AsyncClient, assembly_id):
+        """Test adding component to assembly."""
+        response = await client.post(
+            f"/api/v1/assemblies/{assembly_id}/components",
+            json={
+                "name": "Concrete 3000 PSI",
+                "component_type": "material",
+                "formula": "{quantity} * 1.05 / 27",
+                "unit": "CY",
+                "unit_cost": 125.00,
+            },
+        )
+        
+        assert response.status_code == 201
+        data = response.json()
+        assert data["name"] == "Concrete 3000 PSI"
+        assert data["component_type"] == "material"
+
+    async def test_calculate_assembly(self, client: AsyncClient, assembly_with_components):
+        """Test calculating assembly totals."""
+        assembly_id = assembly_with_components["id"]
+        quantity = 500  # SF
+        
+        response = await client.post(
+            f"/api/v1/assemblies/{assembly_id}/calculate",
+            json={"quantity": quantity},
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_cost" in data
+        assert "components" in data
+        assert len(data["components"]) > 0
+
+    async def test_list_templates(self, client: AsyncClient):
+        """Test listing assembly templates."""
+        response = await client.get("/api/v1/assemblies/templates")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "templates" in data
+        # Should have pre-built concrete templates
+        template_names = [t["name"] for t in data["templates"]]
+        assert any("slab" in name.lower() for name in template_names)
+```
+
+### Task 11.NEW2: Auto Count Tests
+
+Create `backend/tests/unit/test_template_matching.py`:
+
+```python
+"""Unit tests for template matching service."""
+
+import pytest
+import numpy as np
+from PIL import Image
+from io import BytesIO
+
+from app.services.template_matching import TemplateMatchingService
+
+
+class TestTemplateMatching:
+    """Tests for OpenCV template matching."""
+
+    @pytest.fixture
+    def template_service(self):
+        return TemplateMatchingService()
+
+    def test_find_matches_basic(self, template_service, sample_plan_image, sample_template):
+        """Test finding matches with a simple template."""
+        matches = template_service.find_matches(
+            image=sample_plan_image,
+            template=sample_template,
+            threshold=0.8,
+        )
+        
+        assert isinstance(matches, list)
+        for match in matches:
+            assert "x" in match
+            assert "y" in match
+            assert "confidence" in match
+            assert 0 <= match["confidence"] <= 1
+
+    def test_threshold_filtering(self, template_service, sample_plan_image, sample_template):
+        """Test that threshold filters low-confidence matches."""
+        high_threshold_matches = template_service.find_matches(
+            image=sample_plan_image,
+            template=sample_template,
+            threshold=0.95,
+        )
+        
+        low_threshold_matches = template_service.find_matches(
+            image=sample_plan_image,
+            template=sample_template,
+            threshold=0.5,
+        )
+        
+        assert len(high_threshold_matches) <= len(low_threshold_matches)
+
+    def test_non_max_suppression(self, template_service):
+        """Test that overlapping detections are suppressed."""
+        # Create detections with overlap
+        detections = [
+            {"x": 100, "y": 100, "confidence": 0.9},
+            {"x": 105, "y": 105, "confidence": 0.85},  # Overlapping
+            {"x": 300, "y": 300, "confidence": 0.8},   # Non-overlapping
+        ]
+        
+        suppressed = template_service.apply_nms(detections, overlap_threshold=0.5)
+        
+        # Should keep highest confidence of overlapping pair + non-overlapping
+        assert len(suppressed) == 2
+```
+
+Create `backend/tests/integration/test_api_auto_count.py`:
+
+```python
+"""Integration tests for auto count API endpoints."""
+
+import pytest
+from httpx import AsyncClient
+from uuid import uuid4
+
+
+class TestAutoCountAPI:
+    """Tests for /api/v1/auto-count endpoints."""
+
+    async def test_create_session(self, client: AsyncClient, page_with_image):
+        """Test creating an auto count session."""
+        page_id = page_with_image["id"]
+        
+        response = await client.post(
+            "/api/v1/auto-count",
+            json={
+                "page_id": str(page_id),
+                "template_region": {
+                    "x": 100,
+                    "y": 100,
+                    "width": 50,
+                    "height": 50,
+                },
+                "detection_method": "hybrid",
+            },
+        )
+        
+        assert response.status_code == 202  # Accepted (async processing)
+        data = response.json()
+        assert "session_id" in data
+        assert data["status"] == "processing"
+
+    async def test_get_detections(self, client: AsyncClient, completed_auto_count_session):
+        """Test retrieving detections from a session."""
+        session_id = completed_auto_count_session["id"]
+        
+        response = await client.get(f"/api/v1/auto-count/{session_id}/detections")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "detections" in data
+        assert "total_count" in data
+
+    async def test_confirm_detection(self, client: AsyncClient, auto_count_with_detections):
+        """Test confirming a single detection."""
+        session_id = auto_count_with_detections["session_id"]
+        detection_id = auto_count_with_detections["detection_ids"][0]
+        
+        response = await client.post(
+            f"/api/v1/auto-count/detections/{detection_id}/confirm"
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "confirmed"
+
+    async def test_bulk_confirm(self, client: AsyncClient, auto_count_with_detections):
+        """Test bulk confirming detections above threshold."""
+        session_id = auto_count_with_detections["session_id"]
+        
+        response = await client.post(
+            f"/api/v1/auto-count/{session_id}/bulk-confirm",
+            json={"min_confidence": 0.85},
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "confirmed_count" in data
+
+    async def test_create_measurements(self, client: AsyncClient, auto_count_confirmed):
+        """Test creating measurements from confirmed detections."""
+        session_id = auto_count_confirmed["session_id"]
+        condition_id = auto_count_confirmed["condition_id"]
+        
+        response = await client.post(
+            f"/api/v1/auto-count/{session_id}/create-measurements",
+            json={"condition_id": str(condition_id)},
+        )
+        
+        assert response.status_code == 201
+        data = response.json()
+        assert "measurements_created" in data
+        assert data["measurements_created"] > 0
+```
+
+### Task 11.NEW3: Enhanced Review Tests
+
+Create `backend/tests/integration/test_api_review.py`:
+
+```python
+"""Integration tests for enhanced review API endpoints."""
+
+import pytest
+from httpx import AsyncClient
+from uuid import uuid4
+
+
+class TestEnhancedReviewAPI:
+    """Tests for /api/v1/projects/{id}/review endpoints."""
+
+    async def test_get_review_queue(self, client: AsyncClient, project_with_measurements):
+        """Test getting filtered review queue."""
+        project_id = project_with_measurements["id"]
+        
+        response = await client.get(
+            f"/api/v1/projects/{project_id}/review-queue",
+            params={"status": "pending", "sort_by": "confidence", "sort_order": "asc"},
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "measurements" in data
+        assert "total_count" in data
+        # Verify sorted by confidence ascending
+        confidences = [m["ai_confidence"] for m in data["measurements"] if m["ai_confidence"]]
+        assert confidences == sorted(confidences)
+
+    async def test_approve_measurement(self, client: AsyncClient, pending_measurement):
+        """Test approving a measurement."""
+        measurement_id = pending_measurement["id"]
+        
+        response = await client.post(f"/api/v1/measurements/{measurement_id}/approve")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["review_status"] == "approved"
+
+    async def test_modify_measurement(self, client: AsyncClient, pending_measurement):
+        """Test modifying measurement geometry."""
+        measurement_id = pending_measurement["id"]
+        
+        response = await client.post(
+            f"/api/v1/measurements/{measurement_id}/modify",
+            json={
+                "geometry": {
+                    "type": "polygon",
+                    "coordinates": [[0, 0], [100, 0], [100, 100], [0, 100]],
+                },
+            },
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["review_status"] == "modified"
+
+    async def test_bulk_approve(self, client: AsyncClient, project_with_measurements):
+        """Test bulk approving measurements."""
+        project_id = project_with_measurements["id"]
+        measurement_ids = project_with_measurements["measurement_ids"][:5]
+        
+        response = await client.post(
+            f"/api/v1/projects/{project_id}/review/bulk-approve",
+            json={"measurement_ids": [str(m) for m in measurement_ids]},
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["approved_count"] == 5
+
+    async def test_auto_accept(self, client: AsyncClient, project_with_high_confidence):
+        """Test auto-accepting high confidence measurements."""
+        project_id = project_with_high_confidence["id"]
+        
+        response = await client.post(
+            f"/api/v1/projects/{project_id}/review/auto-accept",
+            json={"min_confidence": 0.90},
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "auto_accepted_count" in data
+        assert data["auto_accepted_count"] > 0
+
+    async def test_measurement_history(self, client: AsyncClient, modified_measurement):
+        """Test getting measurement edit history."""
+        measurement_id = modified_measurement["id"]
+        
+        response = await client.get(f"/api/v1/measurements/{measurement_id}/history")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "history" in data
+        assert len(data["history"]) > 0
+        # Should have original and modified entries
+        assert any(h["action"] == "created" for h in data["history"])
+        assert any(h["action"] == "modified" for h in data["history"])
+
+    async def test_review_statistics(self, client: AsyncClient, project_with_mixed_status):
+        """Test getting review statistics."""
+        project_id = project_with_mixed_status["id"]
+        
+        response = await client.get(f"/api/v1/projects/{project_id}/review/statistics")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_measurements" in data
+        assert "pending_count" in data
+        assert "approved_count" in data
+        assert "rejected_count" in data
+        assert "modified_count" in data
+        assert "auto_accepted_count" in data
+        assert "average_confidence" in data
+```
+
+### Task 11.NEW4: Quick Adjust Tools Tests
+
+Create `backend/tests/unit/test_geometry_adjustment.py`:
+
+```python
+"""Unit tests for geometry adjustment utilities."""
+
+import pytest
+from decimal import Decimal
+
+from app.utils.geometry_adjustment import (
+    nudge_geometry,
+    snap_to_grid,
+    extend_line,
+    trim_line,
+    offset_polygon,
+)
+
+
+class TestGeometryAdjustment:
+    """Tests for quick adjust tools."""
+
+    def test_nudge_polygon(self):
+        """Test nudging polygon by offset."""
+        polygon = [[0, 0], [100, 0], [100, 100], [0, 100]]
+        
+        result = nudge_geometry(polygon, dx=10, dy=5)
+        
+        expected = [[10, 5], [110, 5], [110, 105], [10, 105]]
+        assert result == expected
+
+    def test_snap_to_grid(self):
+        """Test snapping coordinates to grid."""
+        polygon = [[3, 7], [98, 4], [102, 97], [5, 103]]
+        
+        result = snap_to_grid(polygon, grid_size=10)
+        
+        expected = [[0, 10], [100, 0], [100, 100], [10, 100]]
+        assert result == expected
+
+    def test_extend_line(self):
+        """Test extending a line by percentage."""
+        line = [[0, 0], [100, 0]]
+        
+        result = extend_line(line, percentage=10, direction="end")
+        
+        # Should extend 10% (10 units) at the end
+        assert result == [[0, 0], [110, 0]]
+
+    def test_extend_line_both_ends(self):
+        """Test extending line from both ends."""
+        line = [[50, 50], [150, 50]]
+        
+        result = extend_line(line, percentage=10, direction="both")
+        
+        # Should extend 10% (10 units) at each end
+        assert result == [[40, 50], [160, 50]]
+
+    def test_trim_line(self):
+        """Test trimming a line by percentage."""
+        line = [[0, 0], [100, 0]]
+        
+        result = trim_line(line, percentage=10, direction="end")
+        
+        # Should trim 10% (10 units) from the end
+        assert result == [[0, 0], [90, 0]]
+
+    def test_offset_polygon_outward(self):
+        """Test offsetting polygon outward."""
+        polygon = [[0, 0], [100, 0], [100, 100], [0, 100]]
+        
+        result = offset_polygon(polygon, distance=10, direction="outward")
+        
+        # Should be larger
+        assert result[0][0] < polygon[0][0]  # Left edge moved left
+        assert result[1][0] > polygon[1][0]  # Right edge moved right
+
+    def test_offset_polygon_inward(self):
+        """Test offsetting polygon inward."""
+        polygon = [[0, 0], [100, 0], [100, 100], [0, 100]]
+        
+        result = offset_polygon(polygon, distance=10, direction="inward")
+        
+        # Should be smaller
+        assert result[0][0] > polygon[0][0]  # Left edge moved right
+        assert result[1][0] < polygon[1][0]  # Right edge moved left
+```
+
+---
+
+## Updated Verification Checklist (v2.0)
+
+Add these items to the verification checklist:
+
+### Assembly System Tests
+- [ ] Formula engine evaluates expressions correctly
+- [ ] Waste factors apply to component quantities
+- [ ] Assembly templates create complete assemblies
+- [ ] Cost calculations sum components correctly
+- [ ] API endpoints create/update/delete assemblies
+- [ ] Component CRUD operations work correctly
+
+### Auto Count Tests
+- [ ] Template matching finds similar elements
+- [ ] LLM similarity detection works
+- [ ] Hybrid detection combines both methods
+- [ ] Non-max suppression removes duplicates
+- [ ] Bulk confirm above threshold works
+- [ ] Measurements created from confirmed detections
+
+### Enhanced Review Tests
+- [ ] Review queue filters by status and confidence
+- [ ] Keyboard shortcuts (A/R/E/N/P) work correctly
+- [ ] Auto-accept processes high confidence measurements
+- [ ] Bulk approve/reject operations work
+- [ ] Measurement history tracks all changes
+- [ ] Statistics dashboard shows accurate counts
+
+### Quick Adjust Tools Tests
+- [ ] Nudge moves geometry by specified offset
+- [ ] Snap aligns coordinates to grid
+- [ ] Extend lengthens lines correctly
+- [ ] Trim shortens lines correctly
+- [ ] Offset expands/shrinks polygons
+
+---
+
 ## Next Phase
 
-Once testing is verified, proceed to **`12-DEPLOYMENT.md`** for production deployment and monitoring setup.
+Once verified, proceed to **`12-DEPLOYMENT.md`** for implementing production deployment and monitoring.
