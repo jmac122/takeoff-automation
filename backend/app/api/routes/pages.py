@@ -390,13 +390,16 @@ async def classify_page_endpoint(
     By default, uses fast OCR-based classification (free, instant).
     Set use_vision=true to use LLM vision models (slower, costs money, but more detailed).
     """
-    # Verify page exists
-    result = await db.execute(select(Page.id).where(Page.id == page_id))
-    if not result.scalar_one_or_none():
+    # Verify page exists and get document_id in a single query
+    result = await db.execute(select(Page.id, Page.document_id).where(Page.id == page_id))
+    row = result.one_or_none()
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Page not found",
         )
+
+    _, doc_id = row
 
     provider = request.provider if request else None
     use_vision = request.use_vision if request else False
@@ -410,10 +413,6 @@ async def classify_page_endpoint(
         )
 
     # Get project_id for task registration
-    page_result = await db.execute(
-        select(Page.document_id).where(Page.id == page_id)
-    )
-    doc_id = page_result.scalar_one()
     doc_result = await db.execute(
         select(Document.project_id).where(Document.id == doc_id)
     )

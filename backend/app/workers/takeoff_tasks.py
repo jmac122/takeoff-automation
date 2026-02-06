@@ -467,17 +467,6 @@ def compare_providers_task(
 
             return result_summary
 
-    except ValueError as e:
-        logger.error(
-            "Multi-provider comparison validation failed (not retrying)",
-            page_id=page_id,
-            condition_id=condition_id,
-            error=str(e),
-        )
-        with SyncSession() as db:
-            TaskTracker.mark_failed_sync(db, self.request.id, str(e), tb_module.format_exc())
-        raise
-
     except Exception as e:
         logger.error(
             "Multi-provider comparison failed",
