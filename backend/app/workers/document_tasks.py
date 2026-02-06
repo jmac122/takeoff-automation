@@ -139,7 +139,14 @@ def process_document_task(
 
             from app.workers.ocr_tasks import process_document_ocr_task
 
-            process_document_ocr_task.delay(document_id)
+            try:
+                process_document_ocr_task.delay(document_id)
+            except Exception as queue_error:
+                logger.error(
+                    "Failed to queue OCR task (document processing already succeeded)",
+                    document_id=document_id,
+                    error=str(queue_error),
+                )
 
             return {
                 "status": "success",

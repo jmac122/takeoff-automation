@@ -206,9 +206,15 @@ def process_page_ocr_task(self, page_id: str) -> dict:
         # Queue this AFTER session is closed to avoid DetachedInstanceError
         from app.workers.classification_tasks import classify_page_task
 
-        classify_page_task.delay(page_id, provider=None, use_vision=False)
-
-        logger.info("Queued automatic classification after OCR", page_id=page_id)
+        try:
+            classify_page_task.delay(page_id, provider=None, use_vision=False)
+            logger.info("Queued automatic classification after OCR", page_id=page_id)
+        except Exception as queue_error:
+            logger.error(
+                "Failed to queue classification task (OCR processing already succeeded)",
+                page_id=page_id,
+                error=str(queue_error),
+            )
 
         return result_data
 

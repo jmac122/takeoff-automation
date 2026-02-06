@@ -717,7 +717,7 @@ async def detect_page_scale(
             detail="Page not found",
         )
 
-    page_id_val, doc_id = row
+    _, doc_id = row
 
     # Get project_id for task registration
     doc_result = await db.execute(
