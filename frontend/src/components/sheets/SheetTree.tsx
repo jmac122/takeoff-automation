@@ -57,23 +57,46 @@ export function SheetTree({ projectId, sheetsData, isLoading }: SheetTreeProps) 
   const treeRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // ---- Load persisted tree state ----
+  const hasInitializedRef = useRef(false);
+
+  // ---- Load persisted tree state OR initialize from sheetsData ----
+  // Combined into a single effect to avoid race conditions between
+  // load, persist, and initialize effects sharing stale closures.
   useEffect(() => {
+    if (hasInitializedRef.current) return;
+
+    // Try to load from localStorage first
     try {
       const saved = localStorage.getItem(LS_SHEET_TREE_STATE);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.expandedGroups) {
+        if (parsed.expandedGroups && Object.keys(parsed.expandedGroups).length > 0) {
           setExpandedGroups(parsed.expandedGroups);
+          hasInitializedRef.current = true;
+          return;
         }
       }
     } catch {
       // ignore invalid JSON
     }
-  }, [setExpandedGroups]);
+
+    // If no persisted state, initialize from sheetsData
+    if (sheetsData && sheetsData.groups.length > 0) {
+      const initial: Record<string, boolean> = {};
+      for (const group of sheetsData.groups) {
+        initial[group.group_name] = true;
+      }
+      setExpandedGroups(initial);
+      hasInitializedRef.current = true;
+    }
+  }, [sheetsData, setExpandedGroups]);
 
   // ---- Persist tree state on change ----
+  // Skips writing until state has been initialized, preventing the
+  // initial empty {} from overwriting saved preferences in localStorage.
   useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    if (Object.keys(expandedGroups).length === 0) return;
     try {
       localStorage.setItem(
         LS_SHEET_TREE_STATE,
@@ -83,21 +106,6 @@ export function SheetTree({ projectId, sheetsData, isLoading }: SheetTreeProps) 
       // ignore quota errors
     }
   }, [expandedGroups]);
-
-  // ---- Initialize groups as expanded when data first loads ----
-  useEffect(() => {
-    if (
-      sheetsData &&
-      sheetsData.groups.length > 0 &&
-      Object.keys(expandedGroups).length === 0
-    ) {
-      const initial: Record<string, boolean> = {};
-      for (const group of sheetsData.groups) {
-        initial[group.group_name] = true;
-      }
-      setExpandedGroups(initial);
-    }
-  }, [sheetsData, expandedGroups, setExpandedGroups]);
 
   // ---- Filter sheets by search ----
   const filteredGroups: SheetGroup[] = useMemo(() => {
