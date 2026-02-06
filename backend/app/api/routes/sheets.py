@@ -93,7 +93,7 @@ class BatchScaleRequest(BaseModel):
 def _get_viewer_image_key(image_key: str) -> str:
     """Get the PNG viewer image key from a TIFF storage key."""
     if image_key.endswith(".tiff"):
-        return image_key.replace(".tiff", ".png")
+        return image_key.removesuffix(".tiff") + ".png"
     return image_key
 
 
@@ -109,12 +109,12 @@ def _natural_sort_key(page_row: Any) -> tuple:
     # Fall back to sheet_number natural sort
     sheet_number = getattr(page_row, 'sheet_number', None)
     if sheet_number:
-        parts = re.split(r"(\d+\.?\d*)", sheet_number)
+        parts = re.split(r"(\d+)", sheet_number)
         key_parts = []
         for p in parts:
             if p:
-                if p.replace(".", "", 1).isdigit():
-                    key_parts.append((1, float(p)))
+                if p.isdigit():
+                    key_parts.append((1, int(p)))
                 else:
                     key_parts.append((0, p.lower()))
         return (1, 0, key_parts)

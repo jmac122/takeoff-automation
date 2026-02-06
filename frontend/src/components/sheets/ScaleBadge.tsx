@@ -1,4 +1,5 @@
 import type { SheetInfo } from '@/api/sheets';
+import { SCALE_CONFIDENCE_HIGH, SCALE_CONFIDENCE_MEDIUM } from '@/lib/constants';
 
 interface ScaleBadgeProps {
   sheet: SheetInfo;
@@ -6,7 +7,8 @@ interface ScaleBadgeProps {
 
 /**
  * Scale badge indicator:
- * - Green: auto-detected scale
+ * - Green: auto-detected scale with high confidence (>= 0.85)
+ * - Yellow: auto-detected scale with medium confidence (>= 0.50)
  * - Red (dot): no scale detected
  * - Blue: manually calibrated
  */
@@ -35,8 +37,37 @@ export function ScaleBadge({ sheet }: ScaleBadgeProps) {
     );
   }
 
-  // Auto-detected scale
+  // Auto-detected scale — color by confidence
+  const confidence = sheet.classification_confidence ?? 0;
+  const isHighConfidence = confidence >= SCALE_CONFIDENCE_HIGH;
+  const isMediumConfidence = confidence >= SCALE_CONFIDENCE_MEDIUM;
   const displayText = sheet.scale_text || sheet.scale_value?.toString() || 'Scaled';
+
+  if (isHighConfidence) {
+    return (
+      <span
+        className="inline-flex items-center rounded bg-green-600/20 px-1 py-0.5 text-[10px] text-green-400"
+        title={`Scale: ${displayText} (confidence: ${(confidence * 100).toFixed(0)}%)`}
+        data-testid="scale-badge-auto"
+      >
+        {displayText}
+      </span>
+    );
+  }
+
+  if (isMediumConfidence) {
+    return (
+      <span
+        className="inline-flex items-center rounded bg-yellow-600/20 px-1 py-0.5 text-[10px] text-yellow-400"
+        title={`Scale: ${displayText} (confidence: ${(confidence * 100).toFixed(0)}%)`}
+        data-testid="scale-badge-medium"
+      >
+        {displayText}
+      </span>
+    );
+  }
+
+  // Low confidence auto-detected
   return (
     <span
       className="inline-flex items-center rounded bg-green-600/20 px-1 py-0.5 text-[10px] text-green-400"
