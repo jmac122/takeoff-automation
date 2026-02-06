@@ -43,6 +43,10 @@ class PageResponse(BaseModel):
     scale_calibrated: bool = False
     scale_detection_method: str | None = None
     scale_calibration_data: dict[str, Any] | None = None
+    display_name: str | None = None
+    display_order: int | None = None
+    group_name: str | None = None
+    is_relevant: bool = True
     status: str
     image_url: str | None = None
     thumbnail_url: str | None = None

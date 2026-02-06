@@ -27,6 +27,7 @@ from app.api.routes import (
     settings as settings_routes,
     takeoff,
     tasks,
+    sheets,
 )
 
 logger = structlog.get_logger()
@@ -79,6 +80,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(takeoff.router, prefix="/api/v1", tags=["AI Takeoff"])
     app.include_router(tasks.router, prefix="/api/v1", tags=["Tasks"])
+    app.include_router(sheets.router, prefix="/api/v1", tags=["Sheets"])
 
     return app
 
