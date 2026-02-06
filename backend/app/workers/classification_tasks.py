@@ -122,8 +122,8 @@ def classify_page_task(
 
             # Try OCR-based classification first (fast, free, accurate for standard sheets)
             if not use_vision and page.ocr_text:
+                _report_progress(self, db, 30, "Running OCR classification")
                 try:
-                    _report_progress(self, db, 30, "Running OCR classification")
                     ocr_classifier = get_ocr_classifier()
                     ocr_result = ocr_classifier.classify_from_ocr(
                         sheet_number=page.sheet_number,
