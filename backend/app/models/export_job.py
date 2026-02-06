@@ -55,4 +55,4 @@ class ExportJob(Base, UUIDMixin, TimestampMixin):
     )
 
     # Relationships
-    project: Mapped["Project"] = relationship("Project")
+    project: Mapped["Project"] = relationship("Project", back_populates="exports")
