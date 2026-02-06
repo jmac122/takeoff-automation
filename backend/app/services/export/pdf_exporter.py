@@ -105,7 +105,7 @@ class PDFExporter(BaseExporter):
             detail_data = [["Page", "Sheet #", "Geometry", "Quantity", "Unit"]]
             for m in cond.measurements:
                 detail_data.append([
-                    str(m.page_number),
+                    str(m.page_number) if m.page_number is not None else "",
                     m.sheet_number or "",
                     m.geometry_type,
                     f"{m.quantity:.4f}",

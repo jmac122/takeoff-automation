@@ -49,7 +49,8 @@ class OSTExporter(BaseExporter):
             for m in cond.measurements:
                 item_el = SubElement(items_el, "TakeoffItem")
                 item_el.set("id", str(m.id))
-                SubElement(item_el, "PageNumber").text = str(m.page_number)
+                if m.page_number is not None:
+                    SubElement(item_el, "PageNumber").text = str(m.page_number)
                 if m.sheet_number:
                     SubElement(item_el, "SheetNumber").text = m.sheet_number
                 SubElement(item_el, "GeometryType").text = m.geometry_type
