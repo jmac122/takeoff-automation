@@ -259,11 +259,11 @@ async def update_page_display(
             detail="Page not found",
         )
 
-    if request.display_name is not None:
+    if "display_name" in request.model_fields_set:
         page.display_name = request.display_name
-    if request.display_order is not None:
+    if "display_order" in request.model_fields_set:
         page.display_order = request.display_order
-    if request.group_name is not None:
+    if "group_name" in request.model_fields_set:
         page.group_name = request.group_name
 
     await db.commit()
@@ -321,8 +321,7 @@ async def batch_update_scale(
         page.scale_unit = request.scale_unit
         page.scale_calibrated = True
         page.scale_detection_method = "manual_calibration"
-        if request.scale_text:
-            page.scale_text = request.scale_text
+        page.scale_text = request.scale_text
         page.scale_calibration_data = {
             **(page.scale_calibration_data or {}),
             "batch_applied": True,
