@@ -262,7 +262,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     set((s) => ({
       expandedGroups: {
         ...s.expandedGroups,
-        [groupName]: !s.expandedGroups[groupName],
+        [groupName]: s.expandedGroups[groupName] === false,
       },
     })),
 

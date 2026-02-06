@@ -319,9 +319,10 @@ async def batch_update_scale(
             page.scale_calibrated = True
             if request.scale_text:
                 page.scale_text = request.scale_text
-            if not page.scale_calibration_data:
-                page.scale_calibration_data = {}
-            page.scale_calibration_data["batch_applied"] = True
+            page.scale_calibration_data = {
+                **(page.scale_calibration_data or {}),
+                "batch_applied": True,
+            }
             updated.append(str(page_id))
 
     await db.commit()
