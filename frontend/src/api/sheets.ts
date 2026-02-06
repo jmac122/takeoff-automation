@@ -54,7 +54,7 @@ export interface PageRelevanceUpdate {
 // ============================================================================
 
 export async function getProjectSheets(projectId: string): Promise<SheetsResponse> {
-  const response = await apiClient.get(`/api/v1/projects/${projectId}/sheets`);
+  const response = await apiClient.get(`/projects/${projectId}/sheets`);
   return response.data;
 }
 
@@ -62,14 +62,14 @@ export async function updatePageDisplay(
   pageId: string,
   data: PageDisplayUpdate,
 ): Promise<void> {
-  await apiClient.put(`/api/v1/pages/${pageId}/display`, data);
+  await apiClient.put(`/pages/${pageId}/display`, data);
 }
 
 export async function updatePageRelevance(
   pageId: string,
   data: PageRelevanceUpdate,
 ): Promise<void> {
-  await apiClient.put(`/api/v1/pages/${pageId}/relevance`, data);
+  await apiClient.put(`/pages/${pageId}/relevance`, data);
 }
 
 export async function batchUpdateScale(
@@ -78,7 +78,7 @@ export async function batchUpdateScale(
   scaleText?: string,
   scaleUnit?: string,
 ): Promise<void> {
-  await apiClient.post('/api/v1/pages/batch-scale', {
+  await apiClient.post('/pages/batch-scale', {
     page_ids: pageIds,
     scale_value: scaleValue,
     scale_text: scaleText,

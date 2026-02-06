@@ -10,18 +10,13 @@ import {
   BOTTOM_STATUS_BAR_HEIGHT,
 } from '@/lib/constants';
 import { getProjectSheets, type SheetInfo } from '@/api/sheets';
-import { apiClient } from '@/api/client';
+import { projectsApi } from '@/api/projects';
 import { TopToolbar } from './TopToolbar';
 import { BottomStatusBar } from './BottomStatusBar';
 import { CenterCanvas } from './CenterCanvas';
 import { RightPanel } from './RightPanel';
 import { SheetTree } from '@/components/sheets/SheetTree';
 import { Loader2 } from 'lucide-react';
-
-async function getProject(projectId: string) {
-  const response = await apiClient.get(`/api/v1/projects/${projectId}`);
-  return response.data;
-}
 
 export function TakeoffWorkspace() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -35,7 +30,7 @@ export function TakeoffWorkspace() {
     error: projectError,
   } = useQuery({
     queryKey: ['project', projectId],
-    queryFn: () => getProject(projectId!),
+    queryFn: () => projectsApi.get(projectId!),
     enabled: !!projectId,
   });
 

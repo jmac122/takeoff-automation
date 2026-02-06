@@ -36,13 +36,14 @@ export function ScaleBadge({ sheet }: ScaleBadgeProps) {
   }
 
   // Auto-detected scale
+  const displayText = sheet.scale_text || sheet.scale_value?.toString() || 'Scaled';
   return (
     <span
       className="inline-flex items-center rounded bg-green-600/20 px-1 py-0.5 text-[10px] text-green-400"
-      title={`Scale: ${sheet.scale_text} (auto-detected)`}
+      title={`Scale: ${displayText} (auto-detected)`}
       data-testid="scale-badge-auto"
     >
-      {sheet.scale_text}
+      {displayText}
     </span>
   );
 }
