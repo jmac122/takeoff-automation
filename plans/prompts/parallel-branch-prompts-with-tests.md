@@ -15,24 +15,20 @@ Every prompt below follows this testing contract. **Do not skip this.**
 1. **Before writing any feature code**, check if `backend/tests/conftest.py` has the shared fixtures from `plans/11-TESTING-QA.md` (Task 11.1). If not, create them first. Same for `backend/tests/factories/` (Task 11.2).
 
 2. **For every new module/service/route**, write tests in the SAME commit:
-
    - **Unit tests** for pure logic (services, utilities, calculations)
    - **Integration tests** for API endpoints (use `AsyncClient` + test DB)
    - **Edge case tests** for error paths, invalid inputs, auth/permission boundaries
 
 3. **Test file naming**: Mirror the source path.
-
    - `app/services/export_service.py` → `tests/unit/test_export_service.py`
    - `app/api/routes/exports.py` → `tests/integration/test_exports_api.py`
    - `app/workers/export_tasks.py` → `tests/unit/test_export_tasks.py`
 
 4. **Before committing**, run:
-
    ```bash
    cd backend
    pytest tests/ -v --tb=short --cov=app --cov-report=term-missing
    ```
-
    Fix any failures. Target 80%+ coverage on new code.
 
 5. **Security tests** for every route: test missing auth, wrong project_id, invalid UUIDs, IDOR attempts.
@@ -44,9 +40,7 @@ Every prompt below follows this testing contract. **Do not skip this.**
 Before writing any feature code on ANY branch, verify these exist. If they don't, create them:
 
 ### `backend/tests/conftest.py`
-
 Must have these fixtures (from `plans/11-TESTING-QA.md` Task 11.1):
-
 - `get_test_settings()` — test configuration
 - `event_loop` — session-scoped asyncio loop
 - `async_engine` — test DB engine (PostgreSQL or SQLite)
@@ -58,9 +52,7 @@ Must have these fixtures (from `plans/11-TESTING-QA.md` Task 11.1):
 - `sample_image_bytes`, `sample_pdf_bytes` — minimal valid test files
 
 ### `backend/tests/factories/`
-
 Must have factories for (from Task 11.2):
-
 - `ProjectFactory`
 - `DocumentFactory`
 - `PageFactory`
@@ -71,7 +63,6 @@ Must have factories for (from Task 11.2):
 If `factory_boy` is not installed, add it to `requirements-dev.txt`.
 
 ### TaskRecord Factory (new)
-
 ```python
 # backend/tests/factories/task_record.py
 import uuid
@@ -105,7 +96,6 @@ class TaskRecordFactory(factory.Factory):
 ## Context
 
 Read these files first:
-
 1. `plans/16-UNIFIED-TASK-API.md` — Full task API spec
 2. `backend/app/services/task_tracker.py` — TaskTracker service (already implemented and bug-fixed)
 3. `backend/app/workers/takeoff_tasks.py` — Reference: how `generate_ai_takeoff_task` uses TaskTracker
@@ -116,7 +106,6 @@ Read these files first:
 Follow the `migrate-tasks-to-tracker-prompt-v2.md` file in the project root. It has the complete task-by-task instructions with the corrected patterns (pre-generate ID, register before enqueue, retry-aware failure handling).
 
 **Key pattern reminder** — every route does:
-
 ```python
 task_id = str(uuid.uuid4())
 await TaskTracker.register_async(db, task_id=task_id, ...)
@@ -239,7 +228,6 @@ class TestTaskTrackerEdgeCases:
 ## Verification Gate
 
 Before opening PR:
-
 ```bash
 pytest tests/unit/test_task_migration.py tests/unit/test_task_tracker_edge_cases.py tests/integration/test_task_registration_routes.py -v --tb=short
 pytest tests/ -v --tb=short  # Full regression
@@ -259,7 +247,6 @@ All tests pass, zero failures, zero warnings about unclosed sessions.
 ## Context
 
 Read these files first:
-
 1. `plans/10-EXPORT-SYSTEM.md` — Full export spec
 2. `plans/11-TESTING-QA.md` — Testing standards and coverage targets
 3. `backend/app/models/condition.py` — Condition model (source of export data)
@@ -271,40 +258,33 @@ Read these files first:
 ### Backend
 
 1. **Export Job Model** (`backend/app/models/export_job.py`)
-
    - ExportJob model: id, project_id, format (excel/ost/csv/pdf), status, file_key, error_message, options (JSON), timestamps
    - Alembic migration
 
 2. **Base Export Service** (`backend/app/services/export/base.py`)
-
    - Abstract `BaseExporter` class with `generate(project_id, options) -> bytes`
    - Shared query logic: fetch conditions + measurements + pages for a project
 
 3. **Excel Exporter** (`backend/app/services/export/excel_exporter.py`)
-
    - Summary sheet: condition totals grouped by type
    - Detail sheets: per-condition measurement list with page references
    - Per-page sheets: measurements grouped by page
    - Use openpyxl
 
 4. **OST XML Exporter** (`backend/app/services/export/ost_exporter.py`)
-
    - On Screen Takeoff compatible XML format
    - Map conditions → OST conditions, measurements → OST takeoff items
 
 5. **CSV Exporter** (`backend/app/services/export/csv_exporter.py`)
-
    - Flat CSV with one row per measurement
    - Headers: condition, page, type, quantity, unit, coordinates
 
 6. **PDF Report Exporter** (`backend/app/services/export/pdf_exporter.py`)
-
    - Project summary report
    - Condition breakdown tables
    - Use reportlab
 
 7. **Export Celery Task** (`backend/app/workers/export_tasks.py`)
-
    - `generate_export_task` with TaskTracker integration (pre-generate ID pattern)
    - Progress updates: 10% start → per-exporter progress → 90% uploading → complete
    - Upload result to MinIO/S3, store file_key in ExportJob
@@ -326,7 +306,6 @@ Read these files first:
 ### Unit Tests: `backend/tests/unit/test_export/`
 
 #### `test_excel_exporter.py`
-
 ```python
 """Tests for Excel export generation."""
 import pytest
@@ -364,7 +343,6 @@ class TestExcelExporter:
 ```
 
 #### `test_ost_exporter.py`
-
 ```python
 """Tests for OST XML export generation."""
 import pytest
@@ -391,7 +369,6 @@ class TestOSTExporter:
 ```
 
 #### `test_csv_exporter.py`
-
 ```python
 """Tests for CSV export generation."""
 import pytest
@@ -414,7 +391,6 @@ class TestCSVExporter:
 ```
 
 #### `test_pdf_exporter.py`
-
 ```python
 """Tests for PDF report generation."""
 import pytest
@@ -434,7 +410,6 @@ class TestPDFExporter:
 ```
 
 #### `test_base_exporter.py`
-
 ```python
 """Tests for shared export query logic."""
 class TestExportDataQuery:
@@ -590,14 +565,12 @@ pytest tests/ -v --tb=short
 ## Context
 
 Read these files first (IN THIS ORDER — per the audit):
-
 1. `plans/18A-UI-OVERHAUL-AUDIT.md` — **Read Part 1 (critical gaps) and Part 4 (architecture additions) FIRST**
 2. `plans/18-UI-OVERHAUL.md` (the `forgex-ui-overhaul-spec.docx` content) — Full spec
 3. `plans/18B-UI-OVERHAUL-PHASE-CONTEXTS.md` — Phase-specific AI context
 4. `.cursor/rules/forgex-rules.md` or `CLAUDE_RULES.md` — UI conventions
 
 **Critical architecture decisions from the audit (must follow):**
-
 - **State**: Zustand for UI state, React Query for server data. Never mix.
 - **Migration**: New `/projects/:id` route with `ENABLE_NEW_WORKSPACE` feature flag
 - **Error handling**: No error loses user work. Toast + retry everywhere.
@@ -609,13 +582,11 @@ Read these files first (IN THIS ORDER — per the audit):
 ### A.0: Architecture Foundation (MUST BE FIRST)
 
 1. **Zustand Store Architecture** (`frontend/src/stores/workspaceStore.ts`)
-
    - `activeSheetId`, `activeConditionId`, `activeTool`, `viewportState`
    - `focusRegion`, `leftPanelWidth`, `rightPanelWidth`
    - Selectors for derived state
 
 2. **Constants File** (`frontend/src/lib/constants.ts`)
-
    - All values from the audit Section 4.2
 
 3. **FocusContext** (`frontend/src/contexts/FocusContext.tsx`)
@@ -631,7 +602,6 @@ Read these files first (IN THIS ORDER — per the audit):
 ### A.2: SheetTree
 
 5. **SheetTree Component** (`frontend/src/components/sheets/SheetTree.tsx`)
-
    - Grouped by discipline/group_name
    - Expand/collapse state persisted to localStorage
    - Click → loads sheet in canvas
@@ -662,71 +632,69 @@ Read these files first (IN THIS ORDER — per the audit):
 Use React Testing Library + Vitest (or Jest, whichever is configured).
 
 #### `TakeoffWorkspace.test.tsx`
-
 ```typescript
-describe("TakeoffWorkspace", () => {
-  it("renders three-panel layout", () => {
+describe('TakeoffWorkspace', () => {
+  it('renders three-panel layout', () => {
     // Assert: LeftSidebar, CenterCanvas, RightPanel all present
   });
 
-  it("renders feature flag gate", () => {
+  it('renders feature flag gate', () => {
     // When ENABLE_NEW_WORKSPACE is false, redirects to old UI
   });
 
-  it("loads project data on mount", () => {
+  it('loads project data on mount', () => {
     // Assert: React Query fires for project + sheets
   });
 
-  it("handles project not found", () => {
+  it('handles project not found', () => {
     // Assert: 404 state shown, no crash
   });
 });
 ```
 
 #### `SheetTree.test.tsx`
-
 ```typescript
-describe("SheetTree", () => {
-  it("renders sheets grouped by discipline", () => {
+describe('SheetTree', () => {
+  it('renders sheets grouped by discipline', () => {
     // Given: sheets with different disciplines
     // Assert: group headers shown, sheets under correct groups
   });
 
-  it("clicking a sheet sets it as active", () => {
+  it('clicking a sheet sets it as active', () => {
     // Assert: workspaceStore.activeSheetId updated
   });
 
-  it("shows scale badge per sheet", () => {
+  it('shows scale badge per sheet', () => {
     // Given: sheet with scale detected at 85% confidence
     // Assert: green badge shown with scale text
   });
 
-  it("shows no-scale indicator for uncalibrated sheets", () => {
+  it('shows no-scale indicator for uncalibrated sheets', () => {
     // Given: sheet with no scale
     // Assert: warning indicator shown
   });
 
-  it("persists expand/collapse to localStorage", () => {
+  it('persists expand/collapse to localStorage', () => {
     // Act: collapse a group
     // Assert: localStorage updated
     // Act: re-render
     // Assert: group still collapsed
   });
 
-  it("keyboard navigation works", () => {
+  it('keyboard navigation works', () => {
     // Act: press ArrowDown
     // Assert: next sheet highlighted
     // Act: press Enter
     // Assert: sheet becomes active
   });
 
-  it("search filters sheets by name", () => {
+  it('search filters sheets by name', () => {
     // Given: sheets S1.01, S1.02, A1.01
     // Act: type "S1" in search
     // Assert: only S1.01 and S1.02 visible
   });
 
-  it("handles empty project gracefully", () => {
+  it('handles empty project gracefully', () => {
     // Given: project with no documents/pages
     // Assert: empty state message, no crash
   });
@@ -734,24 +702,23 @@ describe("SheetTree", () => {
 ```
 
 #### `workspaceStore.test.ts`
-
 ```typescript
-describe("WorkspaceStore", () => {
-  it("initializes with default values", () => {
+describe('WorkspaceStore', () => {
+  it('initializes with default values', () => {
     // Assert: activeTool is 'select', no activeSheetId, etc.
   });
 
-  it("setActiveSheet updates activeSheetId", () => {
+  it('setActiveSheet updates activeSheetId', () => {
     // Act + Assert
   });
 
-  it("setActiveTool prevents tool activation without active condition", () => {
+  it('setActiveTool prevents tool activation without active condition', () => {
     // Given: no activeConditionId
     // Act: try to set activeTool to 'polygon'
     // Assert: tool not changed (or warning issued)
   });
 
-  it("panel widths respect min/max bounds", () => {
+  it('panel widths respect min/max bounds', () => {
     // Act: try to set leftPanelWidth to 50 (below min)
     // Assert: clamped to LEFT_PANEL_MIN_WIDTH
   });
