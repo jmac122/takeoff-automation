@@ -180,12 +180,13 @@ class TestDocumentTaskTracking:
 
         mock_tracker.mark_failed_sync.assert_not_called()
 
+    @patch("app.workers.progress.TaskTracker")
     @patch("app.workers.document_tasks.SyncSession")
     @patch("app.workers.document_tasks.get_storage_service")
     @patch("app.workers.document_tasks.get_document_processor")
     @patch("app.workers.document_tasks.TaskTracker")
     def test_progress_updates_at_expected_points(
-        self, mock_tracker, mock_processor, mock_storage, mock_session_cls
+        self, mock_tracker, mock_processor, mock_storage, mock_session_cls, mock_progress_tracker
     ):
         """Task calls update_progress_sync at defined percentage steps."""
         from app.workers.document_tasks import process_document_task
@@ -209,7 +210,7 @@ class TestDocumentTaskTracking:
              patch.object(process_document_task, 'update_state', MagicMock()):
             process_document_task.__wrapped__(str(uuid.uuid4()), str(uuid.uuid4()))
 
-        progress_calls = mock_tracker.update_progress_sync.call_args_list
+        progress_calls = mock_progress_tracker.update_progress_sync.call_args_list
         percents = [call[0][2] for call in progress_calls]
         assert 10 in percents  # Downloading file
         assert 40 in percents  # Extracting pages
@@ -381,13 +382,14 @@ class TestOCRTaskTracking:
 
         mock_tracker.mark_failed_sync.assert_not_called()
 
+    @patch("app.workers.progress.TaskTracker")
     @patch("app.workers.ocr_tasks.SyncSession")
     @patch("app.workers.ocr_tasks.get_storage_service")
     @patch("app.workers.ocr_tasks.get_ocr_service")
     @patch("app.workers.ocr_tasks.get_title_block_parser")
     @patch("app.workers.ocr_tasks.TaskTracker")
     def test_progress_updates_at_expected_points(
-        self, mock_tracker, mock_parser, mock_ocr, mock_storage, mock_session_cls
+        self, mock_tracker, mock_parser, mock_ocr, mock_storage, mock_session_cls, mock_progress_tracker
     ):
         """Task calls update_progress_sync at defined percentage steps."""
         from app.workers.ocr_tasks import process_page_ocr_task
@@ -425,7 +427,7 @@ class TestOCRTaskTracking:
              patch.object(process_page_ocr_task, 'update_state', MagicMock()):
             process_page_ocr_task.__wrapped__(str(uuid.uuid4()))
 
-        progress_calls = mock_tracker.update_progress_sync.call_args_list
+        progress_calls = mock_progress_tracker.update_progress_sync.call_args_list
         percents = [call[0][2] for call in progress_calls]
         assert 10 in percents  # Downloading page image
         assert 40 in percents  # Running OCR
@@ -556,11 +558,12 @@ class TestClassificationTaskTracking:
         # max_retries=0, so mark_failed_sync is called directly
         mock_tracker.mark_failed_sync.assert_called_once()
 
+    @patch("app.workers.progress.TaskTracker")
     @patch("app.workers.classification_tasks.SyncSession")
     @patch("app.workers.classification_tasks.get_ocr_classifier")
     @patch("app.workers.classification_tasks.TaskTracker")
     def test_progress_updates_at_expected_points(
-        self, mock_tracker, mock_classifier, mock_session_cls
+        self, mock_tracker, mock_classifier, mock_session_cls, mock_progress_tracker
     ):
         """Task calls update_progress_sync at defined percentage steps."""
         from app.workers.classification_tasks import classify_page_task
@@ -599,7 +602,7 @@ class TestClassificationTaskTracking:
              patch.object(classify_page_task, 'update_state', MagicMock()):
             classify_page_task.__wrapped__(str(uuid.uuid4()))
 
-        progress_calls = mock_tracker.update_progress_sync.call_args_list
+        progress_calls = mock_progress_tracker.update_progress_sync.call_args_list
         percents = [call[0][2] for call in progress_calls]
         assert 10 in percents  # Loading page data
         assert 30 in percents  # Running classification
@@ -751,12 +754,13 @@ class TestScaleDetectionTaskTracking:
 
         mock_tracker.mark_failed_sync.assert_not_called()
 
+    @patch("app.workers.progress.TaskTracker")
     @patch("app.workers.scale_tasks.SyncSession")
     @patch("app.workers.scale_tasks.get_storage_service")
     @patch("app.workers.scale_tasks.get_scale_detector")
     @patch("app.workers.scale_tasks.TaskTracker")
     def test_progress_updates_at_expected_points(
-        self, mock_tracker, mock_detector, mock_storage, mock_session_cls
+        self, mock_tracker, mock_detector, mock_storage, mock_session_cls, mock_progress_tracker
     ):
         """Task calls update_progress_sync at defined percentage steps."""
         from app.workers.scale_tasks import detect_page_scale_task
@@ -786,7 +790,7 @@ class TestScaleDetectionTaskTracking:
              patch.object(detect_page_scale_task, 'update_state', MagicMock()):
             detect_page_scale_task.__wrapped__(str(uuid.uuid4()))
 
-        progress_calls = mock_tracker.update_progress_sync.call_args_list
+        progress_calls = mock_progress_tracker.update_progress_sync.call_args_list
         percents = [call[0][2] for call in progress_calls]
         assert 10 in percents  # Loading page data
         assert 30 in percents  # Downloading image
@@ -848,12 +852,13 @@ class TestAutonomousTakeoffTaskTracking:
 
         mock_tracker.mark_started_sync.assert_called_once()
 
+    @patch("app.workers.progress.TaskTracker")
     @patch("app.workers.takeoff_tasks.SyncSession")
     @patch("app.workers.takeoff_tasks.get_storage_service")
     @patch("app.workers.takeoff_tasks.get_ai_takeoff_service")
     @patch("app.workers.takeoff_tasks.TaskTracker")
     def test_progress_updates_at_expected_points(
-        self, mock_tracker, mock_ai, mock_storage, mock_session_cls
+        self, mock_tracker, mock_ai, mock_storage, mock_session_cls, mock_progress_tracker
     ):
         """Task reports progress at loading, AI analysis, measurements, and finalizing."""
         from app.workers.takeoff_tasks import autonomous_ai_takeoff_task
@@ -894,7 +899,7 @@ class TestAutonomousTakeoffTaskTracking:
                 str(uuid.uuid4()), project_id=str(mock_doc.project_id)
             )
 
-        progress_calls = mock_tracker.update_progress_sync.call_args_list
+        progress_calls = mock_progress_tracker.update_progress_sync.call_args_list
         percents = [call[0][2] for call in progress_calls]
         assert 10 in percents  # Loading
         assert 30 in percents  # AI analysis

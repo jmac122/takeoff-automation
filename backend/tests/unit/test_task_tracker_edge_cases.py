@@ -355,12 +355,13 @@ class TestRetryAwareFailureTracking:
 class TestProgressUpdateEdgeCases:
     """Edge cases for progress reporting."""
 
+    @patch("app.workers.progress.TaskTracker")
     @patch("app.workers.document_tasks.SyncSession")
     @patch("app.workers.document_tasks.get_storage_service")
     @patch("app.workers.document_tasks.get_document_processor")
     @patch("app.workers.document_tasks.TaskTracker")
     def test_celery_state_and_tracker_in_sync(
-        self, mock_tracker, mock_processor, mock_storage, mock_session_cls
+        self, mock_tracker, mock_processor, mock_storage, mock_session_cls, mock_progress_tracker
     ):
         """Both self.update_state and TaskTracker receive same progress values."""
         from app.workers.document_tasks import process_document_task
@@ -398,7 +399,7 @@ class TestProgressUpdateEdgeCases:
         ]
 
         # Extract TaskTracker update_progress_sync calls
-        tracker_calls = mock_tracker.update_progress_sync.call_args_list
+        tracker_calls = mock_progress_tracker.update_progress_sync.call_args_list
         tracker_percents = [call[0][2] for call in tracker_calls]
 
         # They should match

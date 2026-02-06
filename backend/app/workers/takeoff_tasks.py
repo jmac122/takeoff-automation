@@ -536,9 +536,16 @@ def batch_ai_takeoff_task(
                 })
 
             # Report per-page progress (10-90% range)
-            percent = 10 + int(80 * (i + 1) / total_pages)
-            with SyncSession() as db:
-                _report_progress(self, db, percent, f"Queued {i + 1}/{total_pages} pages")
+            try:
+                percent = 10 + int(80 * (i + 1) / total_pages)
+                with SyncSession() as db:
+                    _report_progress(self, db, percent, f"Queued {i + 1}/{total_pages} pages")
+            except Exception as progress_err:
+                logger.warning(
+                    "Failed to report batch progress",
+                    page_index=i,
+                    error=str(progress_err),
+                )
 
         result_summary = {
             "condition_id": condition_id,
