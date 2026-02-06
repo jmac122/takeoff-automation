@@ -406,6 +406,8 @@ def compare_providers_task(
 
     try:
         with SyncSession() as db:
+            TaskTracker.mark_started_sync(db, self.request.id)
+
             page_uuid = uuid.UUID(page_id)
             condition_uuid = uuid.UUID(condition_id)
 
@@ -453,12 +455,16 @@ def compare_providers_task(
                 providers_compared=len(results),
             )
 
-            return {
+            result_summary = {
                 "page_id": page_id,
                 "condition_id": condition_id,
                 "providers_compared": list(results.keys()),
                 "results": comparison,
             }
+
+            TaskTracker.mark_completed_sync(db, self.request.id, result_summary)
+
+            return result_summary
 
     except Exception as e:
         logger.error(
@@ -467,6 +473,8 @@ def compare_providers_task(
             condition_id=condition_id,
             error=str(e),
         )
+        with SyncSession() as db:
+            TaskTracker.mark_failed_sync(db, self.request.id, str(e), tb_module.format_exc())
         raise
 
 
@@ -494,38 +502,58 @@ def batch_ai_takeoff_task(
         provider=provider,
     )
 
-    results = []
-    for page_id in page_ids:
-        try:
-            task = generate_ai_takeoff_task.delay(
-                page_id=page_id,
-                condition_id=condition_id,
-                provider=provider,
-            )
-            results.append({
-                "page_id": page_id,
-                "task_id": task.id,
-                "status": "queued",
-            })
-        except Exception as e:
-            logger.error(
-                "Failed to queue AI takeoff for page",
-                page_id=page_id,
-                error=str(e),
-            )
-            results.append({
-                "page_id": page_id,
-                "task_id": None,
-                "status": "error",
-                "error": str(e),
-            })
+    try:
+        with SyncSession() as db:
+            TaskTracker.mark_started_sync(db, self.request.id)
 
-    return {
-        "condition_id": condition_id,
-        "pages_queued": len([r for r in results if r["status"] == "queued"]),
-        "pages_failed": len([r for r in results if r["status"] == "error"]),
-        "results": results,
-    }
+        results = []
+        for page_id in page_ids:
+            try:
+                task = generate_ai_takeoff_task.delay(
+                    page_id=page_id,
+                    condition_id=condition_id,
+                    provider=provider,
+                )
+                results.append({
+                    "page_id": page_id,
+                    "task_id": task.id,
+                    "status": "queued",
+                })
+            except Exception as e:
+                logger.error(
+                    "Failed to queue AI takeoff for page",
+                    page_id=page_id,
+                    error=str(e),
+                )
+                results.append({
+                    "page_id": page_id,
+                    "task_id": None,
+                    "status": "error",
+                    "error": str(e),
+                })
+
+        result_summary = {
+            "condition_id": condition_id,
+            "pages_queued": len([r for r in results if r["status"] == "queued"]),
+            "pages_failed": len([r for r in results if r["status"] == "error"]),
+            "results": results,
+        }
+
+        with SyncSession() as db:
+            TaskTracker.mark_completed_sync(db, self.request.id, result_summary)
+
+        return result_summary
+
+    except Exception as e:
+        logger.error(
+            "Batch AI takeoff failed",
+            page_count=len(page_ids),
+            condition_id=condition_id,
+            error=str(e),
+        )
+        with SyncSession() as db:
+            TaskTracker.mark_failed_sync(db, self.request.id, str(e), tb_module.format_exc())
+        raise
 
 
 # Mapping from AI-detected element types to condition categories
@@ -665,6 +693,8 @@ def autonomous_ai_takeoff_task(
 
     try:
         with SyncSession() as db:
+            TaskTracker.mark_started_sync(db, self.request.id)
+
             page_uuid = uuid.UUID(page_id)
             project_uuid = uuid.UUID(project_id) if project_id else None
 
@@ -749,21 +779,7 @@ def autonomous_ai_takeoff_task(
                     locked_condition.total_quantity = totals[0] or 0.0
                     locked_condition.measurement_count = totals[1] or 0
 
-                db.commit()
-
-            logger.info(
-                "AUTONOMOUS AI takeoff complete",
-                page_id=page_id,
-                element_types_found=list(elements_by_type.keys()),
-                total_elements=len(result.elements),
-                measurements_created=measurements_created,
-                conditions_created=conditions_created,
-                provider=result.llm_provider,
-                model=result.llm_model,
-                latency_ms=result.llm_latency_ms,
-            )
-
-            return {
+            result_summary = {
                 "page_id": page_id,
                 "autonomous": True,
                 "element_types_found": list(elements_by_type.keys()),
@@ -781,6 +797,28 @@ def autonomous_ai_takeoff_task(
                 "llm_latency_ms": result.llm_latency_ms,
             }
 
+            TaskTracker.mark_completed_sync(
+                db,
+                self.request.id,
+                result_summary,
+                commit=False,
+            )
+            db.commit()
+
+            logger.info(
+                "AUTONOMOUS AI takeoff complete",
+                page_id=page_id,
+                element_types_found=list(elements_by_type.keys()),
+                total_elements=len(result.elements),
+                measurements_created=measurements_created,
+                conditions_created=conditions_created,
+                provider=result.llm_provider,
+                model=result.llm_model,
+                latency_ms=result.llm_latency_ms,
+            )
+
+            return result_summary
+
     except ValueError as e:
         # Validation errors (not found, not calibrated, etc.) should fail immediately
         # without retrying - they won't succeed on retry
@@ -789,6 +827,8 @@ def autonomous_ai_takeoff_task(
             page_id=page_id,
             error=str(e),
         )
+        with SyncSession() as db:
+            TaskTracker.mark_failed_sync(db, self.request.id, str(e), tb_module.format_exc())
         raise
     except Exception as e:
         # Transient errors (network, API rate limits, etc.) can be retried
@@ -797,4 +837,12 @@ def autonomous_ai_takeoff_task(
             page_id=page_id,
             error=str(e),
         )
-        raise self.retry(exc=e, countdown=60)
+        original_traceback = tb_module.format_exc()
+        try:
+            raise self.retry(exc=e, countdown=60)
+        except MaxRetriesExceededError:
+            with SyncSession() as db:
+                TaskTracker.mark_failed_sync(
+                    db, self.request.id, str(e), original_traceback
+                )
+            raise

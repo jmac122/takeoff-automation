@@ -138,6 +138,53 @@ def validate_provider(provider: str | None) -> str | None:
 
 
 # ============================================================================
+# Helpers
+# ============================================================================
+
+
+async def _register_and_dispatch(
+    db: AsyncSession,
+    *,
+    task_type: str,
+    task_name: str,
+    project_id: str,
+    metadata: dict | None,
+    celery_task,
+    args: list,
+    kwargs: dict | None = None,
+) -> StartTaskResponse:
+    """Register a task in DB then dispatch to Celery.
+
+    Centralises the ordering guarantee: the DB record is always created
+    **before** ``apply_async`` so that ``_build_task_response`` will
+    never see a Celery result without a matching ``TaskRecord``.
+    """
+    task_id = str(uuid.uuid4())
+
+    await TaskTracker.register_async(
+        db,
+        task_id=task_id,
+        task_type=task_type,
+        task_name=task_name,
+        project_id=project_id,
+        metadata=metadata,
+    )
+
+    celery_task.apply_async(
+        args=args,
+        kwargs=kwargs or {},
+        task_id=task_id,
+    )
+
+    return StartTaskResponse(
+        task_id=task_id,
+        task_type=task_type,
+        task_name=task_name,
+        message=task_name,
+    )
+
+
+# ============================================================================
 # Endpoints
 # ============================================================================
 
@@ -174,32 +221,17 @@ async def generate_ai_takeoff(
     # Validate provider
     provider = validate_provider(request.provider)
 
-    # Register task in the unified task tracker before queueing
-    task_id = str(uuid.uuid4())
     provider_msg = f" using {provider}" if provider else ""
-    task_name = f"AI takeoff for page {page_id}{provider_msg}"
 
-    await TaskTracker.register_async(
+    return await _register_and_dispatch(
         db,
-        task_id=task_id,
         task_type="ai_takeoff",
-        task_name=task_name,
+        task_name=f"AI takeoff for page {page_id}{provider_msg}",
         project_id=str(page_data.document.project_id),
         metadata={"page_id": str(page_id), "condition_id": str(request.condition_id), "provider": provider},
-    )
-
-    # Queue the task
-    generate_ai_takeoff_task.apply_async(
+        celery_task=generate_ai_takeoff_task,
         args=[str(page_id), str(request.condition_id)],
         kwargs={"provider": provider},
-        task_id=task_id,
-    )
-
-    return StartTaskResponse(
-        task_id=task_id,
-        task_type="ai_takeoff",
-        task_name=task_name,
-        message=f"AI takeoff started for page {page_id}{provider_msg}",
     )
 
 
@@ -238,32 +270,17 @@ async def autonomous_ai_takeoff(
         # Use the page's actual project
         project_id_to_use = str(page_data.document.project_id)
 
-    # Register task before dispatch
-    task_id = str(uuid.uuid4())
     provider_msg = f" using {provider}" if provider else ""
-    task_name = f"Autonomous AI takeoff for page {page_id}{provider_msg}"
 
-    await TaskTracker.register_async(
+    return await _register_and_dispatch(
         db,
-        task_id=task_id,
         task_type="autonomous_ai_takeoff",
-        task_name=task_name,
+        task_name=f"Autonomous AI takeoff for page {page_id}{provider_msg}",
         project_id=project_id_to_use,
         metadata={"page_id": str(page_id), "provider": provider},
-    )
-
-    # Queue the autonomous task
-    autonomous_ai_takeoff_task.apply_async(
+        celery_task=autonomous_ai_takeoff_task,
         args=[str(page_id)],
         kwargs={"provider": provider, "project_id": project_id_to_use},
-        task_id=task_id,
-    )
-
-    return StartTaskResponse(
-        task_id=task_id,
-        task_type="autonomous_ai_takeoff",
-        task_name=task_name,
-        message=f"Autonomous AI takeoff started for page {page_id}{provider_msg}",
     )
 
 
@@ -307,30 +324,15 @@ async def compare_providers(
                 f"Available: {settings.available_providers}",
             )
 
-    # Register task before dispatch
-    task_id = str(uuid.uuid4())
-    task_name = f"Provider comparison for page {page_id}"
-
-    await TaskTracker.register_async(
+    return await _register_and_dispatch(
         db,
-        task_id=task_id,
         task_type="compare_providers",
-        task_name=task_name,
+        task_name=f"Provider comparison for page {page_id}",
         project_id=str(page_data.document.project_id),
         metadata={"page_id": str(page_id), "condition_id": str(request.condition_id), "providers": providers},
-    )
-
-    compare_providers_task.apply_async(
+        celery_task=compare_providers_task,
         args=[str(page_id), str(request.condition_id)],
         kwargs={"providers": providers},
-        task_id=task_id,
-    )
-
-    return StartTaskResponse(
-        task_id=task_id,
-        task_type="compare_providers",
-        task_name=task_name,
-        message=f"Provider comparison started for page {page_id}",
     )
 
 
@@ -403,35 +405,28 @@ async def batch_ai_takeoff(
             detail=f"Pages must be calibrated before AI takeoff: {uncalibrated_pages}",
         )
 
-    # Register task before dispatch
-    task_id = str(uuid.uuid4())
     pages_count = len(request.page_ids)
-    task_name = f"Batch AI takeoff for {pages_count} pages"
 
-    await TaskTracker.register_async(
+    base_response = await _register_and_dispatch(
         db,
-        task_id=task_id,
         task_type="batch_ai_takeoff",
-        task_name=task_name,
+        task_name=f"Batch AI takeoff for {pages_count} pages",
         project_id=str(condition.project_id),
         metadata={
             "page_ids": [str(pid) for pid in request.page_ids],
             "condition_id": str(request.condition_id),
             "provider": request.provider,
         },
-    )
-
-    batch_ai_takeoff_task.apply_async(
+        celery_task=batch_ai_takeoff_task,
         args=[[str(pid) for pid in request.page_ids], str(request.condition_id)],
         kwargs={"provider": request.provider},
-        task_id=task_id,
     )
 
     return BatchTakeoffResponse(
-        task_id=task_id,
-        task_type="batch_ai_takeoff",
-        task_name=task_name,
-        message=f"Batch AI takeoff queued for {pages_count} pages",
+        task_id=base_response.task_id,
+        task_type=base_response.task_type,
+        task_name=base_response.task_name,
+        message=base_response.message,
         pages_count=pages_count,
     )
 
