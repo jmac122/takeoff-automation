@@ -293,3 +293,20 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       selectedMeasurementIds: [],
     }),
 }));
+
+// ============================================================================
+// Selectors
+// ============================================================================
+
+export const selectActiveSheetId = (s: WorkspaceStore) => s.activeSheetId;
+export const selectActiveTool = (s: WorkspaceStore) => s.activeTool;
+export const selectActiveConditionId = (s: WorkspaceStore) => s.activeConditionId;
+export const selectIsDrawing = (s: WorkspaceStore) => s.isDrawing;
+export const selectViewport = (s: WorkspaceStore) => s.viewport;
+export const selectFocusRegion = (s: WorkspaceStore) => s.focusRegion;
+export const selectLeftPanelCollapsed = (s: WorkspaceStore) => s.leftPanelCollapsed;
+export const selectRightPanelCollapsed = (s: WorkspaceStore) => s.rightPanelCollapsed;
+export const selectSheetViewMode = (s: WorkspaceStore) => s.sheetViewMode;
+export const selectSheetSearchQuery = (s: WorkspaceStore) => s.sheetSearchQuery;
+export const selectExpandedGroups = (s: WorkspaceStore) => s.expandedGroups;
+export const selectHighlightedSheetId = (s: WorkspaceStore) => s.highlightedSheetId;
