@@ -23,6 +23,7 @@ from app.services.task_tracker import TaskTracker
 from app.utils.image_utils import crop_image_bytes, resolve_region_to_pixels
 from app.utils.storage import get_storage_service
 from app.workers.celery_app import celery_app
+from app.workers.progress import report_progress as _report_progress
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -137,20 +138,17 @@ def process_page_ocr_task(self, page_id: str) -> dict:
                 )
 
             # Download page image
-            self.update_state(state="PROGRESS", meta={"percent": 10, "step": "Downloading page image"})
-            TaskTracker.update_progress_sync(session, self.request.id, 10, "Downloading page image")
+            _report_progress(self, session, 10, "Downloading page image")
             storage = get_storage_service()
             image_bytes = storage.download_file(page.image_key)
 
             # Run OCR
-            self.update_state(state="PROGRESS", meta={"percent": 40, "step": "Running OCR"})
-            TaskTracker.update_progress_sync(session, self.request.id, 40, "Running OCR")
+            _report_progress(self, session, 40, "Running OCR")
             ocr_service = get_ocr_service()
             ocr_result = ocr_service.extract_text(image_bytes)
 
             # Parse title block
-            self.update_state(state="PROGRESS", meta={"percent": 70, "step": "Parsing title block"})
-            TaskTracker.update_progress_sync(session, self.request.id, 70, "Parsing title block")
+            _report_progress(self, session, 70, "Parsing title block")
             title_block_parser = get_title_block_parser()
             title_block_data = title_block_parser.parse_title_block(
                 ocr_result.blocks,
@@ -159,8 +157,7 @@ def process_page_ocr_task(self, page_id: str) -> dict:
             )
 
             # Update page with OCR data
-            self.update_state(state="PROGRESS", meta={"percent": 90, "step": "Saving results"})
-            TaskTracker.update_progress_sync(session, self.request.id, 90, "Saving results")
+            _report_progress(self, session, 90, "Saving results")
             page.ocr_text = ocr_result.full_text
             page.ocr_blocks = {
                 "blocks": [b.to_dict() for b in ocr_result.blocks],

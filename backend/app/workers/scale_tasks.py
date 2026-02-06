@@ -21,6 +21,7 @@ from app.services.scale_detector import get_scale_detector
 from app.services.task_tracker import TaskTracker
 from app.utils.storage import get_storage_service
 from app.workers.celery_app import celery_app
+from app.workers.progress import report_progress as _report_progress
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -56,8 +57,7 @@ def detect_page_scale_task(self, page_id: str) -> dict:
             page_uuid = uuid.UUID(page_id)
 
             # Get page (sync query)
-            self.update_state(state="PROGRESS", meta={"percent": 10, "step": "Loading page data"})
-            TaskTracker.update_progress_sync(session, self.request.id, 10, "Loading page data")
+            _report_progress(self, session, 10, "Loading page data")
             page = session.query(Page).filter(Page.id == page_uuid).one_or_none()
 
             if not page:
@@ -67,8 +67,7 @@ def detect_page_scale_task(self, page_id: str) -> dict:
             storage = get_storage_service()
 
             # Download image
-            self.update_state(state="PROGRESS", meta={"percent": 30, "step": "Downloading image"})
-            TaskTracker.update_progress_sync(session, self.request.id, 30, "Downloading image")
+            _report_progress(self, session, 30, "Downloading image")
             image_bytes = storage.download_file(page.image_key)
 
             # Get pre-detected scale texts from OCR
@@ -89,8 +88,7 @@ def detect_page_scale_task(self, page_id: str) -> dict:
                 )
 
             # Detect scale
-            self.update_state(state="PROGRESS", meta={"percent": 60, "step": "Detecting scale"})
-            TaskTracker.update_progress_sync(session, self.request.id, 60, "Detecting scale")
+            _report_progress(self, session, 60, "Detecting scale")
             detection = detector.detect_scale(
                 image_bytes,
                 ocr_text=page.ocr_text,
@@ -99,8 +97,7 @@ def detect_page_scale_task(self, page_id: str) -> dict:
             )
 
             # Update page with scale info
-            self.update_state(state="PROGRESS", meta={"percent": 90, "step": "Saving results"})
-            TaskTracker.update_progress_sync(session, self.request.id, 90, "Saving results")
+            _report_progress(self, session, 90, "Saving results")
             if detection["best_scale"]:
                 best = detection["best_scale"]
                 page.scale_text = best["text"]

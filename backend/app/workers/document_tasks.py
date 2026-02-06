@@ -22,6 +22,7 @@ from app.services.document_processor import get_document_processor
 from app.services.task_tracker import TaskTracker
 from app.utils.storage import get_storage_service
 from app.workers.celery_app import celery_app
+from app.workers.progress import report_progress as _report_progress
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -82,13 +83,11 @@ def process_document_task(
             session.commit()
 
             # Download original file
-            self.update_state(state="PROGRESS", meta={"percent": 10, "step": "Downloading file"})
-            TaskTracker.update_progress_sync(session, self.request.id, 10, "Downloading file")
+            _report_progress(self, session, 10, "Downloading file")
             file_bytes = storage.download_file(document.storage_key)
 
             # Process document and extract pages
-            self.update_state(state="PROGRESS", meta={"percent": 40, "step": "Extracting pages"})
-            TaskTracker.update_progress_sync(session, self.request.id, 40, "Extracting pages")
+            _report_progress(self, session, 40, "Extracting pages")
             pages_data = processor.process_document(
                 document_id=doc_uuid,
                 project_id=proj_uuid,
@@ -98,8 +97,7 @@ def process_document_task(
             )
 
             # Create page records
-            self.update_state(state="PROGRESS", meta={"percent": 70, "step": "Saving page records"})
-            TaskTracker.update_progress_sync(session, self.request.id, 70, "Saving page records")
+            _report_progress(self, session, 70, "Saving page records")
             for page_data in pages_data:
                 page = Page(
                     id=page_data["id"],
@@ -121,8 +119,7 @@ def process_document_task(
             document.page_count = len(pages_data)
 
             # Queue OCR processing for the document
-            self.update_state(state="PROGRESS", meta={"percent": 90, "step": "Queueing OCR"})
-            TaskTracker.update_progress_sync(session, self.request.id, 90, "Queueing OCR")
+            _report_progress(self, session, 90, "Queueing OCR")
 
             result_summary = {
                 "document_id": document_id,

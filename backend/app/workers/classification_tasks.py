@@ -24,6 +24,7 @@ from app.services.llm_client import get_llm_client, PROVIDER_MODELS
 from app.services.task_tracker import TaskTracker
 from app.utils.storage import get_storage_service
 from app.workers.celery_app import celery_app
+from app.workers.progress import report_progress as _report_progress
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -111,8 +112,7 @@ def classify_page_task(
             TaskTracker.mark_started_sync(db, self.request.id)
 
             # Get page
-            self.update_state(state="PROGRESS", meta={"percent": 10, "step": "Loading page data"})
-            TaskTracker.update_progress_sync(db, self.request.id, 10, "Loading page data")
+            _report_progress(self, db, 10, "Loading page data")
             page = db.execute(
                 select(Page).where(Page.id == uuid.UUID(page_id))
             ).scalar_one_or_none()
@@ -123,8 +123,7 @@ def classify_page_task(
             # Try OCR-based classification first (fast, free, accurate for standard sheets)
             if not use_vision and page.ocr_text:
                 try:
-                    self.update_state(state="PROGRESS", meta={"percent": 30, "step": "Running OCR classification"})
-                    TaskTracker.update_progress_sync(db, self.request.id, 30, "Running OCR classification")
+                    _report_progress(self, db, 30, "Running OCR classification")
                     ocr_classifier = get_ocr_classifier()
                     ocr_result = ocr_classifier.classify_from_ocr(
                         sheet_number=page.sheet_number,
@@ -173,8 +172,7 @@ def classify_page_task(
 
             # Fall back to LLM vision if requested or if OCR failed
             if use_vision or not page.ocr_text:
-                self.update_state(state="PROGRESS", meta={"percent": 30, "step": "Running vision classification"})
-                TaskTracker.update_progress_sync(db, self.request.id, 30, "Running vision classification")
+                _report_progress(self, db, 30, "Running vision classification")
                 # Get page image from storage
                 storage = get_storage_service()
                 image_bytes = storage.download_file(page.image_key)
@@ -195,8 +193,7 @@ def classify_page_task(
                     raise
 
             # Update page record with latest classification
-            self.update_state(state="PROGRESS", meta={"percent": 70, "step": "Updating page record"})
-            TaskTracker.update_progress_sync(db, self.request.id, 70, "Updating page record")
+            _report_progress(self, db, 70, "Updating page record")
             page.classification = f"{result.discipline}:{result.page_type}"
             page.classification_confidence = min(
                 result.discipline_confidence,
@@ -209,8 +206,7 @@ def classify_page_task(
             page.status = "completed"
 
             # Save to classification history for BI tracking
-            self.update_state(state="PROGRESS", meta={"percent": 90, "step": "Saving classification history"})
-            TaskTracker.update_progress_sync(db, self.request.id, 90, "Saving classification history")
+            _report_progress(self, db, 90, "Saving classification history")
             history_entry = ClassificationHistory(
                 page_id=uuid.UUID(page_id),
                 classification=f"{result.discipline}:{result.page_type}",

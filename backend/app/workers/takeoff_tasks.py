@@ -25,6 +25,7 @@ from app.services.task_tracker import TaskTracker
 from app.utils.storage import get_storage_service
 from app.utils.geometry import MeasurementCalculator
 from app.workers.celery_app import celery_app
+from app.workers.progress import report_progress as _report_progress
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -38,12 +39,6 @@ sync_engine = create_engine(
     max_overflow=10,
 )
 SyncSession = sessionmaker(bind=sync_engine)
-
-
-def _report_progress(task, db, percent: float, step: str) -> None:
-    """Send progress updates to Celery and the DB."""
-    task.update_state(state="PROGRESS", meta={"percent": percent, "step": step})
-    TaskTracker.update_progress_sync(db, task.request.id, percent, step)
 
 
 def create_measurement_from_element(
