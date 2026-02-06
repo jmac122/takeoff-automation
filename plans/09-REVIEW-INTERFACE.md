@@ -1,61 +1,74 @@
-# Phase 4B: Review Interface
-## Human Review and Refinement UI
+# Phase 4B Enhanced: Review Interface
+## Human QA Workflow with Efficiency Optimizations
 
 > **Duration**: Weeks 20-26
 > **Prerequisites**: AI takeoff generation working (Phase 4A)
-> **Outcome**: Complete review workflow with approval, rejection, editing, and QA verification
+> **Outcome**: Efficient review interface with keyboard navigation, auto-accept, and productivity tools
 
 ---
 
 ## Context for LLM Assistant
 
-You are implementing the human review interface for a construction takeoff platform. This phase enables:
-- Side-by-side comparison of AI-generated measurements with original drawings
-- Approve/reject individual measurements
-- Edit and refine AI-generated geometry
-- QA verification workflow for quality control
-- Bulk operations for efficient review
+You are implementing an enhanced review interface for AI-generated measurements. This builds on the base review workflow with efficiency features inspired by professional takeoff tools like Kreo.net.
 
-### Review Workflow
+### Review Workflow Overview
+
+AI generates measurements with confidence scores. Humans review them:
 
 ```
-1. AI generates measurements (Phase 4A)
-2. Estimator reviews each measurement
-   - Approve: Mark as verified
-   - Reject: Delete measurement
-   - Edit: Modify geometry/quantity
-3. QA reviewer verifies estimator's work
-4. Export approved takeoff
+AI Detection (75% accurate)
+    ↓
+┌─────────────────────────────────────────────────────┐
+│  REVIEW QUEUE                                        │
+│  ┌─────────────────────────────────────────────────┐│
+│  │ High Confidence (>90%)  → Auto-Accept Option    ││
+│  │ Medium Confidence (70-90%) → Quick Review       ││
+│  │ Low Confidence (<70%)   → Detailed Review       ││
+│  └─────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────────────────┐
+│  REVIEWER ACTIONS                                    │
+│  [A] Approve  [R] Reject  [E] Edit  [N] Next [P] Prev│
+│  [1-9] Quick confidence override                     │
+│  [Space] Toggle selection  [Enter] Confirm batch     │
+└─────────────────────────────────────────────────────┘
+    ↓
+Verified Measurements → Export
 ```
 
-### Measurement States
+### Key Enhancement Features
 
-| State | Description | Who Sets |
-|-------|-------------|----------|
-| `pending` | AI-generated, not reviewed | System |
-| `approved` | Estimator approved | Estimator |
-| `rejected` | Estimator rejected (deleted) | Estimator |
-| `modified` | Estimator edited geometry | Estimator |
-| `verified` | QA reviewer verified | QA Reviewer |
-| `flagged` | QA flagged for re-review | QA Reviewer |
+| Feature | Description | Benefit |
+|---------|-------------|---------|
+| **Auto-Accept Threshold** | Auto-approve detections >90% confidence | Reduce review time 50%+ |
+| **Keyboard Shortcuts** | A/R/E/N/P for rapid navigation | 3x faster than mouse |
+| **Confidence Filtering** | Show lowest confidence first | Focus on problem areas |
+| **Quick Adjust Tools** | Nudge, snap, extend with keys | Precise edits without dialogs |
+| **Batch Operations** | Select multiple, apply action | Handle groups efficiently |
+| **Split View Comparison** | AI vs Final side-by-side | Verify changes visually |
+| **Measurement History** | Full audit trail | Track who changed what |
 
 ---
 
-## Database Updates
+## Database Model Enhancements
 
-### Task 9.1: Add Review Fields to Models
+### Task 9.1: Enhanced Measurement Model
 
 Update `backend/app/models/measurement.py`:
 
 ```python
-"""Updated Measurement model with review fields."""
+"""Enhanced measurement model with review tracking."""
 
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import String, Float, Integer, Boolean, ForeignKey, Text, DateTime
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import (
+    String, Float, Integer, Boolean, ForeignKey, Text,
+    Enum as SQLEnum, Index
+)
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
@@ -65,10 +78,31 @@ if TYPE_CHECKING:
     from app.models.page import Page
 
 
+class ReviewStatus(str):
+    """Review status enumeration."""
+    PENDING = "pending"
+    APPROVED = "approved"
+    MODIFIED = "modified"
+    REJECTED = "rejected"
+    VERIFIED = "verified"
+    FLAGGED = "flagged"
+
+
 class Measurement(Base, UUIDMixin, TimestampMixin):
-    """Individual measurement (geometric shape) on a page."""
+    """
+    A measurement taken from a construction plan.
+    
+    Enhanced with comprehensive review tracking fields.
+    """
 
     __tablename__ = "measurements"
+    
+    # Indexes for common queries
+    __table_args__ = (
+        Index('ix_measurements_review_status', 'review_status'),
+        Index('ix_measurements_ai_confidence', 'ai_confidence'),
+        Index('ix_measurements_condition_status', 'condition_id', 'review_status'),
+    )
 
     # Foreign keys
     condition_id: Mapped[uuid.UUID] = mapped_column(
@@ -84,110 +118,152 @@ class Measurement(Base, UUIDMixin, TimestampMixin):
 
     # Geometry
     geometry_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    geometry_data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    geometry_data: Mapped[dict] = mapped_column(JSONB, nullable=False)
     
     # Calculated values
     quantity: Mapped[float] = mapped_column(Float, nullable=False)
     unit: Mapped[str] = mapped_column(String(50), nullable=False)
-    pixel_length: Mapped[float | None] = mapped_column(Float, nullable=True)
-    pixel_area: Mapped[float | None] = mapped_column(Float, nullable=True)
     
-    # AI generation tracking
+    # AI generation info
     is_ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
     ai_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     ai_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ai_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ai_prompt_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    
+    # ===== REVIEW FIELDS (Enhanced) =====
     
     # Review status
     review_status: Mapped[str] = mapped_column(
         String(50),
-        default="pending",
-        nullable=False,
-    )  # pending, approved, modified, verified, flagged
+        default=ReviewStatus.PENDING,
+        index=True,
+    )
     
-    # Estimator review
+    # Who reviewed and when
     reviewed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     
-    # QA verification
+    # Second-level verification (QA)
     verified_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    verification_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
     
-    # Original geometry (for tracking changes)
+    # Store original AI geometry before human edits
     original_geometry: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     original_quantity: Mapped[float | None] = mapped_column(Float, nullable=True)
     
-    # Flags
-    is_modified: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_flagged: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Rejection/flag info
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     flag_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    flag_priority: Mapped[str | None] = mapped_column(String(50), nullable=True)
     
-    # Notes
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Review notes
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    # Auto-accept tracking
+    was_auto_accepted: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_accept_threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+    
+    # Edit tracking
+    edit_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_edited_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_edited_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    
+    # Geometry change tracking
+    geometry_changes: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)
+    
+    # Display properties
+    color: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # Metadata
     metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Relationships
     condition: Mapped["Condition"] = relationship("Condition", back_populates="measurements")
     page: Mapped["Page"] = relationship("Page", back_populates="measurements")
-```
+    history: Mapped[list["MeasurementHistory"]] = relationship(
+        "MeasurementHistory",
+        back_populates="measurement",
+        cascade="all, delete-orphan",
+        order_by="MeasurementHistory.created_at.desc()",
+    )
 
-Create migration:
 
-```bash
-alembic revision --autogenerate -m "add_review_fields_to_measurements"
-alembic upgrade head
-```
+class MeasurementHistory(Base, UUIDMixin, TimestampMixin):
+    """
+    Audit trail for measurement changes.
+    
+    Records every change to a measurement for compliance and debugging.
+    """
 
----
+    __tablename__ = "measurement_history"
 
-### Task 9.2: Review Statistics Model
+    measurement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("measurements.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    
+    # What changed
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    # created, approved, rejected, modified, verified, flagged, unflagged
+    
+    # Who made the change
+    actor: Mapped[str] = mapped_column(String(255), nullable=False)
+    actor_type: Mapped[str] = mapped_column(String(50), default="user")
+    # user, system, auto_accept
+    
+    # Previous and new values
+    previous_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    new_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    
+    # For geometry changes
+    previous_geometry: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    new_geometry: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    previous_quantity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    new_quantity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    
+    # Change details
+    change_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    change_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    # Context
+    session_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    
+    # Metadata
+    metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-Create `backend/app/models/review_session.py`:
-
-```python
-"""Review session tracking model."""
-
-import uuid
-from datetime import datetime
-from typing import TYPE_CHECKING
-
-from sqlalchemy import String, Integer, Float, ForeignKey, DateTime, Text
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.models.base import Base, TimestampMixin, UUIDMixin
+    # Relationships
+    measurement: Mapped["Measurement"] = relationship(
+        "Measurement",
+        back_populates="history",
+    )
 
 
 class ReviewSession(Base, UUIDMixin, TimestampMixin):
-    """Tracks a review session for analytics and audit."""
+    """
+    A review session for tracking reviewer productivity.
+    
+    Groups review actions into sessions for analytics.
+    """
 
     __tablename__ = "review_sessions"
 
-    # Foreign keys
+    # Session info
+    reviewer: Mapped[str] = mapped_column(String(255), nullable=False)
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
-
-    # Session info
-    reviewer_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    reviewer_role: Mapped[str] = mapped_column(
-        String(50),
-        default="estimator",
-    )  # estimator, qa_reviewer
     
     # Timing
-    started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
+    started_at: Mapped[datetime] = mapped_column(nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(nullable=True)
     
     # Statistics
     measurements_reviewed: Mapped[int] = mapped_column(Integer, default=0)
@@ -196,74 +272,161 @@ class ReviewSession(Base, UUIDMixin, TimestampMixin):
     measurements_modified: Mapped[int] = mapped_column(Integer, default=0)
     measurements_flagged: Mapped[int] = mapped_column(Integer, default=0)
     
-    # AI accuracy tracking
-    ai_measurements_reviewed: Mapped[int] = mapped_column(Integer, default=0)
-    ai_measurements_accepted: Mapped[int] = mapped_column(Integer, default=0)
-    ai_accuracy_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Auto-accept stats
+    auto_accepted_count: Mapped[int] = mapped_column(Integer, default=0)
+    auto_accept_threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+    
+    # Time tracking
+    total_review_time_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    avg_time_per_measurement_seconds: Mapped[float] = mapped_column(Float, default=0)
+    
+    # Session settings used
+    settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     
     # Notes
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    
-    # Metadata
-    session_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 ```
 
 ---
 
-## Review Service
-
-### Task 9.3: Review Service Implementation
+### Task 9.2: Review Service
 
 Create `backend/app/services/review_service.py`:
 
 ```python
-"""Review service for measurement approval and verification."""
+"""Review service for measurement QA workflow."""
 
 import uuid
 from datetime import datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.models.measurement import Measurement
+from app.models.measurement import (
+    Measurement, MeasurementHistory, ReviewSession, ReviewStatus
+)
 from app.models.condition import Condition
-from app.models.review_session import ReviewSession
-from app.services.measurement_engine import get_measurement_engine
+from app.models.page import Page
 
 logger = structlog.get_logger()
 
 
 class ReviewService:
-    """Service for reviewing and verifying measurements."""
-
+    """Service for managing measurement review workflow."""
+    
+    async def get_review_queue(
+        self,
+        session: AsyncSession,
+        project_id: uuid.UUID,
+        filters: dict[str, Any] | None = None,
+        sort_by: str = "confidence_asc",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[Measurement], int]:
+        """
+        Get measurements pending review.
+        
+        Args:
+            session: Database session
+            project_id: Project to get measurements for
+            filters: Optional filters (status, confidence_range, page_id, etc.)
+            sort_by: Sort order (confidence_asc, confidence_desc, created_at, page_order)
+            limit: Maximum results
+            offset: Pagination offset
+            
+        Returns:
+            Tuple of (measurements, total_count)
+        """
+        filters = filters or {}
+        
+        # Base query - join through condition to get project measurements
+        query = (
+            select(Measurement)
+            .join(Condition)
+            .where(Condition.project_id == project_id)
+        )
+        
+        # Apply filters
+        if filters.get("status"):
+            if isinstance(filters["status"], list):
+                query = query.where(Measurement.review_status.in_(filters["status"]))
+            else:
+                query = query.where(Measurement.review_status == filters["status"])
+        
+        if filters.get("min_confidence") is not None:
+            query = query.where(Measurement.ai_confidence >= filters["min_confidence"])
+        
+        if filters.get("max_confidence") is not None:
+            query = query.where(Measurement.ai_confidence <= filters["max_confidence"])
+        
+        if filters.get("page_id"):
+            query = query.where(Measurement.page_id == filters["page_id"])
+        
+        if filters.get("condition_id"):
+            query = query.where(Measurement.condition_id == filters["condition_id"])
+        
+        if filters.get("is_ai_generated") is not None:
+            query = query.where(Measurement.is_ai_generated == filters["is_ai_generated"])
+        
+        if filters.get("is_flagged"):
+            query = query.where(Measurement.review_status == ReviewStatus.FLAGGED)
+        
+        # Get total count
+        count_query = select(func.count()).select_from(query.subquery())
+        total = (await session.execute(count_query)).scalar()
+        
+        # Apply sorting
+        if sort_by == "confidence_asc":
+            query = query.order_by(Measurement.ai_confidence.asc().nulls_last())
+        elif sort_by == "confidence_desc":
+            query = query.order_by(Measurement.ai_confidence.desc().nulls_first())
+        elif sort_by == "created_at":
+            query = query.order_by(Measurement.created_at.desc())
+        elif sort_by == "page_order":
+            query = query.join(Page).order_by(Page.page_number, Measurement.sort_order)
+        
+        # Apply pagination
+        query = query.offset(offset).limit(limit)
+        
+        # Execute
+        result = await session.execute(query)
+        measurements = result.scalars().all()
+        
+        return list(measurements), total
+    
     async def approve_measurement(
         self,
         session: AsyncSession,
         measurement_id: uuid.UUID,
-        reviewer_name: str,
+        reviewer: str,
         notes: str | None = None,
     ) -> Measurement:
-        """Approve a measurement (estimator review).
-        
-        Args:
-            session: Database session
-            measurement_id: Measurement to approve
-            reviewer_name: Name of reviewer
-            notes: Optional review notes
-            
-        Returns:
-            Updated measurement
-        """
+        """Approve a measurement."""
         measurement = await session.get(Measurement, measurement_id)
         if not measurement:
             raise ValueError(f"Measurement not found: {measurement_id}")
         
-        measurement.review_status = "approved"
-        measurement.reviewed_by = reviewer_name
+        previous_status = measurement.review_status
+        
+        measurement.review_status = ReviewStatus.APPROVED
+        measurement.reviewed_by = reviewer
         measurement.reviewed_at = datetime.utcnow()
         measurement.review_notes = notes
+        
+        # Record history
+        history = MeasurementHistory(
+            measurement_id=measurement_id,
+            action="approved",
+            actor=reviewer,
+            actor_type="user",
+            previous_status=previous_status,
+            new_status=ReviewStatus.APPROVED,
+            change_description="Measurement approved by reviewer",
+        )
+        session.add(history)
         
         await session.commit()
         await session.refresh(measurement)
@@ -271,377 +434,418 @@ class ReviewService:
         logger.info(
             "Measurement approved",
             measurement_id=str(measurement_id),
-            reviewer=reviewer_name,
+            reviewer=reviewer,
         )
         
         return measurement
-
+    
     async def reject_measurement(
         self,
         session: AsyncSession,
         measurement_id: uuid.UUID,
-        reviewer_name: str,
-        reason: str | None = None,
-    ) -> None:
-        """Reject and delete a measurement.
-        
-        Args:
-            session: Database session
-            measurement_id: Measurement to reject
-            reviewer_name: Name of reviewer
-            reason: Reason for rejection
-        """
+        reviewer: str,
+        reason: str,
+    ) -> Measurement:
+        """Reject a measurement."""
         measurement = await session.get(Measurement, measurement_id)
         if not measurement:
             raise ValueError(f"Measurement not found: {measurement_id}")
         
-        condition_id = measurement.condition_id
+        previous_status = measurement.review_status
         
-        logger.info(
-            "Measurement rejected",
-            measurement_id=str(measurement_id),
-            reviewer=reviewer_name,
-            reason=reason,
+        measurement.review_status = ReviewStatus.REJECTED
+        measurement.reviewed_by = reviewer
+        measurement.reviewed_at = datetime.utcnow()
+        measurement.rejection_reason = reason
+        
+        # Record history
+        history = MeasurementHistory(
+            measurement_id=measurement_id,
+            action="rejected",
+            actor=reviewer,
+            actor_type="user",
+            previous_status=previous_status,
+            new_status=ReviewStatus.REJECTED,
+            change_description=f"Measurement rejected: {reason}",
+            change_reason=reason,
         )
-        
-        await session.delete(measurement)
-        
-        # Update condition totals
-        condition = await session.get(Condition, condition_id)
-        if condition:
-            await self._update_condition_totals(session, condition)
+        session.add(history)
         
         await session.commit()
-
+        await session.refresh(measurement)
+        
+        return measurement
+    
     async def modify_measurement(
         self,
         session: AsyncSession,
         measurement_id: uuid.UUID,
-        geometry_data: dict[str, Any],
-        reviewer_name: str,
+        reviewer: str,
+        new_geometry: dict,
+        new_quantity: float | None = None,
         notes: str | None = None,
     ) -> Measurement:
-        """Modify a measurement's geometry.
-        
-        Args:
-            session: Database session
-            measurement_id: Measurement to modify
-            geometry_data: New geometry data
-            reviewer_name: Name of reviewer
-            notes: Optional notes
-            
-        Returns:
-            Updated measurement
-        """
+        """Modify a measurement's geometry."""
         measurement = await session.get(Measurement, measurement_id)
         if not measurement:
             raise ValueError(f"Measurement not found: {measurement_id}")
         
-        # Store original if not already stored
-        if not measurement.original_geometry:
-            measurement.original_geometry = measurement.geometry_data
-            measurement.original_quantity = measurement.quantity
+        previous_status = measurement.review_status
+        previous_geometry = measurement.geometry_data.copy()
+        previous_quantity = measurement.quantity
         
-        # Use measurement engine to recalculate
-        engine = get_measurement_engine()
-        measurement = await engine.update_measurement(
-            session=session,
-            measurement_id=measurement_id,
-            geometry_data=geometry_data,
-            notes=notes,
-        )
+        # Store original if first modification
+        if measurement.original_geometry is None:
+            measurement.original_geometry = previous_geometry
+            measurement.original_quantity = previous_quantity
         
-        # Update review status
-        measurement.review_status = "modified"
-        measurement.is_modified = True
-        measurement.reviewed_by = reviewer_name
+        # Track geometry changes
+        change_record = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "actor": reviewer,
+            "previous": previous_geometry,
+            "new": new_geometry,
+        }
+        
+        if measurement.geometry_changes:
+            measurement.geometry_changes.append(change_record)
+        else:
+            measurement.geometry_changes = [change_record]
+        
+        # Update measurement
+        measurement.geometry_data = new_geometry
+        if new_quantity is not None:
+            measurement.quantity = new_quantity
+        
+        measurement.review_status = ReviewStatus.MODIFIED
+        measurement.reviewed_by = reviewer
         measurement.reviewed_at = datetime.utcnow()
+        measurement.edit_count += 1
+        measurement.last_edited_by = reviewer
+        measurement.last_edited_at = datetime.utcnow()
         measurement.review_notes = notes
+        
+        # Record history
+        history = MeasurementHistory(
+            measurement_id=measurement_id,
+            action="modified",
+            actor=reviewer,
+            actor_type="user",
+            previous_status=previous_status,
+            new_status=ReviewStatus.MODIFIED,
+            previous_geometry=previous_geometry,
+            new_geometry=new_geometry,
+            previous_quantity=previous_quantity,
+            new_quantity=new_quantity or measurement.quantity,
+            change_description="Geometry modified by reviewer",
+            change_reason=notes,
+        )
+        session.add(history)
         
         await session.commit()
         await session.refresh(measurement)
         
-        logger.info(
-            "Measurement modified",
-            measurement_id=str(measurement_id),
-            reviewer=reviewer_name,
-        )
-        
         return measurement
-
+    
     async def verify_measurement(
         self,
         session: AsyncSession,
         measurement_id: uuid.UUID,
-        verifier_name: str,
+        verifier: str,
         notes: str | None = None,
     ) -> Measurement:
-        """QA verify a measurement.
-        
-        Args:
-            session: Database session
-            measurement_id: Measurement to verify
-            verifier_name: Name of QA verifier
-            notes: Optional verification notes
-            
-        Returns:
-            Updated measurement
-        """
+        """Second-level verification of a measurement."""
         measurement = await session.get(Measurement, measurement_id)
         if not measurement:
             raise ValueError(f"Measurement not found: {measurement_id}")
         
-        if measurement.review_status not in ("approved", "modified"):
-            raise ValueError("Measurement must be approved before verification")
+        if measurement.review_status not in (ReviewStatus.APPROVED, ReviewStatus.MODIFIED):
+            raise ValueError("Can only verify approved or modified measurements")
         
-        measurement.review_status = "verified"
-        measurement.is_verified = True
-        measurement.verified_by = verifier_name
+        previous_status = measurement.review_status
+        
+        measurement.review_status = ReviewStatus.VERIFIED
+        measurement.verified_by = verifier
         measurement.verified_at = datetime.utcnow()
-        measurement.verification_notes = notes
+        if notes:
+            measurement.review_notes = (measurement.review_notes or "") + f"\nVerification: {notes}"
+        
+        # Record history
+        history = MeasurementHistory(
+            measurement_id=measurement_id,
+            action="verified",
+            actor=verifier,
+            actor_type="user",
+            previous_status=previous_status,
+            new_status=ReviewStatus.VERIFIED,
+            change_description="Measurement verified by QA",
+        )
+        session.add(history)
         
         await session.commit()
         await session.refresh(measurement)
         
-        logger.info(
-            "Measurement verified",
-            measurement_id=str(measurement_id),
-            verifier=verifier_name,
-        )
-        
         return measurement
-
+    
     async def flag_measurement(
         self,
         session: AsyncSession,
         measurement_id: uuid.UUID,
-        verifier_name: str,
+        flagger: str,
         reason: str,
+        priority: str = "normal",
     ) -> Measurement:
-        """Flag a measurement for re-review.
-        
-        Args:
-            session: Database session
-            measurement_id: Measurement to flag
-            verifier_name: Name of QA verifier
-            reason: Reason for flagging
-            
-        Returns:
-            Updated measurement
-        """
+        """Flag a measurement for additional review."""
         measurement = await session.get(Measurement, measurement_id)
         if not measurement:
             raise ValueError(f"Measurement not found: {measurement_id}")
         
-        measurement.review_status = "flagged"
-        measurement.is_flagged = True
+        previous_status = measurement.review_status
+        
+        measurement.review_status = ReviewStatus.FLAGGED
         measurement.flag_reason = reason
-        measurement.verified_by = verifier_name
-        measurement.verified_at = datetime.utcnow()
+        measurement.flag_priority = priority
+        measurement.reviewed_by = flagger
+        measurement.reviewed_at = datetime.utcnow()
+        
+        # Record history
+        history = MeasurementHistory(
+            measurement_id=measurement_id,
+            action="flagged",
+            actor=flagger,
+            actor_type="user",
+            previous_status=previous_status,
+            new_status=ReviewStatus.FLAGGED,
+            change_description=f"Flagged ({priority}): {reason}",
+            change_reason=reason,
+        )
+        session.add(history)
         
         await session.commit()
         await session.refresh(measurement)
         
-        logger.info(
-            "Measurement flagged",
-            measurement_id=str(measurement_id),
-            verifier=verifier_name,
-            reason=reason,
+        return measurement
+    
+    async def auto_accept_high_confidence(
+        self,
+        session: AsyncSession,
+        project_id: uuid.UUID,
+        threshold: float = 0.90,
+        reviewer: str = "system",
+    ) -> int:
+        """
+        Auto-accept all measurements above confidence threshold.
+        
+        Returns count of auto-accepted measurements.
+        """
+        # Get pending high-confidence measurements
+        query = (
+            select(Measurement)
+            .join(Condition)
+            .where(
+                and_(
+                    Condition.project_id == project_id,
+                    Measurement.review_status == ReviewStatus.PENDING,
+                    Measurement.ai_confidence >= threshold,
+                )
+            )
         )
         
-        return measurement
-
+        result = await session.execute(query)
+        measurements = result.scalars().all()
+        
+        count = 0
+        for measurement in measurements:
+            measurement.review_status = ReviewStatus.APPROVED
+            measurement.reviewed_by = reviewer
+            measurement.reviewed_at = datetime.utcnow()
+            measurement.was_auto_accepted = True
+            measurement.auto_accept_threshold = threshold
+            
+            # Record history
+            history = MeasurementHistory(
+                measurement_id=measurement.id,
+                action="approved",
+                actor=reviewer,
+                actor_type="auto_accept",
+                previous_status=ReviewStatus.PENDING,
+                new_status=ReviewStatus.APPROVED,
+                change_description=f"Auto-accepted (confidence {measurement.ai_confidence:.1%} >= {threshold:.1%})",
+                metadata={"threshold": threshold, "confidence": measurement.ai_confidence},
+            )
+            session.add(history)
+            count += 1
+        
+        await session.commit()
+        
+        logger.info(
+            "Auto-accepted measurements",
+            project_id=str(project_id),
+            threshold=threshold,
+            count=count,
+        )
+        
+        return count
+    
     async def bulk_approve(
         self,
         session: AsyncSession,
         measurement_ids: list[uuid.UUID],
-        reviewer_name: str,
-    ) -> dict[str, Any]:
-        """Bulk approve multiple measurements.
-        
-        Returns:
-            Summary of operation
-        """
-        approved_count = 0
-        errors = []
-        
+        reviewer: str,
+    ) -> int:
+        """Bulk approve multiple measurements."""
+        count = 0
         for mid in measurement_ids:
             try:
-                await self.approve_measurement(session, mid, reviewer_name)
-                approved_count += 1
-            except Exception as e:
-                errors.append({"measurement_id": str(mid), "error": str(e)})
-        
-        return {
-            "approved_count": approved_count,
-            "error_count": len(errors),
-            "errors": errors,
-        }
-
-    async def bulk_verify(
+                await self.approve_measurement(session, mid, reviewer)
+                count += 1
+            except ValueError:
+                continue
+        return count
+    
+    async def bulk_reject(
         self,
         session: AsyncSession,
         measurement_ids: list[uuid.UUID],
-        verifier_name: str,
-    ) -> dict[str, Any]:
-        """Bulk verify multiple measurements.
-        
-        Returns:
-            Summary of operation
-        """
-        verified_count = 0
-        errors = []
-        
+        reviewer: str,
+        reason: str,
+    ) -> int:
+        """Bulk reject multiple measurements."""
+        count = 0
         for mid in measurement_ids:
             try:
-                await self.verify_measurement(session, mid, verifier_name)
-                verified_count += 1
-            except Exception as e:
-                errors.append({"measurement_id": str(mid), "error": str(e)})
-        
-        return {
-            "verified_count": verified_count,
-            "error_count": len(errors),
-            "errors": errors,
-        }
-
+                await self.reject_measurement(session, mid, reviewer, reason)
+                count += 1
+            except ValueError:
+                continue
+        return count
+    
     async def get_review_statistics(
         self,
         session: AsyncSession,
         project_id: uuid.UUID,
     ) -> dict[str, Any]:
-        """Get review statistics for a project.
-        
-        Returns:
-            Statistics dictionary
-        """
-        # Get counts by status
-        result = await session.execute(
+        """Get review statistics for a project."""
+        # Count by status
+        status_query = (
             select(
                 Measurement.review_status,
-                func.count(Measurement.id),
+                func.count(Measurement.id).label("count"),
             )
             .join(Condition)
             .where(Condition.project_id == project_id)
             .group_by(Measurement.review_status)
         )
-        status_counts = {row[0]: row[1] for row in result.all()}
         
-        # Get AI accuracy stats
-        result = await session.execute(
+        status_result = await session.execute(status_query)
+        status_counts = {row.review_status: row.count for row in status_result}
+        
+        # AI accuracy (approved vs total AI)
+        ai_query = (
             select(
-                func.count(Measurement.id).filter(Measurement.is_ai_generated == True),
+                func.count(Measurement.id).label("total"),
                 func.count(Measurement.id).filter(
-                    and_(
-                        Measurement.is_ai_generated == True,
-                        Measurement.review_status.in_(["approved", "verified"]),
-                    )
-                ),
+                    Measurement.review_status.in_([
+                        ReviewStatus.APPROVED,
+                        ReviewStatus.VERIFIED,
+                    ])
+                ).label("approved"),
                 func.count(Measurement.id).filter(
-                    and_(
-                        Measurement.is_ai_generated == True,
-                        Measurement.is_modified == True,
-                    )
-                ),
+                    Measurement.review_status == ReviewStatus.REJECTED
+                ).label("rejected"),
+                func.count(Measurement.id).filter(
+                    Measurement.review_status == ReviewStatus.MODIFIED
+                ).label("modified"),
             )
             .join(Condition)
-            .where(Condition.project_id == project_id)
+            .where(
+                and_(
+                    Condition.project_id == project_id,
+                    Measurement.is_ai_generated == True,
+                )
+            )
         )
-        ai_stats = result.one()
         
-        ai_total = ai_stats[0]
-        ai_accepted = ai_stats[1]
-        ai_modified = ai_stats[2]
+        ai_result = (await session.execute(ai_query)).one()
+        
+        total_ai = ai_result.total
+        if total_ai > 0:
+            ai_accuracy = (ai_result.approved / total_ai) * 100
+            ai_rejection_rate = (ai_result.rejected / total_ai) * 100
+            ai_modification_rate = (ai_result.modified / total_ai) * 100
+        else:
+            ai_accuracy = ai_rejection_rate = ai_modification_rate = 0
+        
+        # Auto-accept stats
+        auto_query = (
+            select(func.count(Measurement.id))
+            .join(Condition)
+            .where(
+                and_(
+                    Condition.project_id == project_id,
+                    Measurement.was_auto_accepted == True,
+                )
+            )
+        )
+        auto_accepted = (await session.execute(auto_query)).scalar()
+        
+        # Confidence distribution
+        conf_query = (
+            select(
+                func.count(Measurement.id).filter(Measurement.ai_confidence >= 0.9).label("high"),
+                func.count(Measurement.id).filter(
+                    and_(Measurement.ai_confidence >= 0.7, Measurement.ai_confidence < 0.9)
+                ).label("medium"),
+                func.count(Measurement.id).filter(Measurement.ai_confidence < 0.7).label("low"),
+            )
+            .join(Condition)
+            .where(
+                and_(
+                    Condition.project_id == project_id,
+                    Measurement.is_ai_generated == True,
+                )
+            )
+        )
+        
+        conf_result = (await session.execute(conf_query)).one()
         
         return {
             "status_counts": status_counts,
             "total_measurements": sum(status_counts.values()),
-            "pending_review": status_counts.get("pending", 0),
-            "approved": status_counts.get("approved", 0),
-            "modified": status_counts.get("modified", 0),
-            "verified": status_counts.get("verified", 0),
-            "flagged": status_counts.get("flagged", 0),
+            "pending_count": status_counts.get(ReviewStatus.PENDING, 0),
             "ai_statistics": {
-                "total_ai_generated": ai_total,
-                "ai_accepted_as_is": ai_accepted - ai_modified,
-                "ai_modified": ai_modified,
-                "ai_accuracy_rate": (ai_accepted / ai_total * 100) if ai_total > 0 else 0,
+                "total_ai_generated": total_ai,
+                "accuracy_percent": round(ai_accuracy, 1),
+                "rejection_rate_percent": round(ai_rejection_rate, 1),
+                "modification_rate_percent": round(ai_modification_rate, 1),
+            },
+            "auto_accept": {
+                "count": auto_accepted,
+                "percent_of_ai": round((auto_accepted / total_ai * 100) if total_ai > 0 else 0, 1),
+            },
+            "confidence_distribution": {
+                "high_confidence": conf_result.high,
+                "medium_confidence": conf_result.medium,
+                "low_confidence": conf_result.low,
             },
         }
-
-    async def get_pending_review_items(
+    
+    async def get_measurement_history(
         self,
         session: AsyncSession,
-        project_id: uuid.UUID,
-        page_id: uuid.UUID | None = None,
-        condition_id: uuid.UUID | None = None,
-        limit: int = 50,
-    ) -> list[Measurement]:
-        """Get measurements pending review.
-        
-        Args:
-            session: Database session
-            project_id: Project ID
-            page_id: Optional filter by page
-            condition_id: Optional filter by condition
-            limit: Maximum items to return
-            
-        Returns:
-            List of pending measurements
-        """
-        query = (
-            select(Measurement)
-            .join(Condition)
-            .where(Condition.project_id == project_id)
-            .where(Measurement.review_status == "pending")
-        )
-        
-        if page_id:
-            query = query.where(Measurement.page_id == page_id)
-        if condition_id:
-            query = query.where(Measurement.condition_id == condition_id)
-        
-        query = query.order_by(Measurement.created_at).limit(limit)
-        
-        result = await session.execute(query)
-        return list(result.scalars().all())
-
-    async def get_flagged_items(
-        self,
-        session: AsyncSession,
-        project_id: uuid.UUID,
-    ) -> list[Measurement]:
-        """Get all flagged measurements for a project."""
+        measurement_id: uuid.UUID,
+    ) -> list[MeasurementHistory]:
+        """Get full history for a measurement."""
         result = await session.execute(
-            select(Measurement)
-            .join(Condition)
-            .where(Condition.project_id == project_id)
-            .where(Measurement.is_flagged == True)
-            .order_by(Measurement.verified_at.desc())
+            select(MeasurementHistory)
+            .where(MeasurementHistory.measurement_id == measurement_id)
+            .order_by(MeasurementHistory.created_at.desc())
         )
         return list(result.scalars().all())
-
-    async def _update_condition_totals(
-        self,
-        session: AsyncSession,
-        condition: Condition,
-    ) -> None:
-        """Update condition's denormalized totals."""
-        result = await session.execute(
-            select(
-                func.sum(Measurement.quantity),
-                func.count(Measurement.id),
-            ).where(Measurement.condition_id == condition.id)
-        )
-        row = result.one()
-        
-        condition.total_quantity = row[0] or 0.0
-        condition.measurement_count = row[1] or 0
 
 
 # Singleton
 _service: ReviewService | None = None
-
 
 def get_review_service() -> ReviewService:
     """Get the review service singleton."""
@@ -653,40 +857,91 @@ def get_review_service() -> ReviewService:
 
 ---
 
-## API Endpoints
-
-### Task 9.4: Review API Routes
+### Task 9.3: Review API Endpoints
 
 Create `backend/app/api/routes/review.py`:
 
 ```python
-"""Review endpoints."""
+"""Review workflow API endpoints."""
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.models.measurement import Measurement
-from app.models.condition import Condition
-from app.models.project import Project
 from app.schemas.review import (
+    ReviewQueueResponse,
     ApproveRequest,
     RejectRequest,
     ModifyRequest,
     VerifyRequest,
     FlagRequest,
-    BulkApproveRequest,
-    BulkVerifyRequest,
+    BulkActionRequest,
+    AutoAcceptRequest,
     ReviewStatisticsResponse,
-    PendingReviewResponse,
+    MeasurementHistoryResponse,
 )
 from app.services.review_service import get_review_service
 
 router = APIRouter()
+
+
+@router.get("/projects/{project_id}/review-queue", response_model=ReviewQueueResponse)
+async def get_review_queue(
+    project_id: uuid.UUID,
+    status_filter: list[str] | None = Query(None, alias="status"),
+    min_confidence: float | None = Query(None),
+    max_confidence: float | None = Query(None),
+    page_id: uuid.UUID | None = Query(None),
+    condition_id: uuid.UUID | None = Query(None),
+    is_flagged: bool | None = Query(None),
+    sort_by: str = Query("confidence_asc"),
+    limit: int = Query(50, le=200),
+    offset: int = Query(0),
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+):
+    """
+    Get measurements pending review.
+    
+    Sort options:
+    - confidence_asc: Lowest confidence first (recommended for review)
+    - confidence_desc: Highest confidence first
+    - created_at: Newest first
+    - page_order: By page number and position
+    """
+    service = get_review_service()
+    
+    filters = {}
+    if status_filter:
+        filters["status"] = status_filter
+    if min_confidence is not None:
+        filters["min_confidence"] = min_confidence
+    if max_confidence is not None:
+        filters["max_confidence"] = max_confidence
+    if page_id:
+        filters["page_id"] = page_id
+    if condition_id:
+        filters["condition_id"] = condition_id
+    if is_flagged is not None:
+        filters["is_flagged"] = is_flagged
+    
+    measurements, total = await service.get_review_queue(
+        session=db,
+        project_id=project_id,
+        filters=filters,
+        sort_by=sort_by,
+        limit=limit,
+        offset=offset,
+    )
+    
+    return ReviewQueueResponse(
+        measurements=measurements,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post("/measurements/{measurement_id}/approve")
@@ -695,22 +950,17 @@ async def approve_measurement(
     request: ApproveRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Approve a measurement (estimator review)."""
+    """Approve a measurement."""
     service = get_review_service()
     
     try:
         measurement = await service.approve_measurement(
             session=db,
             measurement_id=measurement_id,
-            reviewer_name=request.reviewer_name,
+            reviewer=request.reviewer,
             notes=request.notes,
         )
-        return {
-            "status": "approved",
-            "measurement_id": str(measurement_id),
-            "reviewed_by": measurement.reviewed_by,
-            "reviewed_at": measurement.reviewed_at.isoformat(),
-        }
+        return {"status": "approved", "measurement_id": str(measurement_id)}
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -724,20 +974,17 @@ async def reject_measurement(
     request: RejectRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Reject and delete a measurement."""
+    """Reject a measurement."""
     service = get_review_service()
     
     try:
-        await service.reject_measurement(
+        measurement = await service.reject_measurement(
             session=db,
             measurement_id=measurement_id,
-            reviewer_name=request.reviewer_name,
+            reviewer=request.reviewer,
             reason=request.reason,
         )
-        return {
-            "status": "rejected",
-            "measurement_id": str(measurement_id),
-        }
+        return {"status": "rejected", "measurement_id": str(measurement_id)}
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -758,15 +1005,15 @@ async def modify_measurement(
         measurement = await service.modify_measurement(
             session=db,
             measurement_id=measurement_id,
-            geometry_data=request.geometry_data,
-            reviewer_name=request.reviewer_name,
+            reviewer=request.reviewer,
+            new_geometry=request.geometry,
+            new_quantity=request.quantity,
             notes=request.notes,
         )
         return {
             "status": "modified",
             "measurement_id": str(measurement_id),
             "new_quantity": measurement.quantity,
-            "reviewed_by": measurement.reviewed_by,
         }
     except ValueError as e:
         raise HTTPException(
@@ -781,22 +1028,17 @@ async def verify_measurement(
     request: VerifyRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """QA verify a measurement."""
+    """Second-level verification of a measurement."""
     service = get_review_service()
     
     try:
         measurement = await service.verify_measurement(
             session=db,
             measurement_id=measurement_id,
-            verifier_name=request.verifier_name,
+            verifier=request.verifier,
             notes=request.notes,
         )
-        return {
-            "status": "verified",
-            "measurement_id": str(measurement_id),
-            "verified_by": measurement.verified_by,
-            "verified_at": measurement.verified_at.isoformat(),
-        }
+        return {"status": "verified", "measurement_id": str(measurement_id)}
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -810,145 +1052,136 @@ async def flag_measurement(
     request: FlagRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Flag a measurement for re-review."""
+    """Flag a measurement for additional review."""
     service = get_review_service()
     
     try:
         measurement = await service.flag_measurement(
             session=db,
             measurement_id=measurement_id,
-            verifier_name=request.verifier_name,
+            flagger=request.flagger,
             reason=request.reason,
+            priority=request.priority,
         )
-        return {
-            "status": "flagged",
-            "measurement_id": str(measurement_id),
-            "flag_reason": measurement.flag_reason,
-        }
+        return {"status": "flagged", "measurement_id": str(measurement_id)}
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
 
 
-@router.post("/projects/{project_id}/bulk-approve")
-async def bulk_approve_measurements(
+@router.post("/projects/{project_id}/review/bulk-approve")
+async def bulk_approve(
     project_id: uuid.UUID,
-    request: BulkApproveRequest,
+    request: BulkActionRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Bulk approve multiple measurements."""
     service = get_review_service()
     
-    result = await service.bulk_approve(
+    count = await service.bulk_approve(
         session=db,
         measurement_ids=request.measurement_ids,
-        reviewer_name=request.reviewer_name,
+        reviewer=request.reviewer,
     )
     
-    return result
+    return {"approved_count": count}
 
 
-@router.post("/projects/{project_id}/bulk-verify")
-async def bulk_verify_measurements(
+@router.post("/projects/{project_id}/review/bulk-reject")
+async def bulk_reject(
     project_id: uuid.UUID,
-    request: BulkVerifyRequest,
+    request: BulkActionRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Bulk verify multiple measurements."""
+    """Bulk reject multiple measurements."""
     service = get_review_service()
     
-    result = await service.bulk_verify(
+    if not request.reason:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reason is required for bulk rejection",
+        )
+    
+    count = await service.bulk_reject(
         session=db,
         measurement_ids=request.measurement_ids,
-        verifier_name=request.verifier_name,
+        reviewer=request.reviewer,
+        reason=request.reason,
     )
     
-    return result
+    return {"rejected_count": count}
 
 
-@router.get("/projects/{project_id}/review-statistics", response_model=ReviewStatisticsResponse)
+@router.post("/projects/{project_id}/review/auto-accept")
+async def auto_accept_high_confidence(
+    project_id: uuid.UUID,
+    request: AutoAcceptRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Auto-accept all measurements above confidence threshold."""
+    service = get_review_service()
+    
+    count = await service.auto_accept_high_confidence(
+        session=db,
+        project_id=project_id,
+        threshold=request.threshold,
+        reviewer=request.reviewer or "system",
+    )
+    
+    return {
+        "auto_accepted_count": count,
+        "threshold": request.threshold,
+    }
+
+
+@router.get(
+    "/projects/{project_id}/review/statistics",
+    response_model=ReviewStatisticsResponse,
+)
 async def get_review_statistics(
     project_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Get review statistics for a project."""
-    # Verify project exists
-    result = await db.execute(select(Project.id).where(Project.id == project_id))
-    if not result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
-    
-    service = get_review_service()
-    stats = await service.get_review_statistics(db, project_id)
-    
-    return stats
-
-
-@router.get("/projects/{project_id}/pending-review", response_model=PendingReviewResponse)
-async def get_pending_review(
-    project_id: uuid.UUID,
-    page_id: uuid.UUID | None = None,
-    condition_id: uuid.UUID | None = None,
-    limit: int = 50,
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Get measurements pending review."""
     service = get_review_service()
     
-    measurements = await service.get_pending_review_items(
+    stats = await service.get_review_statistics(
         session=db,
         project_id=project_id,
-        page_id=page_id,
-        condition_id=condition_id,
-        limit=limit,
     )
     
-    return {
-        "measurements": measurements,
-        "total": len(measurements),
-    }
+    return ReviewStatisticsResponse(**stats)
 
 
-@router.get("/projects/{project_id}/flagged")
-async def get_flagged_measurements(
-    project_id: uuid.UUID,
+@router.get(
+    "/measurements/{measurement_id}/history",
+    response_model=list[MeasurementHistoryResponse],
+)
+async def get_measurement_history(
+    measurement_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Get all flagged measurements for a project."""
+    """Get full change history for a measurement."""
     service = get_review_service()
     
-    measurements = await service.get_flagged_items(db, project_id)
+    history = await service.get_measurement_history(
+        session=db,
+        measurement_id=measurement_id,
+    )
     
-    return {
-        "measurements": [
-            {
-                "id": str(m.id),
-                "condition_id": str(m.condition_id),
-                "page_id": str(m.page_id),
-                "quantity": m.quantity,
-                "unit": m.unit,
-                "flag_reason": m.flag_reason,
-                "flagged_by": m.verified_by,
-                "flagged_at": m.verified_at.isoformat() if m.verified_at else None,
-            }
-            for m in measurements
-        ],
-        "total": len(measurements),
-    }
+    return [MeasurementHistoryResponse.model_validate(h) for h in history]
 ```
 
 ---
 
-### Task 9.5: Review Schemas
+### Task 9.4: Review Schemas
 
 Create `backend/app/schemas/review.py`:
 
 ```python
-"""Review schemas."""
+"""Review workflow schemas."""
 
 import uuid
 from datetime import datetime
@@ -957,63 +1190,119 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class MeasurementReviewItem(BaseModel):
+    """Measurement item in review queue."""
+    
+    id: uuid.UUID
+    condition_id: uuid.UUID
+    page_id: uuid.UUID
+    geometry_type: str
+    geometry_data: dict
+    quantity: float
+    unit: str
+    is_ai_generated: bool
+    ai_confidence: float | None
+    review_status: str
+    reviewed_by: str | None
+    reviewed_at: datetime | None
+    original_geometry: dict | None
+    was_auto_accepted: bool
+    edit_count: int
+    
+    # Condition info
+    condition_name: str | None = None
+    condition_color: str | None = None
+    
+    # Page info
+    page_number: int | None = None
+    
+    model_config = {"from_attributes": True}
+
+
+class ReviewQueueResponse(BaseModel):
+    """Review queue response."""
+    
+    measurements: list[MeasurementReviewItem]
+    total: int
+    limit: int
+    offset: int
+
+
 class ApproveRequest(BaseModel):
     """Request to approve a measurement."""
     
-    reviewer_name: str = Field(..., min_length=1)
+    reviewer: str = Field(..., min_length=1)
     notes: str | None = None
 
 
 class RejectRequest(BaseModel):
     """Request to reject a measurement."""
     
-    reviewer_name: str = Field(..., min_length=1)
-    reason: str | None = None
+    reviewer: str = Field(..., min_length=1)
+    reason: str = Field(..., min_length=1)
 
 
 class ModifyRequest(BaseModel):
     """Request to modify a measurement."""
     
-    reviewer_name: str = Field(..., min_length=1)
-    geometry_data: dict[str, Any]
+    reviewer: str = Field(..., min_length=1)
+    geometry: dict = Field(...)
+    quantity: float | None = None
     notes: str | None = None
 
 
 class VerifyRequest(BaseModel):
-    """Request to verify a measurement (QA)."""
+    """Request to verify a measurement."""
     
-    verifier_name: str = Field(..., min_length=1)
+    verifier: str = Field(..., min_length=1)
     notes: str | None = None
 
 
 class FlagRequest(BaseModel):
-    """Request to flag a measurement for re-review."""
+    """Request to flag a measurement."""
     
-    verifier_name: str = Field(..., min_length=1)
+    flagger: str = Field(..., min_length=1)
     reason: str = Field(..., min_length=1)
+    priority: str = Field(default="normal")  # low, normal, high, urgent
 
 
-class BulkApproveRequest(BaseModel):
-    """Request for bulk approval."""
+class BulkActionRequest(BaseModel):
+    """Request for bulk review actions."""
     
-    measurement_ids: list[uuid.UUID]
-    reviewer_name: str = Field(..., min_length=1)
+    measurement_ids: list[uuid.UUID] = Field(..., min_length=1)
+    reviewer: str = Field(..., min_length=1)
+    reason: str | None = None
 
 
-class BulkVerifyRequest(BaseModel):
-    """Request for bulk verification."""
+class AutoAcceptRequest(BaseModel):
+    """Request to auto-accept high confidence measurements."""
     
-    measurement_ids: list[uuid.UUID]
-    verifier_name: str = Field(..., min_length=1)
+    threshold: float = Field(default=0.90, ge=0.5, le=1.0)
+    reviewer: str | None = None
 
 
 class AIStatistics(BaseModel):
-    """AI accuracy statistics."""
+    """AI generation statistics."""
     
     total_ai_generated: int
-    ai_accepted_as_is: int
-    ai_modified: int
-    ai_accuracy_rate: float
+    accuracy_percent: float
+    rejection_rate_percent: float
+    modification_rate_percent: float
+
+
+class AutoAcceptStats(BaseModel):
+    """Auto-accept statistics."""
+    
+    count: int
+    percent_of_ai: float
+
+
+class ConfidenceDistribution(BaseModel):
+    """Confidence score distribution."""
+    
+    high_confidence: int  # >= 90%
+    medium_confidence: int  # 70-89%
+    low_confidence: int  # < 70%
 
 
 class ReviewStatisticsResponse(BaseModel):
@@ -1021,703 +1310,60 @@ class ReviewStatisticsResponse(BaseModel):
     
     status_counts: dict[str, int]
     total_measurements: int
-    pending_review: int
-    approved: int
-    modified: int
-    verified: int
-    flagged: int
+    pending_count: int
     ai_statistics: AIStatistics
+    auto_accept: AutoAcceptStats
+    confidence_distribution: ConfidenceDistribution
 
 
-class MeasurementReviewItem(BaseModel):
-    """Measurement item for review lists."""
+class MeasurementHistoryResponse(BaseModel):
+    """Measurement history item."""
     
     id: uuid.UUID
-    condition_id: uuid.UUID
-    page_id: uuid.UUID
-    geometry_type: str
-    quantity: float
-    unit: str
-    is_ai_generated: bool
-    ai_confidence: float | None
-    review_status: str
+    measurement_id: uuid.UUID
+    action: str
+    actor: str
+    actor_type: str
+    previous_status: str | None
+    new_status: str | None
+    previous_quantity: float | None
+    new_quantity: float | None
+    change_description: str | None
+    change_reason: str | None
     created_at: datetime
-
-
-class PendingReviewResponse(BaseModel):
-    """Pending review items response."""
     
-    measurements: list[MeasurementReviewItem]
-    total: int
+    model_config = {"from_attributes": True}
 ```
 
 ---
 
-## Frontend Components
-
-### Task 9.6: Side-by-Side Review Panel
-
-Create `frontend/src/components/review/ReviewPanel.tsx`:
-
-```tsx
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Check,
-  X,
-  Flag,
-  ChevronLeft,
-  ChevronRight,
-  Edit,
-  Eye,
-  AlertTriangle,
-} from 'lucide-react';
-
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { apiClient } from '@/api/client';
-import { cn } from '@/lib/utils';
-
-interface ReviewPanelProps {
-  projectId: string;
-  pageId: string;
-  conditionId?: string;
-  reviewerName: string;
-  mode: 'estimator' | 'qa';
-  onMeasurementSelect: (id: string) => void;
-}
-
-interface PendingMeasurement {
-  id: string;
-  condition_id: string;
-  page_id: string;
-  geometry_type: string;
-  quantity: number;
-  unit: string;
-  is_ai_generated: boolean;
-  ai_confidence: number | null;
-  review_status: string;
-}
-
-export function ReviewPanel({
-  projectId,
-  pageId,
-  conditionId,
-  reviewerName,
-  mode,
-  onMeasurementSelect,
-}: ReviewPanelProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [showFlagDialog, setShowFlagDialog] = useState(false);
-  const [flagReason, setFlagReason] = useState('');
-  const [notes, setNotes] = useState('');
-
-  const queryClient = useQueryClient();
-
-  const { data: pendingData, isLoading } = useQuery({
-    queryKey: ['pending-review', projectId, pageId, conditionId],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (pageId) params.append('page_id', pageId);
-      if (conditionId) params.append('condition_id', conditionId);
-      
-      const response = await apiClient.get(
-        `/projects/${projectId}/pending-review?${params}`
-      );
-      return response.data as { measurements: PendingMeasurement[]; total: number };
-    },
-  });
-
-  const { data: statsData } = useQuery({
-    queryKey: ['review-stats', projectId],
-    queryFn: async () => {
-      const response = await apiClient.get(
-        `/projects/${projectId}/review-statistics`
-      );
-      return response.data;
-    },
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: async (measurementId: string) => {
-      await apiClient.post(`/measurements/${measurementId}/approve`, {
-        reviewer_name: reviewerName,
-        notes: notes || undefined,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pending-review'] });
-      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['measurements'] });
-      setNotes('');
-      goToNext();
-    },
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: async (measurementId: string) => {
-      await apiClient.post(`/measurements/${measurementId}/reject`, {
-        reviewer_name: reviewerName,
-        reason: notes || undefined,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pending-review'] });
-      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['measurements'] });
-      setNotes('');
-      goToNext();
-    },
-  });
-
-  const verifyMutation = useMutation({
-    mutationFn: async (measurementId: string) => {
-      await apiClient.post(`/measurements/${measurementId}/verify`, {
-        verifier_name: reviewerName,
-        notes: notes || undefined,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pending-review'] });
-      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
-      setNotes('');
-      goToNext();
-    },
-  });
-
-  const flagMutation = useMutation({
-    mutationFn: async (measurementId: string) => {
-      await apiClient.post(`/measurements/${measurementId}/flag`, {
-        verifier_name: reviewerName,
-        reason: flagReason,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pending-review'] });
-      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
-      setShowFlagDialog(false);
-      setFlagReason('');
-      goToNext();
-    },
-  });
-
-  const measurements = pendingData?.measurements || [];
-  const currentMeasurement = measurements[currentIndex];
-
-  const goToNext = () => {
-    if (currentIndex < measurements.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    }
-  };
-
-  const goToPrevious = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-    }
-  };
-
-  // Select measurement for highlighting
-  if (currentMeasurement) {
-    onMeasurementSelect(currentMeasurement.id);
-  }
-
-  if (isLoading) {
-    return <div className="p-4 text-center">Loading review items...</div>;
-  }
-
-  if (measurements.length === 0) {
-    return (
-      <div className="p-4 text-center text-muted-foreground">
-        <Check className="h-8 w-8 mx-auto mb-2 text-green-500" />
-        <p>All measurements reviewed!</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Statistics Header */}
-      {statsData && (
-        <div className="p-3 border-b bg-muted/50">
-          <div className="grid grid-cols-4 gap-2 text-center text-sm">
-            <div>
-              <div className="font-semibold">{statsData.pending_review}</div>
-              <div className="text-xs text-muted-foreground">Pending</div>
-            </div>
-            <div>
-              <div className="font-semibold text-green-600">{statsData.approved}</div>
-              <div className="text-xs text-muted-foreground">Approved</div>
-            </div>
-            <div>
-              <div className="font-semibold text-blue-600">{statsData.verified}</div>
-              <div className="text-xs text-muted-foreground">Verified</div>
-            </div>
-            <div>
-              <div className="font-semibold text-amber-600">{statsData.flagged}</div>
-              <div className="text-xs text-muted-foreground">Flagged</div>
-            </div>
-          </div>
-          
-          {statsData.ai_statistics && statsData.ai_statistics.total_ai_generated > 0 && (
-            <div className="mt-2 text-xs text-center text-muted-foreground">
-              AI Accuracy: {statsData.ai_statistics.ai_accuracy_rate.toFixed(1)}%
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Navigation */}
-      <div className="flex items-center justify-between p-2 border-b">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={goToPrevious}
-          disabled={currentIndex === 0}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <span className="text-sm">
-          {currentIndex + 1} of {measurements.length}
-        </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={goToNext}
-          disabled={currentIndex === measurements.length - 1}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {/* Current Measurement Details */}
-      {currentMeasurement && (
-        <div className="flex-1 overflow-auto p-3 space-y-3">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Badge variant={currentMeasurement.is_ai_generated ? 'secondary' : 'outline'}>
-                {currentMeasurement.is_ai_generated ? 'AI Generated' : 'Manual'}
-              </Badge>
-              {currentMeasurement.ai_confidence && (
-                <Badge variant="outline">
-                  {(currentMeasurement.ai_confidence * 100).toFixed(0)}% confidence
-                </Badge>
-              )}
-            </div>
-
-            <div className="bg-muted p-3 rounded-lg space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Type</span>
-                <span className="font-medium">{currentMeasurement.geometry_type}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Quantity</span>
-                <span className="font-medium">
-                  {currentMeasurement.quantity.toFixed(2)} {currentMeasurement.unit}
-                </span>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm text-muted-foreground">Notes (optional)</label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add review notes..."
-                className="mt-1"
-                rows={2}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Action Buttons */}
-      {currentMeasurement && (
-        <div className="p-3 border-t space-y-2">
-          {mode === 'estimator' ? (
-            <>
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1"
-                  variant="default"
-                  onClick={() => approveMutation.mutate(currentMeasurement.id)}
-                  disabled={approveMutation.isPending}
-                >
-                  <Check className="h-4 w-4 mr-1" />
-                  Approve
-                </Button>
-                <Button
-                  className="flex-1"
-                  variant="destructive"
-                  onClick={() => rejectMutation.mutate(currentMeasurement.id)}
-                  disabled={rejectMutation.isPending}
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Reject
-                </Button>
-              </div>
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={() => {
-                  // TODO: Open edit mode
-                }}
-              >
-                <Edit className="h-4 w-4 mr-1" />
-                Edit Geometry
-              </Button>
-            </>
-          ) : (
-            <>
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1"
-                  variant="default"
-                  onClick={() => verifyMutation.mutate(currentMeasurement.id)}
-                  disabled={verifyMutation.isPending}
-                >
-                  <Check className="h-4 w-4 mr-1" />
-                  Verify
-                </Button>
-                <Button
-                  className="flex-1"
-                  variant="outline"
-                  onClick={() => setShowFlagDialog(true)}
-                >
-                  <Flag className="h-4 w-4 mr-1" />
-                  Flag
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Flag Dialog */}
-      <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Flag for Re-Review</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <label className="text-sm font-medium">Reason</label>
-            <Textarea
-              value={flagReason}
-              onChange={(e) => setFlagReason(e.target.value)}
-              placeholder="Why does this need re-review?"
-              className="mt-1"
-              rows={3}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowFlagDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => currentMeasurement && flagMutation.mutate(currentMeasurement.id)}
-              disabled={!flagReason || flagMutation.isPending}
-            >
-              Flag Measurement
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-```
-
----
-
-### Task 9.7: Side-by-Side Comparison View
-
-Create `frontend/src/components/review/SideBySideView.tsx`:
-
-```tsx
-import { useState, useRef, useEffect } from 'react';
-import { Stage, Layer, Image as KonvaImage, Rect } from 'react-konva';
-import { ZoomIn, ZoomOut, Move, Maximize2 } from 'lucide-react';
-
-import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
-import { MeasurementLayer } from '@/components/viewer/MeasurementLayer';
-
-interface SideBySideViewProps {
-  pageImageUrl: string;
-  pageWidth: number;
-  pageHeight: number;
-  measurements: any[];
-  conditions: Map<string, any>;
-  highlightedMeasurementId: string | null;
-  onMeasurementClick: (id: string) => void;
-}
-
-export function SideBySideView({
-  pageImageUrl,
-  pageWidth,
-  pageHeight,
-  measurements,
-  conditions,
-  highlightedMeasurementId,
-  onMeasurementClick,
-}: SideBySideViewProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
-  const [zoom, setZoom] = useState(1);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [syncedPosition, setSyncedPosition] = useState({ x: 0, y: 0 });
-
-  // Load image
-  useEffect(() => {
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => setImage(img);
-    img.src = pageImageUrl;
-  }, [pageImageUrl]);
-
-  // Resize observer
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        setContainerSize({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height,
-        });
-      }
-    });
-
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  // Calculate scale to fit
-  const halfWidth = containerSize.width / 2 - 10;
-  const scaleToFit = Math.min(
-    halfWidth / pageWidth,
-    containerSize.height / pageHeight
-  );
-
-  // Sync positions between panels
-  const handleDragEnd = (e: any) => {
-    const newPos = { x: e.target.x(), y: e.target.y() };
-    setPosition(newPos);
-    setSyncedPosition(newPos);
-  };
-
-  const handleWheel = (e: any) => {
-    e.evt.preventDefault();
-    const scaleBy = 1.1;
-    const newZoom = e.evt.deltaY > 0 ? zoom / scaleBy : zoom * scaleBy;
-    setZoom(Math.max(0.1, Math.min(5, newZoom)));
-  };
-
-  const resetView = () => {
-    setZoom(1);
-    setPosition({ x: 0, y: 0 });
-    setSyncedPosition({ x: 0, y: 0 });
-  };
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 p-2 border-b">
-        <Button variant="outline" size="icon" onClick={() => setZoom(zoom * 1.2)}>
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => setZoom(zoom / 1.2)}>
-          <ZoomOut className="h-4 w-4" />
-        </Button>
-        <div className="w-32">
-          <Slider
-            value={[zoom * 100]}
-            min={10}
-            max={500}
-            step={10}
-            onValueChange={([value]) => setZoom(value / 100)}
-          />
-        </div>
-        <span className="text-sm text-muted-foreground w-16">
-          {(zoom * 100).toFixed(0)}%
-        </span>
-        <Button variant="outline" size="icon" onClick={resetView}>
-          <Maximize2 className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {/* Side by side panels */}
-      <div ref={containerRef} className="flex-1 flex">
-        {/* Left panel - Original drawing */}
-        <div className="flex-1 border-r relative">
-          <div className="absolute top-2 left-2 z-10 bg-background/80 px-2 py-1 rounded text-sm">
-            Original Drawing
-          </div>
-          <Stage
-            width={halfWidth}
-            height={containerSize.height}
-            scaleX={scaleToFit * zoom}
-            scaleY={scaleToFit * zoom}
-            x={syncedPosition.x}
-            y={syncedPosition.y}
-            draggable
-            onDragEnd={handleDragEnd}
-            onWheel={handleWheel}
-          >
-            <Layer>
-              {image && (
-                <KonvaImage
-                  image={image}
-                  width={pageWidth}
-                  height={pageHeight}
-                />
-              )}
-            </Layer>
-          </Stage>
-        </div>
-
-        {/* Right panel - With measurements */}
-        <div className="flex-1 relative">
-          <div className="absolute top-2 left-2 z-10 bg-background/80 px-2 py-1 rounded text-sm">
-            With Measurements
-          </div>
-          <Stage
-            width={halfWidth}
-            height={containerSize.height}
-            scaleX={scaleToFit * zoom}
-            scaleY={scaleToFit * zoom}
-            x={syncedPosition.x}
-            y={syncedPosition.y}
-            draggable
-            onDragEnd={handleDragEnd}
-            onWheel={handleWheel}
-          >
-            <Layer>
-              {image && (
-                <KonvaImage
-                  image={image}
-                  width={pageWidth}
-                  height={pageHeight}
-                />
-              )}
-            </Layer>
-            <MeasurementLayer
-              measurements={measurements}
-              conditions={conditions}
-              selectedMeasurementId={highlightedMeasurementId}
-              onMeasurementSelect={onMeasurementClick}
-              onMeasurementUpdate={() => {}}
-              isEditing={false}
-              scale={scaleToFit * zoom}
-            />
-            {/* Highlight box for current measurement */}
-            {highlightedMeasurementId && (
-              <Layer>
-                <HighlightBox
-                  measurement={measurements.find(m => m.id === highlightedMeasurementId)}
-                />
-              </Layer>
-            )}
-          </Stage>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HighlightBox({ measurement }: { measurement: any }) {
-  if (!measurement) return null;
-
-  // Calculate bounding box based on geometry
-  const bbox = calculateBoundingBox(measurement.geometry_data, measurement.geometry_type);
-  if (!bbox) return null;
-
-  const padding = 20;
-
-  return (
-    <Rect
-      x={bbox.x - padding}
-      y={bbox.y - padding}
-      width={bbox.width + padding * 2}
-      height={bbox.height + padding * 2}
-      stroke="#FFD700"
-      strokeWidth={3}
-      dash={[10, 5]}
-      fill="rgba(255, 215, 0, 0.1)"
-    />
-  );
-}
-
-function calculateBoundingBox(geometryData: any, geometryType: string) {
-  let points: { x: number; y: number }[] = [];
-
-  if (geometryType === 'polygon' || geometryType === 'polyline') {
-    points = geometryData.points || [];
-  } else if (geometryType === 'line') {
-    points = [geometryData.start, geometryData.end];
-  } else if (geometryType === 'rectangle') {
-    return {
-      x: geometryData.x,
-      y: geometryData.y,
-      width: geometryData.width,
-      height: geometryData.height,
-    };
-  } else if (geometryType === 'circle') {
-    return {
-      x: geometryData.center.x - geometryData.radius,
-      y: geometryData.center.y - geometryData.radius,
-      width: geometryData.radius * 2,
-      height: geometryData.radius * 2,
-    };
-  } else if (geometryType === 'point') {
-    return {
-      x: geometryData.x - 10,
-      y: geometryData.y - 10,
-      width: 20,
-      height: 20,
-    };
-  }
-
-  if (points.length === 0) return null;
-
-  const xs = points.map(p => p.x);
-  const ys = points.map(p => p.y);
-
-  return {
-    x: Math.min(...xs),
-    y: Math.min(...ys),
-    width: Math.max(...xs) - Math.min(...xs),
-    height: Math.max(...ys) - Math.min(...ys),
-  };
-}
-```
-
----
-
-### Task 9.8: Review Workspace Page
+### Task 9.5: Frontend Review Workspace
 
 Create `frontend/src/pages/ReviewWorkspace.tsx`:
 
 ```tsx
-import { useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useHotkeys } from 'react-hotkeys-hook';
+import {
+  Check,
+  X,
+  Edit,
+  ChevronLeft,
+  ChevronRight,
+  Flag,
+  CheckCircle2,
+  Zap,
+  Filter,
+  BarChart3,
+  History,
+  Keyboard,
+} from 'lucide-react';
 
-import { Layout } from '@/components/layout/Layout';
-import { PageBrowser } from '@/components/document/PageBrowser';
-import { ReviewPanel } from '@/components/review/ReviewPanel';
-import { SideBySideView } from '@/components/review/SideBySideView';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -1725,145 +1371,804 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Slider } from '@/components/ui/slider';
+import { SplitView } from '@/components/review/SplitView';
+import { ReviewPanel } from '@/components/review/ReviewPanel';
+import { StatisticsPanel } from '@/components/review/StatisticsPanel';
+import { MeasurementCanvas } from '@/components/canvas/MeasurementCanvas';
 import { apiClient } from '@/api/client';
+import { cn } from '@/lib/utils';
+
+interface Measurement {
+  id: string;
+  condition_id: string;
+  page_id: string;
+  geometry_type: string;
+  geometry_data: any;
+  quantity: number;
+  unit: string;
+  ai_confidence: number | null;
+  review_status: string;
+  original_geometry: any | null;
+  condition_name?: string;
+  condition_color?: string;
+  page_number?: number;
+}
+
+const REVIEWER_NAME = 'Estimator'; // TODO: Get from auth
 
 export function ReviewWorkspace() {
-  const { projectId, documentId } = useParams();
-  const [searchParams] = useSearchParams();
-  
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
-  const [selectedConditionId, setSelectedConditionId] = useState<string | null>(null);
-  const [highlightedMeasurementId, setHighlightedMeasurementId] = useState<string | null>(null);
-  const [reviewMode, setReviewMode] = useState<'estimator' | 'qa'>('estimator');
-  const [reviewerName, setReviewerName] = useState('Estimator'); // TODO: Get from auth
+  const { projectId } = useParams<{ projectId: string }>();
+  const queryClient = useQueryClient();
 
-  // Fetch page data
-  const { data: pageData } = useQuery({
-    queryKey: ['page', selectedPageId],
-    queryFn: async () => {
-      if (!selectedPageId) return null;
-      const response = await apiClient.get(`/pages/${selectedPageId}`);
-      return response.data;
-    },
-    enabled: !!selectedPageId,
-  });
+  // State
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState('confidence_asc');
+  const [statusFilter, setStatusFilter] = useState<string[]>(['pending']);
+  const [confidenceRange, setConfidenceRange] = useState([0, 100]);
+  const [showStats, setShowStats] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [autoAcceptThreshold, setAutoAcceptThreshold] = useState(90);
 
-  // Fetch measurements for page
-  const { data: measurementsData } = useQuery({
-    queryKey: ['measurements', selectedPageId],
+  // Fetch review queue
+  const { data: queueData, isLoading } = useQuery({
+    queryKey: ['review-queue', projectId, sortBy, statusFilter, confidenceRange],
     queryFn: async () => {
-      if (!selectedPageId) return { measurements: [] };
-      const response = await apiClient.get(`/pages/${selectedPageId}/measurements`);
-      return response.data;
-    },
-    enabled: !!selectedPageId,
-  });
+      const params = new URLSearchParams();
+      statusFilter.forEach(s => params.append('status', s));
+      params.set('sort_by', sortBy);
+      params.set('min_confidence', String(confidenceRange[0] / 100));
+      params.set('max_confidence', String(confidenceRange[1] / 100));
+      params.set('limit', '200');
 
-  // Fetch conditions for project
-  const { data: conditionsData } = useQuery({
-    queryKey: ['conditions', projectId],
-    queryFn: async () => {
-      const response = await apiClient.get(`/projects/${projectId}/conditions`);
+      const response = await apiClient.get(
+        `/projects/${projectId}/review-queue?${params}`
+      );
       return response.data;
     },
     enabled: !!projectId,
   });
 
-  const conditions = new Map(
-    (conditionsData?.conditions || []).map((c: any) => [c.id, c])
-  );
+  // Fetch statistics
+  const { data: stats } = useQuery({
+    queryKey: ['review-stats', projectId],
+    queryFn: async () => {
+      const response = await apiClient.get(
+        `/projects/${projectId}/review/statistics`
+      );
+      return response.data;
+    },
+    enabled: !!projectId,
+  });
+
+  const measurements = queueData?.measurements || [];
+  const currentMeasurement = measurements[currentIndex];
+
+  // Mutations
+  const approveMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.post(`/measurements/${id}/approve`, {
+        reviewer: REVIEWER_NAME,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
+      goToNext();
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      await apiClient.post(`/measurements/${id}/reject`, {
+        reviewer: REVIEWER_NAME,
+        reason,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
+      goToNext();
+    },
+  });
+
+  const flagMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      await apiClient.post(`/measurements/${id}/flag`, {
+        flagger: REVIEWER_NAME,
+        reason,
+        priority: 'normal',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      goToNext();
+    },
+  });
+
+  const autoAcceptMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post(
+        `/projects/${projectId}/review/auto-accept`,
+        {
+          threshold: autoAcceptThreshold / 100,
+          reviewer: REVIEWER_NAME,
+        }
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
+      alert(`Auto-accepted ${data.auto_accepted_count} measurements`);
+    },
+  });
+
+  const bulkApproveMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await apiClient.post(`/projects/${projectId}/review/bulk-approve`, {
+        measurement_ids: ids,
+        reviewer: REVIEWER_NAME,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['review-stats'] });
+      setSelectedIds(new Set());
+    },
+  });
+
+  // Navigation
+  const goToNext = useCallback(() => {
+    if (currentIndex < measurements.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  }, [currentIndex, measurements.length]);
+
+  const goToPrevious = useCallback(() => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  }, [currentIndex]);
+
+  // Keyboard shortcuts
+  useHotkeys('a', () => {
+    if (currentMeasurement) {
+      approveMutation.mutate(currentMeasurement.id);
+    }
+  }, { enabled: !!currentMeasurement });
+
+  useHotkeys('r', () => {
+    if (currentMeasurement) {
+      const reason = prompt('Rejection reason:');
+      if (reason) {
+        rejectMutation.mutate({ id: currentMeasurement.id, reason });
+      }
+    }
+  }, { enabled: !!currentMeasurement });
+
+  useHotkeys('e', () => {
+    // Open edit mode
+    console.log('Edit mode');
+  }, { enabled: !!currentMeasurement });
+
+  useHotkeys('f', () => {
+    if (currentMeasurement) {
+      const reason = prompt('Flag reason:');
+      if (reason) {
+        flagMutation.mutate({ id: currentMeasurement.id, reason });
+      }
+    }
+  }, { enabled: !!currentMeasurement });
+
+  useHotkeys('n', goToNext);
+  useHotkeys('right', goToNext);
+  useHotkeys('p', goToPrevious);
+  useHotkeys('left', goToPrevious);
+
+  useHotkeys('space', () => {
+    if (currentMeasurement) {
+      const newSelected = new Set(selectedIds);
+      if (newSelected.has(currentMeasurement.id)) {
+        newSelected.delete(currentMeasurement.id);
+      } else {
+        newSelected.add(currentMeasurement.id);
+      }
+      setSelectedIds(newSelected);
+    }
+  }, { enabled: !!currentMeasurement });
+
+  useHotkeys('enter', () => {
+    if (selectedIds.size > 0) {
+      bulkApproveMutation.mutate(Array.from(selectedIds));
+    }
+  });
+
+  useHotkeys('?', () => setShowShortcuts(true));
+
+  // Progress
+  const reviewedCount = stats?.total_measurements - stats?.pending_count || 0;
+  const totalCount = stats?.total_measurements || 0;
+  const progressPercent = totalCount > 0 ? (reviewedCount / totalCount) * 100 : 0;
 
   return (
-    <Layout>
-      <div className="flex h-[calc(100vh-64px)]">
-        {/* Left sidebar - Page browser */}
-        <div className="w-64 border-r flex flex-col">
-          <div className="p-3 border-b">
-            <h2 className="font-semibold">Pages</h2>
+    <div className="h-screen flex flex-col bg-background">
+      {/* Header */}
+      <header className="h-14 border-b px-4 flex items-center justify-between bg-card">
+        <div className="flex items-center gap-4">
+          <h1 className="font-semibold">Review Workspace</h1>
+          
+          {/* Progress */}
+          <div className="flex items-center gap-2">
+            <Progress value={progressPercent} className="w-32 h-2" />
+            <span className="text-sm text-muted-foreground">
+              {reviewedCount}/{totalCount} reviewed
+            </span>
           </div>
-          {documentId && (
-            <PageBrowser
-              documentId={documentId}
-              onPageSelect={setSelectedPageId}
-              selectedPageId={selectedPageId || undefined}
-            />
+
+          {/* Current position */}
+          {measurements.length > 0 && (
+            <Badge variant="outline">
+              {currentIndex + 1} of {measurements.length}
+            </Badge>
           )}
         </div>
 
-        {/* Main content - Side by side view */}
-        <div className="flex-1 flex flex-col">
-          {/* Toolbar */}
-          <div className="flex items-center gap-4 p-3 border-b">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Mode:</span>
-              <Select
-                value={reviewMode}
-                onValueChange={(v) => setReviewMode(v as any)}
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="estimator">Estimator</SelectItem>
-                  <SelectItem value="qa">QA Review</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="flex items-center gap-2">
+          {/* Filters */}
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="confidence_asc">Lowest Confidence</SelectItem>
+              <SelectItem value="confidence_desc">Highest Confidence</SelectItem>
+              <SelectItem value="page_order">Page Order</SelectItem>
+              <SelectItem value="created_at">Newest First</SelectItem>
+            </SelectContent>
+          </Select>
 
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Condition:</span>
-              <Select
-                value={selectedConditionId || 'all'}
-                onValueChange={(v) => setSelectedConditionId(v === 'all' ? null : v)}
+          {/* Auto-accept */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                onClick={() => autoAcceptMutation.mutate()}
+                disabled={autoAcceptMutation.isPending}
               >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="All conditions" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All conditions</SelectItem>
-                  {(conditionsData?.conditions || []).map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Zap className="h-4 w-4 mr-2" />
+                Auto-Accept ≥{autoAcceptThreshold}%
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Auto-approve all measurements with confidence ≥{autoAcceptThreshold}%
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Stats */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowStats(true)}
+          >
+            <BarChart3 className="h-4 w-4" />
+          </Button>
+
+          {/* Shortcuts help */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowShortcuts(true)}
+          >
+            <Keyboard className="h-4 w-4" />
+          </Button>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <div className="flex-1 flex">
+        {/* Left: Measurement list */}
+        <div className="w-64 border-r overflow-auto">
+          <div className="p-2 border-b bg-muted/50">
+            <div className="text-sm font-medium">Review Queue</div>
+            <div className="text-xs text-muted-foreground">
+              Sorted by {sortBy.replace('_', ' ')}
             </div>
           </div>
+          
+          <div className="divide-y">
+            {measurements.map((m, idx) => (
+              <button
+                key={m.id}
+                onClick={() => setCurrentIndex(idx)}
+                className={cn(
+                  'w-full p-2 text-left hover:bg-muted/50 transition-colors',
+                  idx === currentIndex && 'bg-muted',
+                  selectedIds.has(m.id) && 'ring-2 ring-primary ring-inset'
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: m.condition_color || '#888' }}
+                    />
+                    <span className="text-sm truncate max-w-[120px]">
+                      {m.condition_name || 'Unknown'}
+                    </span>
+                  </div>
+                  <ConfidenceBadge confidence={m.ai_confidence} />
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Page {m.page_number} • {m.quantity.toFixed(1)} {m.unit}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
 
-          {/* Side by side viewer */}
-          {selectedPageId && pageData ? (
-            <SideBySideView
-              pageImageUrl={pageData.image_url}
-              pageWidth={pageData.width}
-              pageHeight={pageData.height}
-              measurements={measurementsData?.measurements || []}
-              conditions={conditions}
-              highlightedMeasurementId={highlightedMeasurementId}
-              onMeasurementClick={setHighlightedMeasurementId}
-            />
+        {/* Center: Canvas with measurement */}
+        <div className="flex-1 flex flex-col">
+          {currentMeasurement ? (
+            <>
+              {/* Canvas */}
+              <div className="flex-1 relative">
+                <MeasurementCanvas
+                  pageId={currentMeasurement.page_id}
+                  measurements={[currentMeasurement]}
+                  highlightedId={currentMeasurement.id}
+                  showOriginal={!!currentMeasurement.original_geometry}
+                />
+                
+                {/* AI vs Modified indicator */}
+                {currentMeasurement.original_geometry && (
+                  <div className="absolute top-4 left-4 flex gap-2">
+                    <Badge variant="outline" className="bg-blue-500/20">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 mr-1" />
+                      AI Original
+                    </Badge>
+                    <Badge variant="outline" className="bg-green-500/20">
+                      <div className="w-2 h-2 rounded-full bg-green-500 mr-1" />
+                      Current
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {/* Action bar */}
+              <div className="h-16 border-t bg-card px-4 flex items-center justify-between">
+                {/* Navigation */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={goToPrevious}
+                    disabled={currentIndex === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={goToNext}
+                    disabled={currentIndex === measurements.length - 1}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Measurement info */}
+                <div className="flex items-center gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">
+                      {currentMeasurement.quantity.toFixed(2)}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {currentMeasurement.unit}
+                    </div>
+                  </div>
+                  <ConfidenceBadge
+                    confidence={currentMeasurement.ai_confidence}
+                    size="lg"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowHistory(true)}
+                      >
+                        <History className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>View History</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const reason = prompt('Flag reason:');
+                          if (reason) {
+                            flagMutation.mutate({
+                              id: currentMeasurement.id,
+                              reason,
+                            });
+                          }
+                        }}
+                      >
+                        <Flag className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>[F] Flag for review</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        onClick={() => {
+                          const reason = prompt('Rejection reason:');
+                          if (reason) {
+                            rejectMutation.mutate({
+                              id: currentMeasurement.id,
+                              reason,
+                            });
+                          }
+                        }}
+                        disabled={rejectMutation.isPending}
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Reject
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>[R] Reject measurement</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="default"
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={() => approveMutation.mutate(currentMeasurement.id)}
+                        disabled={approveMutation.isPending}
+                      >
+                        <Check className="h-4 w-4 mr-2" />
+                        Approve
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>[A] Approve measurement</TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              Select a page to begin review
+              {isLoading ? 'Loading...' : 'No measurements to review'}
             </div>
           )}
         </div>
 
-        {/* Right sidebar - Review panel */}
+        {/* Right: Review panel */}
         <div className="w-80 border-l">
-          {projectId && selectedPageId && (
-            <ReviewPanel
-              projectId={projectId}
-              pageId={selectedPageId}
-              conditionId={selectedConditionId || undefined}
-              reviewerName={reviewerName}
-              mode={reviewMode}
-              onMeasurementSelect={setHighlightedMeasurementId}
-            />
-          )}
+          <ReviewPanel
+            measurement={currentMeasurement}
+            onApprove={() => approveMutation.mutate(currentMeasurement?.id)}
+            onReject={(reason) =>
+              rejectMutation.mutate({ id: currentMeasurement?.id, reason })
+            }
+          />
         </div>
       </div>
-    </Layout>
+
+      {/* Keyboard shortcuts dialog */}
+      <Dialog open={showShortcuts} onOpenChange={setShowShortcuts}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Keyboard Shortcuts</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="flex justify-between">
+              <kbd className="px-2 py-1 bg-muted rounded">A</kbd>
+              <span>Approve</span>
+            </div>
+            <div className="flex justify-between">
+              <kbd className="px-2 py-1 bg-muted rounded">R</kbd>
+              <span>Reject</span>
+            </div>
+            <div className="flex justify-between">
+              <kbd className="px-2 py-1 bg-muted rounded">E</kbd>
+              <span>Edit</span>
+            </div>
+            <div className="flex justify-between">
+              <kbd className="px-2 py-1 bg-muted rounded">F</kbd>
+              <span>Flag</span>
+            </div>
+            <div className="flex justify-between">
+              <kbd className="px-2 py-1 bg-muted rounded">N</kbd> / <kbd className="px-2 py-1 bg-muted rounded">→</kbd>
+              <span>Next</span>
+            </div>
+            <div className="flex justify-between">
+              <kbd className="px-2 py-1 bg-muted rounded">P</kbd> / <kbd className="px-2 py-1 bg-muted rounded">←</kbd>
+              <span>Previous</span>
+            </div>
+            <div className="flex justify-between">
+              <kbd className="px-2 py-1 bg-muted rounded">Space</kbd>
+              <span>Toggle select</span>
+            </div>
+            <div className="flex justify-between">
+              <kbd className="px-2 py-1 bg-muted rounded">Enter</kbd>
+              <span>Approve selected</span>
+            </div>
+            <div className="flex justify-between">
+              <kbd className="px-2 py-1 bg-muted rounded">?</kbd>
+              <span>Show shortcuts</span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Statistics dialog */}
+      <Dialog open={showStats} onOpenChange={setShowStats}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Review Statistics</DialogTitle>
+          </DialogHeader>
+          {stats && <StatisticsPanel stats={stats} />}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ConfidenceBadge({
+  confidence,
+  size = 'sm',
+}: {
+  confidence: number | null;
+  size?: 'sm' | 'lg';
+}) {
+  if (confidence === null) return null;
+
+  const percent = Math.round(confidence * 100);
+  const variant =
+    percent >= 90 ? 'default' : percent >= 70 ? 'secondary' : 'destructive';
+
+  return (
+    <Badge
+      variant={variant}
+      className={cn(
+        size === 'lg' && 'text-lg px-3 py-1',
+        percent >= 90 && 'bg-green-600',
+        percent >= 70 && percent < 90 && 'bg-yellow-600',
+        percent < 70 && 'bg-red-600'
+      )}
+    >
+      {percent}%
+    </Badge>
+  );
+}
+```
+
+---
+
+### Task 9.6: Statistics Panel Component
+
+Create `frontend/src/components/review/StatisticsPanel.tsx`:
+
+```tsx
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
+
+interface Statistics {
+  status_counts: Record<string, number>;
+  total_measurements: number;
+  pending_count: number;
+  ai_statistics: {
+    total_ai_generated: number;
+    accuracy_percent: number;
+    rejection_rate_percent: number;
+    modification_rate_percent: number;
+  };
+  auto_accept: {
+    count: number;
+    percent_of_ai: number;
+  };
+  confidence_distribution: {
+    high_confidence: number;
+    medium_confidence: number;
+    low_confidence: number;
+  };
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  pending: '#FFA500',
+  approved: '#22C55E',
+  modified: '#3B82F6',
+  rejected: '#EF4444',
+  verified: '#10B981',
+  flagged: '#8B5CF6',
+};
+
+export function StatisticsPanel({ stats }: { stats: Statistics }) {
+  // Prepare status data for pie chart
+  const statusData = Object.entries(stats.status_counts).map(([status, count]) => ({
+    name: status.charAt(0).toUpperCase() + status.slice(1),
+    value: count,
+    color: STATUS_COLORS[status] || '#888',
+  }));
+
+  // Confidence distribution for bar chart
+  const confidenceData = [
+    {
+      name: 'High (≥90%)',
+      count: stats.confidence_distribution.high_confidence,
+      color: '#22C55E',
+    },
+    {
+      name: 'Medium (70-89%)',
+      count: stats.confidence_distribution.medium_confidence,
+      color: '#FFA500',
+    },
+    {
+      name: 'Low (<70%)',
+      count: stats.confidence_distribution.low_confidence,
+      color: '#EF4444',
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Summary cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <StatCard
+          label="Total Measurements"
+          value={stats.total_measurements}
+        />
+        <StatCard
+          label="Pending Review"
+          value={stats.pending_count}
+          color="orange"
+        />
+        <StatCard
+          label="AI Accuracy"
+          value={`${stats.ai_statistics.accuracy_percent}%`}
+          color="green"
+        />
+        <StatCard
+          label="Auto-Accepted"
+          value={stats.auto_accept.count}
+          subtitle={`${stats.auto_accept.percent_of_ai}% of AI`}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        {/* Status distribution */}
+        <div>
+          <h4 className="text-sm font-medium mb-4">Review Status</h4>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie
+                data={statusData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                label={({ name, value }) => `${name}: ${value}`}
+              >
+                {statusData.map((entry, index) => (
+                  <Cell key={index} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Confidence distribution */}
+        <div>
+          <h4 className="text-sm font-medium mb-4">AI Confidence Distribution</h4>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={confidenceData}>
+              <XAxis dataKey="name" fontSize={12} />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count">
+                {confidenceData.map((entry, index) => (
+                  <Cell key={index} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* AI Statistics */}
+      <div>
+        <h4 className="text-sm font-medium mb-4">AI Performance</h4>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="p-4 bg-green-500/10 rounded-lg">
+            <div className="text-2xl font-bold text-green-600">
+              {stats.ai_statistics.accuracy_percent}%
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Approved without changes
+            </div>
+          </div>
+          <div className="p-4 bg-blue-500/10 rounded-lg">
+            <div className="text-2xl font-bold text-blue-600">
+              {stats.ai_statistics.modification_rate_percent}%
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Required modification
+            </div>
+          </div>
+          <div className="p-4 bg-red-500/10 rounded-lg">
+            <div className="text-2xl font-bold text-red-600">
+              {stats.ai_statistics.rejection_rate_percent}%
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Rejected
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  subtitle,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  subtitle?: string;
+  color?: 'green' | 'orange' | 'red';
+}) {
+  const colorClasses = {
+    green: 'text-green-600',
+    orange: 'text-orange-600',
+    red: 'text-red-600',
+  };
+
+  return (
+    <div className="p-4 bg-muted/50 rounded-lg">
+      <div className={`text-2xl font-bold ${color ? colorClasses[color] : ''}`}>
+        {value}
+      </div>
+      <div className="text-sm text-muted-foreground">{label}</div>
+      {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
+    </div>
   );
 }
 ```
@@ -1874,32 +2179,35 @@ export function ReviewWorkspace() {
 
 After completing all tasks, verify:
 
-- [ ] Approve measurement updates status to "approved"
-- [ ] Reject measurement deletes it from database
-- [ ] Modify measurement stores original and updates geometry
-- [ ] Verify measurement (QA) updates status to "verified"
-- [ ] Flag measurement marks for re-review with reason
-- [ ] Bulk approve works for multiple measurements
-- [ ] Bulk verify works for multiple measurements
-- [ ] Review statistics calculated correctly
-- [ ] AI accuracy tracking works
-- [ ] Side-by-side view syncs pan/zoom between panels
-- [ ] Highlighted measurement shows bounding box
-- [ ] Review panel navigates through pending items
-- [ ] Estimator and QA modes show appropriate actions
+- [ ] Review queue loads with filters
+- [ ] Sorting by confidence works (lowest first)
+- [ ] Keyboard shortcuts A/R/E/N/P function
+- [ ] Approve updates status correctly
+- [ ] Reject stores reason
+- [ ] Modify preserves original geometry
+- [ ] Verify requires prior approval
+- [ ] Flag marks for re-review
+- [ ] Auto-accept approves above threshold
+- [ ] Bulk operations work
+- [ ] Statistics show accurate counts
+- [ ] History tracks all changes
+- [ ] AI vs Modified overlay displays
+- [ ] Progress bar updates
+- [ ] Batch selection with Space/Enter
 
 ### Test Cases
 
-1. Generate AI measurements â†’ review panel shows them as pending
-2. Approve a measurement â†’ status changes, statistics update
-3. Reject a measurement â†’ deleted from list
-4. Modify geometry â†’ original stored, new quantity calculated
-5. QA verify approved measurement â†’ status changes to verified
-6. QA flag measurement â†’ appears in flagged list
-7. Check AI accuracy after reviewing 10 AI measurements
+1. Press A → measurement approved, advances to next
+2. Press R → prompts reason, rejects, advances
+3. Sort by confidence_asc → lowest confidence first
+4. Auto-accept at 90% → high confidence approved
+5. Verify approved measurement → status becomes verified
+6. Flag measurement → appears in flagged queue
+7. View history → shows all status changes
+8. Bulk select 5 + Enter → all 5 approved
 
 ---
 
 ## Next Phase
 
-Once verified, proceed to **`10-EXPORT-SYSTEM.md`** for implementing Excel and OST export functionality.
+Once verified, proceed to **`10-EXPORT-SYSTEM.md`** for implementing takeoff exports.

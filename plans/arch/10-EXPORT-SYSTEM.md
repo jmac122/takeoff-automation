@@ -901,130 +901,6 @@ class ExcelExporter(BaseExporter):
             row += 2
 
         ws.column_dimensions["A"].width = 40
-
-    def _create_assembly_summary_section(self, ws, data: dict[str, Any], start_row: int) -> int:
-        """Add assembly cost summary to summary sheet.
-        
-        NEW in v2.0: Adds cost breakdown by assembly type.
-        """
-        row = start_row
-        
-        # Check if assembly data exists
-        if "assemblies" not in data or not data["assemblies"]:
-            return row
-        
-        ws[f"A{row}"] = "ASSEMBLY COST SUMMARY"
-        ws[f"A{row}"].font = Font(bold=True, size=12)
-        ws.merge_cells(f"A{row}:E{row}")
-        row += 1
-        
-        # Headers
-        headers = ["Assembly", "Quantity", "Unit", "Unit Cost", "Total Cost"]
-        for col, header in enumerate(headers, 1):
-            ws.cell(row=row, column=col, value=header)
-            ws.cell(row=row, column=col).style = "header_style"
-        row += 1
-        
-        total_cost = 0
-        for assembly in data["assemblies"]:
-            ws.cell(row=row, column=1, value=assembly["name"])
-            ws.cell(row=row, column=2, value=assembly["quantity"])
-            ws[f"B{row}"].number_format = NUMBER_FORMAT
-            ws.cell(row=row, column=3, value=assembly["unit"])
-            ws.cell(row=row, column=4, value=assembly["unit_cost"])
-            ws[f"D{row}"].number_format = CURRENCY_FORMAT
-            ws.cell(row=row, column=5, value=assembly["total_cost"])
-            ws[f"E{row}"].number_format = CURRENCY_FORMAT
-            total_cost += assembly["total_cost"]
-            row += 1
-        
-        # Total row
-        ws.cell(row=row, column=1, value="TOTAL")
-        ws[f"A{row}"].font = Font(bold=True)
-        ws.cell(row=row, column=5, value=total_cost)
-        ws[f"E{row}"].number_format = CURRENCY_FORMAT
-        ws[f"E{row}"].style = "total_style"
-        row += 2
-        
-        return row
-
-    def _create_assembly_details_sheet(self, wb: Workbook, data: dict[str, Any]):
-        """Create sheet with detailed assembly component breakdown.
-        
-        NEW in v2.0: Shows material, labor, equipment breakdown for each assembly.
-        """
-        if "assemblies" not in data or not data["assemblies"]:
-            return
-            
-        ws = wb.create_sheet("Assembly Details")
-        
-        # Headers
-        headers = [
-            "Assembly",
-            "Condition",
-            "Component",
-            "Type",
-            "Formula",
-            "Quantity",
-            "Unit",
-            "Unit Cost",
-            "Total Cost",
-        ]
-        
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col, value=header)
-            cell.style = "header_style"
-        
-        row = 2
-        for assembly in data["assemblies"]:
-            # Assembly header row
-            ws.cell(row=row, column=1, value=assembly["name"])
-            ws[f"A{row}"].font = Font(bold=True)
-            
-            condition_name = assembly.get("condition_name", "")
-            ws.cell(row=row, column=2, value=condition_name)
-            row += 1
-            
-            # Component rows
-            for component in assembly.get("components", []):
-                ws.cell(row=row, column=1, value="")  # Assembly name col empty
-                ws.cell(row=row, column=2, value="")  # Condition col empty
-                ws.cell(row=row, column=3, value=component["name"])
-                ws.cell(row=row, column=4, value=component["type"])  # material, labor, equipment
-                ws.cell(row=row, column=5, value=component.get("formula", ""))
-                
-                qty_cell = ws.cell(row=row, column=6, value=component["quantity"])
-                qty_cell.number_format = NUMBER_FORMAT
-                
-                ws.cell(row=row, column=7, value=component["unit"])
-                
-                unit_cost_cell = ws.cell(row=row, column=8, value=component["unit_cost"])
-                unit_cost_cell.number_format = CURRENCY_FORMAT
-                
-                total_cell = ws.cell(row=row, column=9, value=component["total_cost"])
-                total_cell.number_format = CURRENCY_FORMAT
-                row += 1
-            
-            # Assembly subtotal
-            ws.cell(row=row, column=1, value="")
-            ws.cell(row=row, column=8, value="Subtotal:")
-            ws[f"H{row}"].font = Font(bold=True)
-            subtotal_cell = ws.cell(row=row, column=9, value=assembly["total_cost"])
-            subtotal_cell.number_format = CURRENCY_FORMAT
-            subtotal_cell.font = Font(bold=True)
-            row += 2  # Blank row between assemblies
-        
-        # Adjust column widths
-        widths = [25, 25, 30, 12, 30, 12, 10, 15, 15]
-        for col, width in enumerate(widths, 1):
-            ws.column_dimensions[get_column_letter(col)].width = width
-        
-        # Add autofilter
-        ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{row-1}"
-        
-        # Freeze header row
-        ws.freeze_panes = "A2"
-
         ws.column_dimensions["B"].width = 20
 
 
@@ -2997,8 +2873,6 @@ reportlab>=4.0.4
 After completing all tasks, verify:
 
 - [ ] Excel export generates valid .xlsx file with summary and details sheets
-- [ ] Excel export includes Assembly Cost Summary section (if assemblies exist)
-- [ ] Excel export includes Assembly Details sheet with component breakdown (NEW v2.0)
 - [ ] OST XML export generates valid XML importable into On Screen Takeoff
 - [ ] CSV export generates valid CSV with correct encoding
 - [ ] PDF export generates formatted report with tables
@@ -3021,10 +2895,6 @@ After completing all tasks, verify:
 6. Cancel and retry failed export → Handles gracefully
 7. Download expired export → Refresh URL works
 8. Wait 30+ days → Old exports cleaned up
-9. Export project with assemblies → Assembly Cost Summary appears in summary sheet (NEW v2.0)
-10. Export project with assemblies → Assembly Details sheet shows component breakdown (NEW v2.0)
-11. Verify assembly unit costs and totals calculate correctly (NEW v2.0)
-12. Export project without assemblies → Assembly sheets/sections gracefully omitted (NEW v2.0)
 
 ---
 

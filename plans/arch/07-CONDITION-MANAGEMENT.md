@@ -1359,17 +1359,7 @@ After completing all tasks, verify:
 5. Drag condition to reorder → new order persists
 
 ---
+
 ## Next Phase
 
-Once verified, proceed to **`13-ASSEMBLY-SYSTEM.md`** for implementing the assembly and cost estimation system.
-
-The Assembly System extends conditions with:
-- **Component Breakdown**: Material, labor, equipment, and subcontract components
-- **Formula Engine**: Calculate quantities dynamically (e.g., `{quantity} * 1.1` for 10% waste)
-- **Cost Database**: Unit costs for materials and labor rates
-- **Assembly Templates**: Pre-built assemblies for common concrete work (slabs, footings, walls)
-- **Markup & Pricing**: Apply overhead, profit, and contingency percentages
-
-This creates a complete estimating workflow where conditions track what you're measuring and assemblies track what it costs.
-
-After Assembly System, continue to **`08-AI-TAKEOFF-GENERATION.md`** for AI-assisted automatic measurement detection.
+Once verified, proceed to **`08-AI-TAKEOFF-GENERATION.md`** for implementing AI-assisted automatic measurement detection.

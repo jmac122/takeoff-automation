@@ -52,6 +52,22 @@ Different providers may excel at different tasks. The system supports:
 
 *Best provider determined by running accuracy benchmarks (see Phase 5B)
 
+### AI Takeoff vs Auto Count
+
+This phase (AI Takeoff) and Auto Count (`14-AUTO-COUNT.md`) serve different purposes:
+
+| Feature | AI Takeoff (This Phase) | Auto Count (Phase 4B) |
+|---------|-------------------------|----------------------|
+| **Use Case** | First-pass detection of areas, lines, elements | Counting repetitive identical elements |
+| **Method** | LLM vision analysis | Template matching + LLM similarity |
+| **Best For** | Slab outlines, foundation walls, footings | Piers, columns, bolts, fixtures |
+| **User Action** | Select condition → AI detects all instances | Select ONE instance → find all similar |
+| **Output** | Polygons, polylines, points | Count with locations |
+
+**When to use which:**
+- Use **AI Takeoff** for unique or varied elements that need boundary detection
+- Use **Auto Count** when you have many identical items to count quickly
+
 ### Accuracy Targets
 
 - **75% accuracy** for initial detection
@@ -1309,15 +1325,19 @@ After completing all tasks, verify:
 8. Disable primary provider → falls back to secondary
 
 ### Accuracy Testing
-
-- Compare AI-generated measurements to manual measurements
-- Track accuracy percentage over multiple plans **per provider**
-- Document which plan types work best/worst **per provider**
-- Note common failure modes
-- Use data to configure optimal provider per task type
-
----
-
 ## Next Phase
 
-Once verified, proceed to **`09-REVIEW-INTERFACE.md`** for implementing the human review and refinement interface.
+Once verified, proceed to **`14-AUTO-COUNT.md`** for implementing the Auto Count feature.
+
+Auto Count enables rapid counting of repetitive elements:
+- **Template Matching**: Use OpenCV to find visually similar elements
+- **LLM Similarity**: Use vision models to find semantically similar elements
+- **Hybrid Detection**: Combine both methods for best results
+- **Bulk Creation**: Create measurements from all confirmed detections
+
+This is especially useful for:
+- Counting piers and columns on foundation plans
+- Counting fixtures, anchors, or bolts
+- Any repetitive element where you want to "select one, find all"
+
+After Auto Count, continue to **`09-REVIEW-INTERFACE-ENHANCED.md`** for the human review and refinement interface with keyboard shortcuts and auto-accept features.
