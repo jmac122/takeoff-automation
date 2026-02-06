@@ -20,6 +20,7 @@ from app.schemas.document import (
     TitleBlockRegionUpdateResponse,
 )
 from app.services.document_processor import get_document_processor
+from app.services.task_tracker import TaskTracker
 from app.utils.storage import get_storage_service
 from app.workers.document_tasks import process_document_task
 from app.workers.ocr_tasks import process_document_title_block_task
@@ -105,8 +106,20 @@ async def upload_document(
             detail="Failed to store file",
         )
 
-    # Queue processing task
-    process_document_task.delay(str(document_id), str(project_id))
+    # Queue processing task with task tracking
+    task_id = str(uuid.uuid4())
+    await TaskTracker.register_async(
+        db,
+        task_id=task_id,
+        task_type="document_processing",
+        task_name=f"Processing {file.filename}",
+        project_id=str(project_id),
+        metadata={"document_id": str(document_id), "filename": file.filename},
+    )
+    process_document_task.apply_async(
+        args=[str(document_id), str(project_id)],
+        task_id=task_id,
+    )
 
     # Reload document with pages eagerly loaded (will be empty until worker processes it)
     result = await db.execute(

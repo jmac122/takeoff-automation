@@ -8,6 +8,7 @@ FastAPI routes use ASYNC SQLAlchemy - this is the correct pattern.
 """
 
 import time
+import traceback as tb_module
 import uuid
 
 import structlog
@@ -20,6 +21,7 @@ from app.models.classification_history import ClassificationHistory
 from app.services.page_classifier import classify_page
 from app.services.ocr_classifier import get_ocr_classifier
 from app.services.llm_client import get_llm_client, PROVIDER_MODELS
+from app.services.task_tracker import TaskTracker
 from app.utils.storage import get_storage_service
 from app.workers.celery_app import celery_app
 
@@ -105,7 +107,12 @@ def classify_page_task(
 
     try:
         with SyncSession() as db:
+            # Mark task as started
+            TaskTracker.mark_started_sync(db, self.request.id)
+
             # Get page
+            self.update_state(state="PROGRESS", meta={"percent": 10, "step": "Loading page data"})
+            TaskTracker.update_progress_sync(db, self.request.id, 10, "Loading page data")
             page = db.execute(
                 select(Page).where(Page.id == uuid.UUID(page_id))
             ).scalar_one_or_none()
@@ -116,6 +123,8 @@ def classify_page_task(
             # Try OCR-based classification first (fast, free, accurate for standard sheets)
             if not use_vision and page.ocr_text:
                 try:
+                    self.update_state(state="PROGRESS", meta={"percent": 30, "step": "Running OCR classification"})
+                    TaskTracker.update_progress_sync(db, self.request.id, 30, "Running OCR classification")
                     ocr_classifier = get_ocr_classifier()
                     ocr_result = ocr_classifier.classify_from_ocr(
                         sheet_number=page.sheet_number,
@@ -164,6 +173,8 @@ def classify_page_task(
 
             # Fall back to LLM vision if requested or if OCR failed
             if use_vision or not page.ocr_text:
+                self.update_state(state="PROGRESS", meta={"percent": 30, "step": "Running vision classification"})
+                TaskTracker.update_progress_sync(db, self.request.id, 30, "Running vision classification")
                 # Get page image from storage
                 storage = get_storage_service()
                 image_bytes = storage.download_file(page.image_key)
@@ -184,6 +195,8 @@ def classify_page_task(
                     raise
 
             # Update page record with latest classification
+            self.update_state(state="PROGRESS", meta={"percent": 70, "step": "Updating page record"})
+            TaskTracker.update_progress_sync(db, self.request.id, 70, "Updating page record")
             page.classification = f"{result.discipline}:{result.page_type}"
             page.classification_confidence = min(
                 result.discipline_confidence,
@@ -196,6 +209,8 @@ def classify_page_task(
             page.status = "completed"
 
             # Save to classification history for BI tracking
+            self.update_state(state="PROGRESS", meta={"percent": 90, "step": "Saving classification history"})
+            TaskTracker.update_progress_sync(db, self.request.id, 90, "Saving classification history")
             history_entry = ClassificationHistory(
                 page_id=uuid.UUID(page_id),
                 classification=f"{result.discipline}:{result.page_type}",
@@ -227,6 +242,17 @@ def classify_page_task(
             ).scalar_one()
             document.updated_at = datetime.now(timezone.utc)
 
+            result_summary = {
+                "page_id": page_id,
+                "discipline": result.discipline,
+                "page_type": result.page_type,
+                "concrete_relevance": result.concrete_relevance,
+                "provider": result.llm_provider,
+            }
+
+            TaskTracker.mark_completed_sync(
+                db, self.request.id, result_summary, commit=False
+            )
             db.commit()
 
             logger.info(
@@ -244,7 +270,9 @@ def classify_page_task(
 
     except Exception as e:
         logger.error("Page classification failed", page_id=page_id, error=str(e))
-        # Don't retry - we've already saved the failure to history
+        # max_retries=0, so mark failed directly
+        with SyncSession() as db:
+            TaskTracker.mark_failed_sync(db, self.request.id, str(e), tb_module.format_exc())
         raise
 
 

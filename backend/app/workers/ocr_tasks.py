@@ -7,8 +7,10 @@ database connections (asyncpg) cause InterfaceError.
 FastAPI routes use ASYNC SQLAlchemy - this is the correct pattern.
 """
 
+import traceback as tb_module
 import uuid
 
+from celery.exceptions import MaxRetriesExceededError
 import structlog
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -17,6 +19,7 @@ from app.config import get_settings
 from app.models.document import Document
 from app.models.page import Page
 from app.services.ocr_service import get_ocr_service, get_title_block_parser
+from app.services.task_tracker import TaskTracker
 from app.utils.image_utils import crop_image_bytes, resolve_region_to_pixels
 from app.utils.storage import get_storage_service
 from app.workers.celery_app import celery_app
@@ -111,6 +114,9 @@ def process_page_ocr_task(self, page_id: str) -> dict:
 
     try:
         with SyncSession() as session:
+            # Mark task as started
+            TaskTracker.mark_started_sync(session, self.request.id)
+
             page_uuid = uuid.UUID(page_id)
 
             # Get page (sync query)
@@ -131,14 +137,20 @@ def process_page_ocr_task(self, page_id: str) -> dict:
                 )
 
             # Download page image
+            self.update_state(state="PROGRESS", meta={"percent": 10, "step": "Downloading page image"})
+            TaskTracker.update_progress_sync(session, self.request.id, 10, "Downloading page image")
             storage = get_storage_service()
             image_bytes = storage.download_file(page.image_key)
 
             # Run OCR
+            self.update_state(state="PROGRESS", meta={"percent": 40, "step": "Running OCR"})
+            TaskTracker.update_progress_sync(session, self.request.id, 40, "Running OCR")
             ocr_service = get_ocr_service()
             ocr_result = ocr_service.extract_text(image_bytes)
 
             # Parse title block
+            self.update_state(state="PROGRESS", meta={"percent": 70, "step": "Parsing title block"})
+            TaskTracker.update_progress_sync(session, self.request.id, 70, "Parsing title block")
             title_block_parser = get_title_block_parser()
             title_block_data = title_block_parser.parse_title_block(
                 ocr_result.blocks,
@@ -147,6 +159,8 @@ def process_page_ocr_task(self, page_id: str) -> dict:
             )
 
             # Update page with OCR data
+            self.update_state(state="PROGRESS", meta={"percent": 90, "step": "Saving results"})
+            TaskTracker.update_progress_sync(session, self.request.id, 90, "Saving results")
             page.ocr_text = ocr_result.full_text
             page.ocr_blocks = {
                 "blocks": [b.to_dict() for b in ocr_result.blocks],
@@ -169,11 +183,6 @@ def process_page_ocr_task(self, page_id: str) -> dict:
                 page.ocr_blocks = {}
             page.ocr_blocks["title_block_source"] = "auto"
 
-            # Keep status as "processing" until classification also completes
-            # Classification task will set it to "completed" when done
-            # Only set to completed if classification is not being queued
-            # (For now, we always queue classification, so keep it as processing)
-
             # Capture values before committing (to avoid DetachedInstanceError)
             result_data = {
                 "status": "success",
@@ -184,6 +193,9 @@ def process_page_ocr_task(self, page_id: str) -> dict:
                 "scale_text": page.scale_text,
             }
 
+            TaskTracker.mark_completed_sync(
+                session, self.request.id, result_data, commit=False
+            )
             session.commit()
 
             logger.info(
@@ -203,8 +215,19 @@ def process_page_ocr_task(self, page_id: str) -> dict:
 
         return result_data
 
+    except ValueError as e:
+        logger.error(
+            "OCR processing validation failed (not retrying)",
+            page_id=page_id,
+            error=str(e),
+        )
+        with SyncSession() as session:
+            TaskTracker.mark_failed_sync(session, self.request.id, str(e), tb_module.format_exc())
+        raise
+
     except Exception as e:
         logger.error("OCR processing failed", page_id=page_id, error=str(e))
+        original_traceback = tb_module.format_exc()
 
         # Update page with error
         try:
@@ -221,7 +244,14 @@ def process_page_ocr_task(self, page_id: str) -> dict:
         except Exception as update_error:
             logger.error("Failed to update page error", error=str(update_error))
 
-        raise self.retry(exc=e, countdown=30)
+        try:
+            raise self.retry(exc=e, countdown=30)
+        except MaxRetriesExceededError:
+            with SyncSession() as session:
+                TaskTracker.mark_failed_sync(
+                    session, self.request.id, str(e), original_traceback
+                )
+            raise
 
 
 @celery_app.task(bind=True)
