@@ -62,10 +62,18 @@ export function TakeoffWorkspace() {
   useEffect(() => {
     if (activeSheet?.image_url) {
       setIsLoadingSheetImage(true);
+      let stale = false;
       const img = new Image();
-      img.onload = () => setIsLoadingSheetImage(false);
-      img.onerror = () => setIsLoadingSheetImage(false);
+      img.onload = () => { if (!stale) setIsLoadingSheetImage(false); };
+      img.onerror = () => { if (!stale) setIsLoadingSheetImage(false); };
       img.src = activeSheet.image_url;
+      return () => {
+        stale = true;
+        img.onload = null;
+        img.onerror = null;
+      };
+    } else {
+      setIsLoadingSheetImage(false);
     }
   }, [activeSheet?.image_url]);
 

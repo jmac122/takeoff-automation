@@ -10,7 +10,6 @@ interface SheetContextMenuProps {
   x: number;
   y: number;
   onClose: () => void;
-  allSheets: SheetInfo[];
 }
 
 export function SheetContextMenu({

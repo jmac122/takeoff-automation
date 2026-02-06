@@ -399,7 +399,6 @@ export function SheetTree({ projectId, sheetsData, isLoading }: SheetTreeProps) 
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={closeContextMenu}
-          allSheets={flatVisibleSheets}
         />
       )}
     </div>

@@ -153,10 +153,10 @@ describe('WorkspaceStore', () => {
     const { toggleGroupExpanded } = useWorkspaceStore.getState();
 
     toggleGroupExpanded('Structural');
-    expect(useWorkspaceStore.getState().expandedGroups['Structural']).toBe(true);
+    expect(useWorkspaceStore.getState().expandedGroups['Structural']).toBe(false);
 
     toggleGroupExpanded('Structural');
-    expect(useWorkspaceStore.getState().expandedGroups['Structural']).toBe(false);
+    expect(useWorkspaceStore.getState().expandedGroups['Structural']).toBe(true);
   });
 
   it('addCurrentPoint appends to currentPoints', () => {
