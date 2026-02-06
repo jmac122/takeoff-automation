@@ -97,6 +97,15 @@ def _fetch_export_data_sync(db: Session, project_id: uuid.UUID, options: dict | 
                 )
             )
 
+        # When filtering, recalculate totals from the filtered measurements
+        # instead of using the denormalized DB values which include all measurements.
+        if include_unverified:
+            total_quantity = cond.total_quantity
+            measurement_count = cond.measurement_count
+        else:
+            total_quantity = sum(m.quantity for m in measurement_data_list)
+            measurement_count = len(measurement_data_list)
+
         condition_data_list.append(
             ConditionData(
                 id=cond.id,
@@ -109,8 +118,8 @@ def _fetch_export_data_sync(db: Session, project_id: uuid.UUID, options: dict | 
                 unit=cond.unit,
                 depth=cond.depth,
                 thickness=cond.thickness,
-                total_quantity=cond.total_quantity,
-                measurement_count=cond.measurement_count,
+                total_quantity=total_quantity,
+                measurement_count=measurement_count,
                 building=cond.building,
                 area=cond.area,
                 elevation=cond.elevation,

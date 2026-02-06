@@ -7,16 +7,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from app.services.export.base import BaseExporter, ExportData, ConditionData, format_unit
-
-_FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
-
-
-def _safe_cell_value(value: str) -> str:
-    """Prevent formula injection by prefixing dangerous strings with a single quote."""
-    if value and value[0] in _FORMULA_PREFIXES:
-        return "'" + value
-    return value
+from app.services.export.base import BaseExporter, ExportData, ConditionData, format_unit, sanitize_field
 
 
 # Excel sheet name constraints
@@ -84,9 +75,9 @@ class ExcelExporter(BaseExporter):
         ws.title = "Summary"
 
         # Title row
-        ws.cell(row=1, column=1, value=f"Export: {_safe_cell_value(data.project_name)}").font = Font(bold=True, size=14)
+        ws.cell(row=1, column=1, value=f"Export: {sanitize_field(data.project_name)}").font = Font(bold=True, size=14)
         if data.client_name:
-            ws.cell(row=2, column=1, value=f"Client: {_safe_cell_value(data.client_name)}")
+            ws.cell(row=2, column=1, value=f"Client: {sanitize_field(data.client_name)}")
 
         # Summary table
         headers = ["Condition", "Type", "Unit", "Quantity", "Measurements", "Category", "Scope"]
@@ -95,13 +86,13 @@ class ExcelExporter(BaseExporter):
 
         for idx, cond in enumerate(data.conditions):
             row = start_row + 1 + idx
-            ws.cell(row=row, column=1, value=_safe_cell_value(cond.name))
-            ws.cell(row=row, column=2, value=_safe_cell_value(cond.measurement_type))
+            ws.cell(row=row, column=1, value=sanitize_field(cond.name))
+            ws.cell(row=row, column=2, value=sanitize_field(cond.measurement_type))
             ws.cell(row=row, column=3, value=format_unit(cond.unit))
             ws.cell(row=row, column=4, value=cond.total_quantity)
             ws.cell(row=row, column=5, value=cond.measurement_count)
-            ws.cell(row=row, column=6, value=_safe_cell_value(cond.category or ""))
-            ws.cell(row=row, column=7, value=_safe_cell_value(cond.scope))
+            ws.cell(row=row, column=6, value=sanitize_field(cond.category or ""))
+            ws.cell(row=row, column=7, value=sanitize_field(cond.scope))
 
         # Auto-size columns
         for col_idx in range(1, len(headers) + 1):
@@ -132,8 +123,8 @@ class ExcelExporter(BaseExporter):
                 sheet_name = base_name
 
             ws = wb.create_sheet(title=sheet_name)
-            ws.cell(row=1, column=1, value=_safe_cell_value(cond.name)).font = Font(bold=True, size=12)
-            ws.cell(row=2, column=1, value=f"Type: {_safe_cell_value(cond.measurement_type)}  |  Unit: {format_unit(cond.unit)}  |  Total: {cond.total_quantity:.2f}")
+            ws.cell(row=1, column=1, value=sanitize_field(cond.name)).font = Font(bold=True, size=12)
+            ws.cell(row=2, column=1, value=f"Type: {sanitize_field(cond.measurement_type)}  |  Unit: {format_unit(cond.unit)}  |  Total: {cond.total_quantity:.2f}")
 
             headers = ["Page", "Sheet #", "Geometry", "Quantity", "Unit", "Verified", "Notes"]
             self._apply_header(ws, 4, headers)
@@ -146,7 +137,7 @@ class ExcelExporter(BaseExporter):
                 ws.cell(row=row, column=4, value=m.quantity)
                 ws.cell(row=row, column=5, value=format_unit(m.unit))
                 ws.cell(row=row, column=6, value="Yes" if m.is_verified else "No")
-                ws.cell(row=row, column=7, value=_safe_cell_value(m.notes or ""))
+                ws.cell(row=row, column=7, value=sanitize_field(m.notes or ""))
 
             for col_idx in range(1, len(headers) + 1):
                 ws.column_dimensions[get_column_letter(col_idx)].width = 16
@@ -173,7 +164,7 @@ class ExcelExporter(BaseExporter):
             for m in pages[page_num]:
                 ws.cell(row=current_row, column=1, value=m.page_number)
                 ws.cell(row=current_row, column=2, value=m.sheet_number or "")
-                ws.cell(row=current_row, column=3, value=_safe_cell_value(m.condition_name))
+                ws.cell(row=current_row, column=3, value=sanitize_field(m.condition_name))
                 ws.cell(row=current_row, column=4, value=m.geometry_type)
                 ws.cell(row=current_row, column=5, value=m.quantity)
                 ws.cell(row=current_row, column=6, value=format_unit(m.unit))

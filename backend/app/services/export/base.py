@@ -87,6 +87,16 @@ def format_unit(unit: str) -> str:
     return UNIT_DISPLAY.get(unit, unit)
 
 
+_FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
+
+
+def sanitize_field(value: str) -> str:
+    """Prefix fields that could be interpreted as formulas by spreadsheet software."""
+    if value and value[0] in _FORMULA_PREFIXES:
+        return "'" + value
+    return value
+
+
 class BaseExporter(abc.ABC):
     """Abstract base class for export format implementations."""
 
