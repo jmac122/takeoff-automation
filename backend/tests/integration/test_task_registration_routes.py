@@ -182,19 +182,15 @@ class TestClassifyPageRegistration:
         page_id = uuid.uuid4()
         mock_db = AsyncMock()
 
-        # Mock page exists check, then document_id query, then project_id query
+        # Mock page+document_id query, then project_id query
         mock_result_page_exists = MagicMock()
-        mock_result_page_exists.scalar_one_or_none.return_value = page_id
-
-        mock_result_doc_id = MagicMock()
-        mock_result_doc_id.scalar_one.return_value = uuid.uuid4()
+        mock_result_page_exists.one_or_none.return_value = (page_id, uuid.uuid4())
 
         mock_result_project_id = MagicMock()
         mock_result_project_id.scalar_one.return_value = uuid.uuid4()
 
         mock_db.execute.side_effect = [
             mock_result_page_exists,
-            mock_result_doc_id,
             mock_result_project_id,
         ]
 
@@ -222,17 +218,13 @@ class TestClassifyPageRegistration:
         mock_db = AsyncMock()
 
         mock_result_page_exists = MagicMock()
-        mock_result_page_exists.scalar_one_or_none.return_value = page_id
-
-        mock_result_doc_id = MagicMock()
-        mock_result_doc_id.scalar_one.return_value = uuid.uuid4()
+        mock_result_page_exists.one_or_none.return_value = (page_id, uuid.uuid4())
 
         mock_result_project_id = MagicMock()
         mock_result_project_id.scalar_one.return_value = uuid.uuid4()
 
         mock_db.execute.side_effect = [
             mock_result_page_exists,
-            mock_result_doc_id,
             mock_result_project_id,
         ]
 

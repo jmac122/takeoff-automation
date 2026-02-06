@@ -155,15 +155,19 @@ def process_document_task(
         )
         with SyncSession() as session:
             TaskTracker.mark_failed_sync(session, self.request.id, str(e), tb_module.format_exc())
-            document = (
-                session.query(Document)
-                .filter(Document.id == uuid.UUID(document_id))
-                .one_or_none()
-            )
-            if document:
-                document.status = "error"
-                document.processing_error = str(e)
-                session.commit()
+        try:
+            with SyncSession() as session:
+                document = (
+                    session.query(Document)
+                    .filter(Document.id == uuid.UUID(document_id))
+                    .one_or_none()
+                )
+                if document:
+                    document.status = "error"
+                    document.processing_error = str(e)
+                    session.commit()
+        except Exception as update_error:
+            logger.error("Failed to update document error", error=str(update_error))
         raise
 
     except Exception as e:
