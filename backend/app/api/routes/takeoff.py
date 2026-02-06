@@ -207,6 +207,7 @@ async def generate_ai_takeoff(
 async def autonomous_ai_takeoff(
     page_id: uuid.UUID,
     request: AutonomousTakeoffRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
     page_data: Annotated[CalibratedPageData, Depends(get_calibrated_page)],
 ) -> StartTaskResponse:
     """Autonomous AI takeoff - AI identifies ALL concrete elements on its own.
@@ -237,18 +238,29 @@ async def autonomous_ai_takeoff(
         # Use the page's actual project
         project_id_to_use = str(page_data.document.project_id)
 
-    # Queue the autonomous task
-    task = autonomous_ai_takeoff_task.delay(
-        str(page_id),
-        provider=provider,
-        project_id=project_id_to_use,
-    )
-
+    # Register task before dispatch
+    task_id = str(uuid.uuid4())
     provider_msg = f" using {provider}" if provider else ""
     task_name = f"Autonomous AI takeoff for page {page_id}{provider_msg}"
 
+    await TaskTracker.register_async(
+        db,
+        task_id=task_id,
+        task_type="autonomous_ai_takeoff",
+        task_name=task_name,
+        project_id=project_id_to_use,
+        metadata={"page_id": str(page_id), "provider": provider},
+    )
+
+    # Queue the autonomous task
+    autonomous_ai_takeoff_task.apply_async(
+        args=[str(page_id)],
+        kwargs={"provider": provider, "project_id": project_id_to_use},
+        task_id=task_id,
+    )
+
     return StartTaskResponse(
-        task_id=task.id,
+        task_id=task_id,
         task_type="autonomous_ai_takeoff",
         task_name=task_name,
         message=f"Autonomous AI takeoff started for page {page_id}{provider_msg}",
@@ -295,15 +307,27 @@ async def compare_providers(
                 f"Available: {settings.available_providers}",
             )
 
-    task = compare_providers_task.delay(
-        str(page_id),
-        str(request.condition_id),
-        providers=providers,
-    )
+    # Register task before dispatch
+    task_id = str(uuid.uuid4())
     task_name = f"Provider comparison for page {page_id}"
 
+    await TaskTracker.register_async(
+        db,
+        task_id=task_id,
+        task_type="compare_providers",
+        task_name=task_name,
+        project_id=str(page_data.document.project_id),
+        metadata={"page_id": str(page_id), "condition_id": str(request.condition_id), "providers": providers},
+    )
+
+    compare_providers_task.apply_async(
+        args=[str(page_id), str(request.condition_id)],
+        kwargs={"providers": providers},
+        task_id=task_id,
+    )
+
     return StartTaskResponse(
-        task_id=task.id,
+        task_id=task_id,
         task_type="compare_providers",
         task_name=task_name,
         message=f"Provider comparison started for page {page_id}",
@@ -379,17 +403,32 @@ async def batch_ai_takeoff(
             detail=f"Pages must be calibrated before AI takeoff: {uncalibrated_pages}",
         )
 
-    # Queue batch task
-    task = batch_ai_takeoff_task.delay(
-        [str(pid) for pid in request.page_ids],
-        str(request.condition_id),
-        provider=request.provider,
-    )
-
+    # Register task before dispatch
+    task_id = str(uuid.uuid4())
     pages_count = len(request.page_ids)
     task_name = f"Batch AI takeoff for {pages_count} pages"
+
+    await TaskTracker.register_async(
+        db,
+        task_id=task_id,
+        task_type="batch_ai_takeoff",
+        task_name=task_name,
+        project_id=str(condition.project_id),
+        metadata={
+            "page_ids": [str(pid) for pid in request.page_ids],
+            "condition_id": str(request.condition_id),
+            "provider": request.provider,
+        },
+    )
+
+    batch_ai_takeoff_task.apply_async(
+        args=[[str(pid) for pid in request.page_ids], str(request.condition_id)],
+        kwargs={"provider": request.provider},
+        task_id=task_id,
+    )
+
     return BatchTakeoffResponse(
-        task_id=task.id,
+        task_id=task_id,
         task_type="batch_ai_takeoff",
         task_name=task_name,
         message=f"Batch AI takeoff queued for {pages_count} pages",

@@ -25,6 +25,9 @@ from app.workers.celery_app import celery_app
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
+TERMINAL_STATUSES = (TaskStatus.SUCCESS, TaskStatus.FAILURE, TaskStatus.REVOKED)
+RUNNING_STATUSES = (TaskStatus.PENDING, TaskStatus.STARTED, TaskStatus.PROGRESS)
+
 
 def _build_task_response(
     celery_result: AsyncResult,
@@ -41,7 +44,7 @@ def _build_task_response(
     if (
         record
         and celery_status == TaskStatus.PENDING
-        and record.status in (TaskStatus.SUCCESS, TaskStatus.FAILURE, TaskStatus.REVOKED)
+        and record.status in TERMINAL_STATUSES
     ):
         response_status = record.status
     celery_meta = {}
@@ -74,7 +77,7 @@ def _build_task_response(
                 step=record.progress_step,
             )
         # Use DB result/error if Celery state is terminal
-        if response_status in (TaskStatus.SUCCESS, TaskStatus.FAILURE, TaskStatus.REVOKED):
+        if response_status in TERMINAL_STATUSES:
             if record.result_summary and not result_data:
                 result_data = record.result_summary
             if record.error_message and not error:
@@ -125,7 +128,7 @@ async def cancel_task(
         select(TaskRecord).where(TaskRecord.task_id == task_id)
     )
     record = result.scalar_one_or_none()
-    if record and record.status not in (TaskStatus.SUCCESS, TaskStatus.FAILURE, TaskStatus.REVOKED):
+    if record and record.status not in TERMINAL_STATUSES:
         record.status = TaskStatus.REVOKED
         record.completed_at = datetime.now(timezone.utc)
         await db.commit()
@@ -158,11 +161,10 @@ async def list_project_tasks(
     list_query = select(TaskRecord).where(*list_filters)
 
     # Aggregations: filtered total + project-wide breakdowns
-    running_statuses = (TaskStatus.PENDING, TaskStatus.STARTED, TaskStatus.PROGRESS)
     total_q = select(func.count()).select_from(TaskRecord).where(*list_filters)
     breakdown_q = (
         select(
-            func.count().filter(TaskRecord.status.in_(running_statuses)).label("running"),
+            func.count().filter(TaskRecord.status.in_(RUNNING_STATUSES)).label("running"),
             func.count().filter(TaskRecord.status == TaskStatus.SUCCESS).label("completed"),
             func.count().filter(TaskRecord.status == TaskStatus.FAILURE).label("failed"),
             func.count().filter(TaskRecord.status == TaskStatus.REVOKED).label("cancelled"),
