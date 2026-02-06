@@ -25,6 +25,7 @@ from app.services.task_tracker import TaskTracker
 from app.utils.storage import get_storage_service
 from app.utils.geometry import MeasurementCalculator
 from app.workers.celery_app import celery_app
+from app.workers.progress import report_progress as _report_progress
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -38,12 +39,6 @@ sync_engine = create_engine(
     max_overflow=10,
 )
 SyncSession = sessionmaker(bind=sync_engine)
-
-
-def _report_progress(task, db, percent: float, step: str) -> None:
-    """Send progress updates to Celery and the DB."""
-    task.update_state(state="PROGRESS", meta={"percent": percent, "step": step})
-    TaskTracker.update_progress_sync(db, task.request.id, percent, step)
 
 
 def create_measurement_from_element(
@@ -408,6 +403,8 @@ def compare_providers_task(
         with SyncSession() as db:
             TaskTracker.mark_started_sync(db, self.request.id)
 
+            _report_progress(self, db, 10, "Loading page data")
+
             page_uuid = uuid.UUID(page_id)
             condition_uuid = uuid.UUID(condition_id)
 
@@ -425,6 +422,8 @@ def compare_providers_task(
             storage = get_storage_service()
             image_bytes = storage.download_file(page.image_key)
 
+            _report_progress(self, db, 20, "Running multi-provider analysis")
+
             ai_service = get_ai_takeoff_service()
 
             results = ai_service.analyze_page_multi_provider(
@@ -437,6 +436,8 @@ def compare_providers_task(
                 ocr_text=page.ocr_text,
                 providers=providers,
             )
+
+            _report_progress(self, db, 90, "Compiling results")
 
             comparison = {}
             for provider_name, result in results.items():
@@ -505,9 +506,11 @@ def batch_ai_takeoff_task(
     try:
         with SyncSession() as db:
             TaskTracker.mark_started_sync(db, self.request.id)
+            _report_progress(self, db, 10, "Starting batch")
 
         results = []
-        for page_id in page_ids:
+        total_pages = len(page_ids)
+        for i, page_id in enumerate(page_ids):
             try:
                 task = generate_ai_takeoff_task.delay(
                     page_id=page_id,
@@ -531,6 +534,18 @@ def batch_ai_takeoff_task(
                     "status": "error",
                     "error": str(e),
                 })
+
+            # Report per-page progress (10-90% range)
+            try:
+                percent = 10 + int(80 * (i + 1) / total_pages)
+                with SyncSession() as db:
+                    _report_progress(self, db, percent, f"Queued {i + 1}/{total_pages} pages")
+            except Exception as progress_err:
+                logger.warning(
+                    "Failed to report batch progress",
+                    page_index=i,
+                    error=str(progress_err),
+                )
 
         result_summary = {
             "condition_id": condition_id,
@@ -695,6 +710,8 @@ def autonomous_ai_takeoff_task(
         with SyncSession() as db:
             TaskTracker.mark_started_sync(db, self.request.id)
 
+            _report_progress(self, db, 10, "Loading page data")
+
             page_uuid = uuid.UUID(page_id)
             project_uuid = uuid.UUID(project_id) if project_id else None
 
@@ -711,7 +728,7 @@ def autonomous_ai_takeoff_task(
             document = db.query(Document).filter(Document.id == page.document_id).one()
             if project_uuid and project_uuid != document.project_id:
                 raise ValueError("Provided project_id does not match the page's project")
-            
+
             # Use the page's actual project if not provided
             if not project_uuid:
                 project_uuid = document.project_id
@@ -721,6 +738,7 @@ def autonomous_ai_takeoff_task(
             image_bytes = storage.download_file(page.image_key)
 
             # Get AI takeoff service
+            _report_progress(self, db, 30, "Running AI analysis")
             ai_service = get_ai_takeoff_service(provider=provider)
 
             # Run AUTONOMOUS analysis - AI determines what elements exist
@@ -741,6 +759,7 @@ def autonomous_ai_takeoff_task(
                 elements_by_type[elem_type].append(elem)
 
             # Create measurements if project_id provided
+            _report_progress(self, db, 70, "Creating measurements")
             measurements_created = 0
             conditions_created = 0
             calculator = MeasurementCalculator(pixels_per_foot=page.scale_value)
@@ -778,6 +797,8 @@ def autonomous_ai_takeoff_task(
 
                     locked_condition.total_quantity = totals[0] or 0.0
                     locked_condition.measurement_count = totals[1] or 0
+
+            _report_progress(self, db, 90, "Finalizing")
 
             result_summary = {
                 "page_id": page_id,

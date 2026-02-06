@@ -24,6 +24,7 @@ from app.schemas.page import (
     ScaleUpdateRequest,
 )
 from app.services.scale_detector import get_scale_detector
+from app.services.task_tracker import TaskTracker
 from app.utils.storage import get_storage_service
 from app.workers.ocr_tasks import process_page_ocr_task
 from app.workers.classification_tasks import classify_page_task, classify_document_pages
@@ -267,11 +268,27 @@ async def reprocess_page_ocr(
         page.processing_error = None
         await db.commit()
 
-    process_page_ocr_task.delay(str(page_id))
+    # Get project_id for task registration
+    page_doc = await db.execute(
+        select(Document.project_id).where(Document.id == page.document_id)
+    )
+    project_id = page_doc.scalar_one()
+
+    task_id = str(uuid.uuid4())
+    await TaskTracker.register_async(
+        db,
+        task_id=task_id,
+        task_type="ocr_processing",
+        task_name=f"OCR for page {page.sheet_number or page.page_number}",
+        project_id=str(project_id),
+        metadata={"page_id": str(page_id)},
+    )
+    process_page_ocr_task.apply_async(args=[str(page_id)], task_id=task_id)
 
     return {
         "status": "queued",
         "page_id": str(page_id),
+        "task_id": task_id,
         "message": "OCR reprocessing queued",
     }
 
@@ -373,13 +390,16 @@ async def classify_page_endpoint(
     By default, uses fast OCR-based classification (free, instant).
     Set use_vision=true to use LLM vision models (slower, costs money, but more detailed).
     """
-    # Verify page exists
-    result = await db.execute(select(Page.id).where(Page.id == page_id))
-    if not result.scalar_one_or_none():
+    # Verify page exists and get document_id in a single query
+    result = await db.execute(select(Page.id, Page.document_id).where(Page.id == page_id))
+    row = result.one_or_none()
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Page not found",
         )
+
+    _, doc_id = row
 
     provider = request.provider if request else None
     use_vision = request.use_vision if request else False
@@ -392,14 +412,30 @@ async def classify_page_endpoint(
             f"Available: {settings.available_providers}",
         )
 
-    task = classify_page_task.delay(
-        str(page_id),
-        provider=provider,
-        use_vision=use_vision,
+    # Get project_id for task registration
+    doc_result = await db.execute(
+        select(Document.project_id).where(Document.id == doc_id)
+    )
+    project_id = doc_result.scalar_one()
+
+    task_id = str(uuid.uuid4())
+    await TaskTracker.register_async(
+        db,
+        task_id=task_id,
+        task_type="page_classification",
+        task_name=f"Classifying page {page_id}",
+        project_id=str(project_id),
+        metadata={"page_id": str(page_id), "provider": provider, "use_vision": use_vision},
+    )
+
+    classify_page_task.apply_async(
+        args=[str(page_id)],
+        kwargs={"provider": provider, "use_vision": use_vision},
+        task_id=task_id,
     )
 
     return ClassificationTaskResponse(
-        task_id=task.id,
+        task_id=task_id,
         message=f"Classification started for page {page_id}"
         + (f" using {provider}" if provider else ""),
     )
@@ -673,16 +709,35 @@ async def detect_page_scale(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Trigger automatic scale detection for a page."""
-    result = await db.execute(select(Page.id).where(Page.id == page_id))
-    if not result.scalar_one_or_none():
+    result = await db.execute(select(Page.id, Page.document_id).where(Page.id == page_id))
+    row = result.one_or_none()
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Page not found",
         )
 
-    detect_page_scale_task.delay(str(page_id))
+    _, doc_id = row
 
-    return {"status": "queued", "page_id": str(page_id)}
+    # Get project_id for task registration
+    doc_result = await db.execute(
+        select(Document.project_id).where(Document.id == doc_id)
+    )
+    project_id = doc_result.scalar_one()
+
+    task_id = str(uuid.uuid4())
+    await TaskTracker.register_async(
+        db,
+        task_id=task_id,
+        task_type="scale_detection",
+        task_name=f"Scale detection for page {page_id}",
+        project_id=str(project_id),
+        metadata={"page_id": str(page_id)},
+    )
+
+    detect_page_scale_task.apply_async(args=[str(page_id)], task_id=task_id)
+
+    return {"status": "queued", "page_id": str(page_id), "task_id": task_id}
 
 
 @router.get("/pages/{page_id}/scale-detection-status")
