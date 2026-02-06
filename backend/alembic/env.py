@@ -24,7 +24,7 @@ if config.config_file_name is not None:
 from app.models.base import Base
 
 # Import all models so Alembic can detect them
-from app.models import Project, Document, Page, Condition, Measurement, ClassificationHistory, TaskRecord  # noqa: F401
+from app.models import Project, Document, Page, Condition, Measurement, ClassificationHistory, TaskRecord, ExportJob  # noqa: F401
 
 # Import settings to get DATABASE_URL from environment
 from app.config import get_settings

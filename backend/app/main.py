@@ -14,6 +14,7 @@ from app.models import (
     Document,
     Page,
     Measurement,
+    ExportJob,
 )  # Import models to register with SQLAlchemy
 from app.api.routes import (
     health,
