@@ -315,6 +315,16 @@ async def batch_update_scale(
     )
     pages = result.scalars().all()
 
+    if not pages:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No pages found for the provided page_ids",
+        )
+
+    found_ids = {str(p.id) for p in pages}
+    requested_ids = {str(pid) for pid in request.page_ids}
+    missing_ids = list(requested_ids - found_ids)
+
     updated = []
     for page in pages:
         page.scale_value = request.scale_value
@@ -330,8 +340,12 @@ async def batch_update_scale(
 
     await db.commit()
 
-    return {
+    response: dict[str, Any] = {
         "status": "success",
         "updated_pages": updated,
         "count": len(updated),
     }
+    if missing_ids:
+        response["missing_ids"] = missing_ids
+
+    return response

@@ -352,7 +352,7 @@ export function SheetTree({ projectId, sheetsData, isLoading }: SheetTreeProps) 
                       <div
                         key={sheet.id}
                         data-sheet-id={sheet.id}
-                        className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 pl-6 text-xs transition-colors ${
+                        className={`group flex items-center gap-2 cursor-pointer px-3 py-1.5 pl-6 text-xs transition-colors ${
                           isActive
                             ? 'bg-blue-600/20 text-blue-300'
                             : isHighlighted

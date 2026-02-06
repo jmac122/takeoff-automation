@@ -9,6 +9,7 @@ from httpx import AsyncClient, ASGITransport
 
 from app.main import create_app
 from app.api.deps import get_db
+from tests.factories.mock_db import MockResult
 
 
 # ============================================================================
@@ -61,33 +62,6 @@ def _make_page(
         page_type=page_type,
         status="ready",
     )
-
-
-# ============================================================================
-# Test helpers
-# ============================================================================
-
-
-class MockResult:
-    """Mocks an SQLAlchemy result."""
-
-    def __init__(self, data):
-        self._data = data
-
-    def scalars(self):
-        return self
-
-    def all(self):
-        return self._data
-
-    def scalar_one_or_none(self):
-        return self._data[0] if self._data else None
-
-    def one_or_none(self):
-        return self._data[0] if self._data else None
-
-    def __iter__(self):
-        return iter(self._data)
 
 
 class MockRow:
