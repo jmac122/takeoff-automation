@@ -1450,11 +1450,9 @@ docker compose logs frontend
 After completing Phase 0 (Application Interface):
 
 1. **Phase 3B (Condition Management)** - Add conditions UI to projects
-2. **Phase 3C (Assembly System)** - Cost estimation with material/labor/equipment components
-3. **Phase 4A (AI Takeoff Generation)** - Integrate AI measurement generation
-4. **Phase 4B (Auto Count)** - Template matching for repetitive elements
-5. **Phase 4C (Review Interface Enhanced)** - Keyboard shortcuts, auto-accept, confidence filtering
-6. **Phase 5A (Export System)** - Add export functionality to projects
+2. **Phase 4A (AI Takeoff Generation)** - Integrate AI measurement generation
+3. **Phase 4B (Review Interface)** - Add measurement editing capabilities
+4. **Phase 5A (Export System)** - Add export functionality to projects
 
 ---
 
