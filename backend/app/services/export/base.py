@@ -6,14 +6,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import structlog
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, joinedload
-
-from app.models.condition import Condition
-from app.models.measurement import Measurement
-from app.models.page import Page
-from app.models.project import Project
 
 logger = structlog.get_logger()
 
@@ -79,99 +71,6 @@ class ExportData:
         for condition in self.conditions:
             result.extend(condition.measurements)
         return result
-
-
-async def fetch_export_data(
-    db: AsyncSession,
-    project_id: uuid.UUID,
-    *,
-    include_unverified: bool = True,
-) -> ExportData:
-    """Fetch all project data needed for export.
-
-    Args:
-        db: Async database session
-        project_id: Project UUID
-        include_unverified: Whether to include unverified measurements
-
-    Returns:
-        ExportData with all conditions and measurements
-    """
-    # Fetch project
-    proj_result = await db.execute(
-        select(Project).where(Project.id == project_id)
-    )
-    project = proj_result.scalar_one_or_none()
-    if not project:
-        raise ValueError(f"Project not found: {project_id}")
-
-    # Fetch conditions with measurements and their pages
-    cond_query = (
-        select(Condition)
-        .where(Condition.project_id == project_id)
-        .options(
-            selectinload(Condition.measurements).joinedload(Measurement.page)
-        )
-        .order_by(Condition.sort_order, Condition.name)
-    )
-    cond_result = await db.execute(cond_query)
-    conditions = cond_result.scalars().unique().all()
-
-    condition_data_list = []
-    for cond in conditions:
-        measurements = []
-        for m in cond.measurements:
-            if not include_unverified and not m.is_verified:
-                continue
-            measurements.append(
-                MeasurementData(
-                    id=m.id,
-                    condition_name=cond.name,
-                    condition_id=cond.id,
-                    page_id=m.page_id,
-                    page_number=m.page.page_number if m.page else 0,
-                    sheet_number=m.page.sheet_number if m.page else None,
-                    sheet_title=m.page.sheet_title if m.page else None,
-                    geometry_type=m.geometry_type,
-                    geometry_data=m.geometry_data,
-                    quantity=m.quantity,
-                    unit=m.unit,
-                    pixel_length=m.pixel_length,
-                    pixel_area=m.pixel_area,
-                    is_ai_generated=m.is_ai_generated,
-                    is_verified=m.is_verified,
-                    notes=m.notes,
-                )
-            )
-
-        condition_data_list.append(
-            ConditionData(
-                id=cond.id,
-                name=cond.name,
-                description=cond.description,
-                scope=cond.scope,
-                category=cond.category,
-                measurement_type=cond.measurement_type,
-                color=cond.color,
-                unit=cond.unit,
-                depth=cond.depth,
-                thickness=cond.thickness,
-                total_quantity=cond.total_quantity,
-                measurement_count=cond.measurement_count,
-                building=cond.building,
-                area=cond.area,
-                elevation=cond.elevation,
-                measurements=measurements,
-            )
-        )
-
-    return ExportData(
-        project_id=project.id,
-        project_name=project.name,
-        project_description=project.description,
-        client_name=project.client_name,
-        conditions=condition_data_list,
-    )
 
 
 # Unit abbreviation map

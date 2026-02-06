@@ -8,6 +8,7 @@ run in a multiprocessing context where async database connections
 import uuid
 from datetime import datetime, timezone
 
+from celery.exceptions import MaxRetriesExceededError
 import structlog
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session, joinedload
@@ -236,18 +237,21 @@ def generate_export_task(
                 error=str(e),
             )
 
-            # Update ExportJob
             try:
-                export_job = db.get(ExportJob, uuid.UUID(export_job_id))
-                if export_job:
-                    export_job.status = "failed"
-                    export_job.error_message = str(e)
-                    export_job.completed_at = datetime.now(timezone.utc)
-                    db.commit()
-            except Exception:
-                pass
+                raise self.retry(exc=e, countdown=60)
+            except MaxRetriesExceededError:
+                # Update ExportJob only after all retries exhausted
+                try:
+                    export_job = db.get(ExportJob, uuid.UUID(export_job_id))
+                    if export_job:
+                        export_job.status = "failed"
+                        export_job.error_message = str(e)
+                        export_job.completed_at = datetime.now(timezone.utc)
+                        db.commit()
+                except Exception:
+                    pass
 
-            # Mark task failed
-            TaskTracker.mark_failed_sync(db, task_id, str(e))
+                # Mark task failed
+                TaskTracker.mark_failed_sync(db, task_id, str(e))
 
-            raise
+                raise

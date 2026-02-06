@@ -118,8 +118,8 @@ class TestGenerateExportTask:
     @patch('app.workers.export_tasks.SyncSession')
     @patch('app.workers.export_tasks.TaskTracker')
     @patch('app.workers.export_tasks._fetch_export_data_sync')
-    def test_marks_failed_on_error(self, mock_fetch, mock_tracker, mock_session_cls):
-        """Task calls mark_failed_sync when generation fails."""
+    def test_retries_on_error(self, mock_fetch, mock_tracker, mock_session_cls):
+        """Task attempts retry on error (calls self.retry instead of failing immediately)."""
         mock_session = MagicMock()
         mock_session_cls.return_value.__enter__ = MagicMock(return_value=mock_session)
         mock_session_cls.return_value.__exit__ = MagicMock(return_value=False)
@@ -129,12 +129,15 @@ class TestGenerateExportTask:
         from app.workers.export_tasks import generate_export_task
         task_id = str(uuid.uuid4())
 
+        # When called directly (not via Celery worker), self.retry() re-raises
+        # the original exception. In production, Celery reschedules the task.
         with pytest.raises(ValueError, match="Project not found"):
             generate_export_task(
                 str(uuid.uuid4()), str(uuid.uuid4()), "excel", task_id
             )
 
-        mock_tracker.mark_failed_sync.assert_called_once()
+        # mark_failed_sync is NOT called on retry (only after retries exhausted)
+        mock_tracker.mark_failed_sync.assert_not_called()
 
     @patch('app.workers.export_tasks.SyncSession')
     @patch('app.workers.export_tasks.TaskTracker')
@@ -193,7 +196,7 @@ class TestGenerateExportTask:
     @patch('app.workers.export_tasks.get_storage_service')
     @patch('app.workers.export_tasks._fetch_export_data_sync')
     def test_unsupported_format_raises(self, mock_fetch, mock_storage_fn, mock_tracker, mock_session_cls, sample_export_data):
-        """Unsupported export format raises ValueError."""
+        """Unsupported export format triggers retry (raises on unsupported format)."""
         mock_session = MagicMock()
         mock_session_cls.return_value.__enter__ = MagicMock(return_value=mock_session)
         mock_session_cls.return_value.__exit__ = MagicMock(return_value=False)
@@ -202,6 +205,7 @@ class TestGenerateExportTask:
 
         from app.workers.export_tasks import generate_export_task
 
+        # When called directly, self.retry() re-raises the original ValueError
         with pytest.raises(ValueError, match="Unsupported export format"):
             generate_export_task(
                 str(uuid.uuid4()), str(uuid.uuid4()), "docx", str(uuid.uuid4())
