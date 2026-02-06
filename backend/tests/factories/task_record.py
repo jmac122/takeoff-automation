@@ -1,7 +1,10 @@
 """TaskRecord factory for tests."""
+
 import uuid
 from datetime import datetime, timezone
+
 import factory
+
 from app.models.task import TaskRecord
 
 

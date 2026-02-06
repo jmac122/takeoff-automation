@@ -7,8 +7,10 @@ database connections (asyncpg) cause InterfaceError.
 FastAPI routes use ASYNC SQLAlchemy - this is the correct pattern.
 """
 
+import traceback as tb_module
 import uuid
 
+from celery.exceptions import MaxRetriesExceededError
 import structlog
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -16,8 +18,10 @@ from sqlalchemy.orm import sessionmaker
 from app.config import get_settings
 from app.models.page import Page
 from app.services.scale_detector import get_scale_detector
+from app.services.task_tracker import TaskTracker
 from app.utils.storage import get_storage_service
 from app.workers.celery_app import celery_app
+from app.workers.progress import report_progress as _report_progress
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -47,9 +51,13 @@ def detect_page_scale_task(self, page_id: str) -> dict:
 
     try:
         with SyncSession() as session:
+            # Mark task as started
+            TaskTracker.mark_started_sync(session, self.request.id)
+
             page_uuid = uuid.UUID(page_id)
 
             # Get page (sync query)
+            _report_progress(self, session, 10, "Loading page data")
             page = session.query(Page).filter(Page.id == page_uuid).one_or_none()
 
             if not page:
@@ -59,6 +67,7 @@ def detect_page_scale_task(self, page_id: str) -> dict:
             storage = get_storage_service()
 
             # Download image
+            _report_progress(self, session, 30, "Downloading image")
             image_bytes = storage.download_file(page.image_key)
 
             # Get pre-detected scale texts from OCR
@@ -69,7 +78,7 @@ def detect_page_scale_task(self, page_id: str) -> dict:
             # Check if OCR blocks are missing (may indicate OCR failure)
             if not page.ocr_blocks or not page.ocr_blocks.get("blocks"):
                 logger.warning(
-                    "⚠️ OCR blocks missing for scale detection",
+                    "OCR blocks missing for scale detection",
                     page_id=page_id,
                     ocr_text_exists=bool(page.ocr_text),
                     ocr_blocks_exists=bool(page.ocr_blocks),
@@ -79,6 +88,7 @@ def detect_page_scale_task(self, page_id: str) -> dict:
                 )
 
             # Detect scale
+            _report_progress(self, session, 60, "Detecting scale")
             detection = detector.detect_scale(
                 image_bytes,
                 ocr_text=page.ocr_text,
@@ -87,6 +97,7 @@ def detect_page_scale_task(self, page_id: str) -> dict:
             )
 
             # Update page with scale info
+            _report_progress(self, session, 90, "Saving results")
             if detection["best_scale"]:
                 best = detection["best_scale"]
                 page.scale_text = best["text"]
@@ -97,11 +108,7 @@ def detect_page_scale_task(self, page_id: str) -> dict:
                 # Calculate accurate pixels_per_foot using physical page dimensions
                 scale_ratio = best.get("ratio")
                 if page.page_width_inches and page.page_width_inches > 0 and scale_ratio and scale_ratio > 0:
-                    # pixels_per_inch = image_width / physical_page_width
                     pixels_per_inch = page.width / page.page_width_inches
-                    # scale_ratio is in INCHES per drawing inch (e.g., 96 for 1/8"=1'-0", 240 for 1"=20')
-                    # Convert to feet: scale_ratio / 12 = feet per drawing inch
-                    # pixels_per_foot = pixels_per_inch / (scale_ratio / 12) = pixels_per_inch * 12 / scale_ratio
                     page.scale_value = pixels_per_inch * 12 / scale_ratio
                     logger.info(
                         "Calculated pixels_per_foot from physical dimensions",
@@ -113,7 +120,6 @@ def detect_page_scale_task(self, page_id: str) -> dict:
                         pixels_per_foot=page.scale_value,
                     )
                 else:
-                    # Fallback to the legacy DPI-based estimate (less accurate)
                     page.scale_value = best.get("pixels_per_foot")
                     logger.warning(
                         "Using legacy pixels_per_foot estimate (no physical dimensions)",
@@ -125,20 +131,27 @@ def detect_page_scale_task(self, page_id: str) -> dict:
                     page.scale_calibrated = True
 
             # Store full detection data
-            # If new detection has no bbox but old one does, preserve the old bbox
             if detection.get("best_scale") and not detection["best_scale"].get("bbox"):
-                # New detection missing bbox - check if we have old data with bbox
                 if page.scale_calibration_data and page.scale_calibration_data.get(
                     "best_scale"
                 ):
                     old_bbox = page.scale_calibration_data["best_scale"].get("bbox")
                     if old_bbox:
-                        # Preserve the old bbox
                         detection["best_scale"]["bbox"] = old_bbox
                         logger.info("Preserved bbox from previous detection")
 
             page.scale_calibration_data = detection
 
+            result_summary = {
+                "page_id": page_id,
+                "scale_text": page.scale_text,
+                "scale_value": page.scale_value,
+                "calibrated": page.scale_calibrated,
+            }
+
+            TaskTracker.mark_completed_sync(
+                session, self.request.id, result_summary, commit=False
+            )
             session.commit()
 
             logger.info(
@@ -158,9 +171,27 @@ def detect_page_scale_task(self, page_id: str) -> dict:
                 "detection": detection,
             }
 
+    except ValueError as e:
+        logger.error(
+            "Scale detection validation failed (not retrying)",
+            page_id=page_id,
+            error=str(e),
+        )
+        with SyncSession() as session:
+            TaskTracker.mark_failed_sync(session, self.request.id, str(e), tb_module.format_exc())
+        raise
+
     except Exception as e:
         logger.error("Scale detection failed", page_id=page_id, error=str(e))
-        raise self.retry(exc=e, countdown=30)
+        original_traceback = tb_module.format_exc()
+        try:
+            raise self.retry(exc=e, countdown=30)
+        except MaxRetriesExceededError:
+            with SyncSession() as session:
+                TaskTracker.mark_failed_sync(
+                    session, self.request.id, str(e), original_traceback
+                )
+            raise
 
 
 @celery_app.task(bind=True)

@@ -7,8 +7,10 @@ database connections (asyncpg) cause InterfaceError.
 FastAPI routes use ASYNC SQLAlchemy - this is the correct pattern.
 """
 
+import traceback as tb_module
 import uuid
 
+from celery.exceptions import MaxRetriesExceededError
 import structlog
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -17,8 +19,10 @@ from app.config import get_settings
 from app.models.document import Document
 from app.models.page import Page
 from app.services.document_processor import get_document_processor
+from app.services.task_tracker import TaskTracker
 from app.utils.storage import get_storage_service
 from app.workers.celery_app import celery_app
+from app.workers.progress import report_progress as _report_progress
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -63,6 +67,9 @@ def process_document_task(
         storage = get_storage_service()
 
         with SyncSession() as session:
+            # Mark task as started
+            TaskTracker.mark_started_sync(session, self.request.id)
+
             # Get document (sync query)
             document = (
                 session.query(Document).filter(Document.id == doc_uuid).one_or_none()
@@ -76,9 +83,11 @@ def process_document_task(
             session.commit()
 
             # Download original file
+            _report_progress(self, session, 10, "Downloading file")
             file_bytes = storage.download_file(document.storage_key)
 
             # Process document and extract pages
+            _report_progress(self, session, 40, "Extracting pages")
             pages_data = processor.process_document(
                 document_id=doc_uuid,
                 project_id=proj_uuid,
@@ -88,6 +97,7 @@ def process_document_task(
             )
 
             # Create page records
+            _report_progress(self, session, 70, "Saving page records")
             for page_data in pages_data:
                 page = Page(
                     id=page_data["id"],
@@ -108,6 +118,17 @@ def process_document_task(
             document.status = "ready"
             document.page_count = len(pages_data)
 
+            # Queue OCR processing for the document
+            _report_progress(self, session, 90, "Queueing OCR")
+
+            result_summary = {
+                "document_id": document_id,
+                "page_count": len(pages_data),
+            }
+
+            TaskTracker.mark_completed_sync(
+                session, self.request.id, result_summary, commit=False
+            )
             session.commit()
 
             logger.info(
@@ -116,10 +137,16 @@ def process_document_task(
                 page_count=len(pages_data),
             )
 
-            # Queue OCR processing for the document
             from app.workers.ocr_tasks import process_document_ocr_task
 
-            process_document_ocr_task.delay(document_id)
+            try:
+                process_document_ocr_task.delay(document_id)
+            except Exception as queue_error:
+                logger.error(
+                    "Failed to queue OCR task (document processing already succeeded)",
+                    document_id=document_id,
+                    error=str(queue_error),
+                )
 
             return {
                 "status": "success",
@@ -127,12 +154,36 @@ def process_document_task(
                 "page_count": len(pages_data),
             }
 
+    except ValueError as e:
+        logger.error(
+            "Document processing validation failed (not retrying)",
+            document_id=document_id,
+            error=str(e),
+        )
+        with SyncSession() as session:
+            TaskTracker.mark_failed_sync(session, self.request.id, str(e), tb_module.format_exc())
+        try:
+            with SyncSession() as session:
+                document = (
+                    session.query(Document)
+                    .filter(Document.id == uuid.UUID(document_id))
+                    .one_or_none()
+                )
+                if document:
+                    document.status = "error"
+                    document.processing_error = str(e)
+                    session.commit()
+        except Exception as update_error:
+            logger.error("Failed to update document error", error=str(update_error))
+        raise
+
     except Exception as e:
         logger.error(
             "Document processing failed",
             document_id=document_id,
             error=str(e),
         )
+        original_traceback = tb_module.format_exc()
 
         # Update document status to error
         try:
@@ -149,4 +200,11 @@ def process_document_task(
         except Exception as update_error:
             logger.error("Failed to update document error", error=str(update_error))
 
-        raise self.retry(exc=e, countdown=60)
+        try:
+            raise self.retry(exc=e, countdown=60)
+        except MaxRetriesExceededError:
+            with SyncSession() as session:
+                TaskTracker.mark_failed_sync(
+                    session, self.request.id, str(e), original_traceback
+                )
+            raise

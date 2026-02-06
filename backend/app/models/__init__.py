@@ -9,6 +9,7 @@ from app.models.page import Page
 from app.models.measurement import Measurement
 from app.models.classification_history import ClassificationHistory
 from app.models.task import TaskRecord
+from app.models.export_job import ExportJob
 
 __all__ = [
     "Base",
@@ -21,4 +22,5 @@ __all__ = [
     "Measurement",
     "ClassificationHistory",
     "TaskRecord",
+    "ExportJob",
 ]
