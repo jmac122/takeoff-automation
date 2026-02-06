@@ -1,0 +1,73 @@
+---
+description: Testing requirements for all ForgeX code changes
+globs: ["backend/**/*.py", "frontend/**/*.ts", "frontend/**/*.tsx"]
+---
+
+# Testing Rules
+
+## Core Rule
+
+Every commit that adds or modifies implementation code MUST include tests in the same
+commit. Tests are not a follow-up task. If you write a function, you write its test.
+
+## Backend Test Conventions
+
+- **Framework:** pytest + pytest-asyncio (`asyncio_mode = "auto"`)
+- **Location:** `backend/tests/test_<module>.py`
+- **Route tests:** `TestClient(create_app())` from `fastapi.testclient`
+- **Service/model tests:** direct imports with `MagicMock` sessions
+- **Run:** `cd backend && pytest tests/ -v --tb=short`
+
+## Available Fixtures (from `backend/tests/conftest.py`)
+
+- `mock_database` (autouse) — patches `app.api.deps.get_db` with MagicMock session
+- `mock_celery_task` — patches `app.workers.celery_app.celery_app`
+- `mock_storage` — patches `app.utils.storage.get_storage_service`
+- `mock_llm_client` — patches `app.services.llm_client.get_llm_client`
+
+## Frontend Test Conventions
+
+- **Framework:** Vitest
+- **Location:** colocated `<module>.test.ts` next to source file
+- **Mocking:** `vi.mock()` for API client, `vi.fn()` for callbacks
+- **Run:** `cd frontend && npm test`
+
+## Minimum Test Coverage by Layer
+
+- **Models:** defaults, nullable fields, type constraints, relationships
+- **Services:** happy path, missing/null inputs, session edge cases (dirty state)
+- **Routes:** 200/4xx status codes, response schema shape, query param filtering, error responses
+- **Celery workers:** lifecycle callbacks, retry vs permanent failure, error capture
+
+## Celery-Specific Gotchas (MUST test when writing Celery integration)
+
+These caused real bugs — always write tests for these scenarios:
+
+- `AsyncResult.info` is the exception object when status=FAILURE, not a dict.
+  Test by mocking a failed AsyncResult and asserting no AttributeError/TypeError.
+- After `result_expires`, Celery reports PENDING for completed tasks.
+  Test: mock Celery PENDING + DB terminal status → DB wins.
+- `self.retry()` only raises `MaxRetriesExceededError` when retries are exhausted.
+  Test: don't mark FAILURE before retry; only mark FAILURE inside `except MaxRetriesExceededError`.
+- Capture traceback BEFORE `self.retry()`, not after.
+  Test: assert `mark_failed_sync` receives the original traceback string.
+- Register tasks in DB BEFORE `apply_async()` to avoid race conditions.
+  Test: assert mock call ordering — `register_async` before `apply_async`.
+- `update_progress_sync` must isolate session when caller has dirty state.
+  Test: mock session with `dirty={something}`, assert isolated session is created.
+- Use `commit=False` on `mark_completed_sync` for atomic commits with domain data.
+  Test: assert single `db.commit()` covers both domain objects and task status.
+
+## What NOT to Test (leave for linters)
+
+- Unused imports
+- Dead code
+- Formatting / style
+- DRY violations
+
+## Before Every Commit
+
+```bash
+cd backend && pytest tests/ -v --tb=short
+cd frontend && npm test
+```

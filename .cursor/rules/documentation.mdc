@@ -55,3 +55,4 @@ All implementation plans are in the `plans/` directory:
 
 - `.cursor/claude.md` — Project overview, data model, API endpoints, key patterns
 - `.cursor/rules/documentation.mdc` — This file (documentation index)
+- `.cursor/rules/testing.mdc` — Testing requirements for all code changes
