@@ -132,7 +132,7 @@ class ExcelExporter(BaseExporter):
             for m_idx, m in enumerate(cond.measurements):
                 row = 5 + m_idx
                 ws.cell(row=row, column=1, value=m.page_number)
-                ws.cell(row=row, column=2, value=m.sheet_number or "")
+                ws.cell(row=row, column=2, value=sanitize_field(m.sheet_number or ""))
                 ws.cell(row=row, column=3, value=m.geometry_type)
                 ws.cell(row=row, column=4, value=m.quantity)
                 ws.cell(row=row, column=5, value=format_unit(m.unit))
@@ -163,7 +163,7 @@ class ExcelExporter(BaseExporter):
         for page_num in sorted(pages.keys(), key=lambda x: (x is None, x)):
             for m in pages[page_num]:
                 ws.cell(row=current_row, column=1, value=m.page_number)
-                ws.cell(row=current_row, column=2, value=m.sheet_number or "")
+                ws.cell(row=current_row, column=2, value=sanitize_field(m.sheet_number or ""))
                 ws.cell(row=current_row, column=3, value=sanitize_field(m.condition_name))
                 ws.cell(row=current_row, column=4, value=m.geometry_type)
                 ws.cell(row=current_row, column=5, value=m.quantity)

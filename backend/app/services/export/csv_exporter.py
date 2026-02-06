@@ -41,7 +41,7 @@ class CSVExporter(BaseExporter):
             writer.writerow([
                 sanitize_field(m.condition_name),
                 m.page_number if m.page_number is not None else "",
-                m.sheet_number or "",
+                sanitize_field(m.sheet_number or ""),
                 m.geometry_type,
                 f"{m.quantity:.4f}",
                 format_unit(m.unit),
