@@ -49,6 +49,10 @@ httpx==0.26.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 
+# Export System
+openpyxl==3.1.5
+reportlab==4.4.9
+
 # Utilities
 python-dotenv==1.0.0
 structlog==24.1.0

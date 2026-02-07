@@ -30,6 +30,7 @@ describe('WorkspaceStore', () => {
       sheetSearchQuery: '',
       autoTabEnabled: false,
       pendingPrediction: false,
+      toolRejectionMessage: null,
     });
   });
 
@@ -57,13 +58,15 @@ describe('WorkspaceStore', () => {
     // No activeConditionId set
     expect(state.activeConditionId).toBeNull();
 
-    // Try to set tool to 'polygon' — should be rejected
+    // Try to set tool to 'polygon' — should be rejected with message
     state.setActiveTool('polygon');
     expect(useWorkspaceStore.getState().activeTool).toBe('select'); // unchanged
+    expect(useWorkspaceStore.getState().toolRejectionMessage).toBe('Select a condition first');
 
     // 'measure' should work without condition
     state.setActiveTool('measure');
     expect(useWorkspaceStore.getState().activeTool).toBe('measure');
+    expect(useWorkspaceStore.getState().toolRejectionMessage).toBeNull();
 
     // 'select' should work without condition
     state.setActiveTool('select');

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Panel, Group, Separator } from 'react-resizable-panels';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore, selectToolRejectionMessage } from '@/stores/workspaceStore';
 import { FocusProvider } from '@/contexts/FocusContext';
 import {
   ENABLE_NEW_WORKSPACE,
@@ -23,6 +23,30 @@ export function TakeoffWorkspace() {
   const activeSheetId = useWorkspaceStore((s) => s.activeSheetId);
   const leftPanelCollapsed = useWorkspaceStore((s) => s.leftPanelCollapsed);
   const rightPanelCollapsed = useWorkspaceStore((s) => s.rightPanelCollapsed);
+  const toolRejectionMessage = useWorkspaceStore(selectToolRejectionMessage);
+  const clearToolRejection = useWorkspaceStore((s) => s.clearToolRejection);
+
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastText, setToastText] = useState('');
+
+  useEffect(() => {
+    if (toolRejectionMessage) {
+      setToastText(toolRejectionMessage);
+      setToastVisible(true);
+      // Clear the store value synchronously so it doesn't re-trigger,
+      // but do it after capturing the message above.
+      clearToolRejection();
+    }
+  }, [toolRejectionMessage, clearToolRejection]);
+
+  // Separate effect for the auto-dismiss timer so clearing the store
+  // doesn't cancel it.
+  useEffect(() => {
+    if (toastVisible) {
+      const timer = setTimeout(() => setToastVisible(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastVisible]);
 
   // All hooks must be called before any early returns
   const {
@@ -181,6 +205,16 @@ export function TakeoffWorkspace() {
 
         {/* Bottom Status Bar */}
         <BottomStatusBar />
+
+        {/* Tool rejection toast */}
+        {toastVisible && (
+          <div
+            className="fixed bottom-12 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-lg"
+            role="alert"
+          >
+            {toastText}
+          </div>
+        )}
       </div>
     </FocusProvider>
   );

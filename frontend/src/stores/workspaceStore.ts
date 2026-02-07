@@ -86,6 +86,9 @@ interface WorkspaceState {
   // AI Assist
   autoTabEnabled: boolean;
   pendingPrediction: boolean;
+
+  // Transient feedback (cleared on next successful action)
+  toolRejectionMessage: string | null;
 }
 
 interface WorkspaceActions {
@@ -127,6 +130,9 @@ interface WorkspaceActions {
   // AI
   setAutoTabEnabled: (enabled: boolean) => void;
   setPendingPrediction: (pending: boolean) => void;
+
+  // Feedback
+  clearToolRejection: () => void;
 
   // Reset
   resetDrawingState: () => void;
@@ -176,6 +182,8 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   autoTabEnabled: false,
   pendingPrediction: false,
 
+  toolRejectionMessage: null,
+
   // --- Actions ---
 
   setActiveSheet: (sheetId) =>
@@ -200,11 +208,13 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       tool !== 'measure' &&
       !state.activeConditionId
     ) {
-      return; // Silently reject — UI should show toast
+      set({ toolRejectionMessage: 'Select a condition first' });
+      return;
     }
     // Selecting a tool clears measurement selection (drawing vs selecting exclusive)
     set({
       activeTool: tool,
+      toolRejectionMessage: null,
       selectedMeasurementIds: tool && tool !== 'select' ? [] : state.selectedMeasurementIds,
     });
   },
@@ -278,6 +288,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   setPendingPrediction: (pending) =>
     set({ pendingPrediction: pending }),
 
+  clearToolRejection: () =>
+    set({ toolRejectionMessage: null }),
+
   resetDrawingState: () =>
     set({
       isDrawing: false,
@@ -310,3 +323,4 @@ export const selectSheetViewMode = (s: WorkspaceStore) => s.sheetViewMode;
 export const selectSheetSearchQuery = (s: WorkspaceStore) => s.sheetSearchQuery;
 export const selectExpandedGroups = (s: WorkspaceStore) => s.expandedGroups;
 export const selectHighlightedSheetId = (s: WorkspaceStore) => s.highlightedSheetId;
+export const selectToolRejectionMessage = (s: WorkspaceStore) => s.toolRejectionMessage;

@@ -1,13 +1,12 @@
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { ConditionPanel } from '@/components/conditions/ConditionPanel';
 
 interface RightPanelProps {
   projectId: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function RightPanel({ projectId }: RightPanelProps) {
   const setFocusRegion = useWorkspaceStore((s) => s.setFocusRegion);
-  const activeConditionId = useWorkspaceStore((s) => s.activeConditionId);
 
   return (
     <div
@@ -23,17 +22,7 @@ export function RightPanel({ projectId }: RightPanelProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3">
-        {!activeConditionId ? (
-          <p className="text-xs text-neutral-500">
-            Select or create a condition to start measuring.
-          </p>
-        ) : (
-          <p className="text-xs text-neutral-400">
-            Condition: {activeConditionId.slice(0, 8)}...
-          </p>
-        )}
-      </div>
+      <ConditionPanel projectId={projectId} />
     </div>
   );
 }

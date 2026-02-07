@@ -27,7 +27,7 @@ class ConditionCreate(BaseModel):
 
 class ConditionUpdate(BaseModel):
     """Request to update a condition."""
-    
+
     name: str | None = None
     description: str | None = None
     scope: str | None = None
@@ -40,6 +40,7 @@ class ConditionUpdate(BaseModel):
     depth: float | None = None
     thickness: float | None = None
     sort_order: int | None = None
+    is_visible: bool | None = None
     extra_metadata: dict[str, Any] | None = None
 
 
@@ -65,6 +66,7 @@ class ConditionResponse(BaseModel):
     measurement_count: int
     sort_order: int
     is_ai_generated: bool
+    is_visible: bool
     extra_metadata: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime

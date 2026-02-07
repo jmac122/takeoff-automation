@@ -63,8 +63,8 @@ export function useUpdateCondition(projectId: string | undefined) {
       data,
     }: {
       conditionId: string;
-      data: Parameters<typeof updateCondition>[1];
-    }) => updateCondition(conditionId, data),
+      data: Parameters<typeof updateCondition>[2];
+    }) => updateCondition(projectId as string, conditionId, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['conditions', projectId] });
       queryClient.invalidateQueries({ queryKey: ['condition', variables.conditionId] });
@@ -76,7 +76,7 @@ export function useDeleteCondition(projectId: string | undefined) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (conditionId: string) => deleteCondition(conditionId),
+    mutationFn: (conditionId: string) => deleteCondition(projectId as string, conditionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conditions', projectId] });
     },
@@ -87,7 +87,7 @@ export function useDuplicateCondition(projectId: string | undefined) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (conditionId: string) => duplicateCondition(conditionId),
+    mutationFn: (conditionId: string) => duplicateCondition(projectId as string, conditionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conditions', projectId] });
     },

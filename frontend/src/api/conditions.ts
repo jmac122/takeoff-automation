@@ -30,6 +30,7 @@ export interface ConditionUpdateRequest {
   depth?: number | null;
   thickness?: number | null;
   sort_order?: number;
+  is_visible?: boolean;
   extra_metadata?: JsonObject | null;
 }
 
@@ -65,8 +66,8 @@ export async function createCondition(
 /**
  * Get condition details
  */
-export async function getCondition(conditionId: string): Promise<Condition> {
-  const response = await apiClient.get<Condition>(`/conditions/${conditionId}`);
+export async function getCondition(projectId: string, conditionId: string): Promise<Condition> {
+  const response = await apiClient.get<Condition>(`/projects/${projectId}/conditions/${conditionId}`);
   return response.data;
 }
 
@@ -74,18 +75,19 @@ export async function getCondition(conditionId: string): Promise<Condition> {
  * Update a condition
  */
 export async function updateCondition(
+  projectId: string,
   conditionId: string,
   data: ConditionUpdateRequest
 ): Promise<Condition> {
-  const response = await apiClient.put<Condition>(`/conditions/${conditionId}`, data);
+  const response = await apiClient.put<Condition>(`/projects/${projectId}/conditions/${conditionId}`, data);
   return response.data;
 }
 
 /**
  * Delete a condition
  */
-export async function deleteCondition(conditionId: string): Promise<void> {
-  await apiClient.delete(`/conditions/${conditionId}`);
+export async function deleteCondition(projectId: string, conditionId: string): Promise<void> {
+  await apiClient.delete(`/projects/${projectId}/conditions/${conditionId}`);
 }
 
 /**
@@ -121,8 +123,8 @@ export async function createConditionFromTemplate(
 /**
  * Duplicate condition
  */
-export async function duplicateCondition(conditionId: string): Promise<Condition> {
-  const response = await apiClient.post<Condition>(`/conditions/${conditionId}/duplicate`);
+export async function duplicateCondition(projectId: string, conditionId: string): Promise<Condition> {
+  const response = await apiClient.post<Condition>(`/projects/${projectId}/conditions/${conditionId}/duplicate`);
   return response.data;
 }
 

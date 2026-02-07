@@ -10,6 +10,7 @@ from app.models.base import Base, TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from app.models.document import Document
     from app.models.condition import Condition
+    from app.models.export_job import ExportJob
 
 
 class Project(Base, UUIDMixin, TimestampMixin):
@@ -34,6 +35,11 @@ class Project(Base, UUIDMixin, TimestampMixin):
     )
     conditions: Mapped[list["Condition"]] = relationship(
         "Condition",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
+    exports: Mapped[list["ExportJob"]] = relationship(
+        "ExportJob",
         back_populates="project",
         cascade="all, delete-orphan",
     )

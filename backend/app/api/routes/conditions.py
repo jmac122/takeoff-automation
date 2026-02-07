@@ -316,8 +316,12 @@ async def create_condition_from_template(
     return ConditionResponse.model_validate(condition)
 
 
-@router.get("/conditions/{condition_id}", response_model=ConditionWithMeasurementsResponse)
+@router.get(
+    "/projects/{project_id}/conditions/{condition_id}",
+    response_model=ConditionWithMeasurementsResponse,
+)
 async def get_condition(
+    project_id: uuid.UUID,
     condition_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
@@ -325,7 +329,7 @@ async def get_condition(
     result = await db.execute(
         select(Condition)
         .options(selectinload(Condition.measurements))
-        .where(Condition.id == condition_id)
+        .where(Condition.id == condition_id, Condition.project_id == project_id)
     )
     condition = result.scalar_one_or_none()
     if not condition:
@@ -333,18 +337,25 @@ async def get_condition(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Condition not found",
         )
-    
+
     return ConditionWithMeasurementsResponse.model_validate(condition)
 
 
-@router.put("/conditions/{condition_id}", response_model=ConditionResponse)
+@router.put(
+    "/projects/{project_id}/conditions/{condition_id}",
+    response_model=ConditionResponse,
+)
 async def update_condition(
+    project_id: uuid.UUID,
     condition_id: uuid.UUID,
     request: ConditionUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Update a condition."""
-    condition = await db.get(Condition, condition_id)
+    result = await db.execute(
+        select(Condition).where(Condition.id == condition_id, Condition.project_id == project_id)
+    )
+    condition = result.scalar_one_or_none()
     if not condition:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -376,39 +387,55 @@ async def update_condition(
         condition.thickness = request.thickness
     if request.sort_order is not None:
         condition.sort_order = request.sort_order
+    if request.is_visible is not None:
+        condition.is_visible = request.is_visible
     if request.extra_metadata is not None:
         condition.extra_metadata = request.extra_metadata
-    
+
     await db.commit()
     await db.refresh(condition)
     
     return ConditionResponse.model_validate(condition)
 
 
-@router.delete("/conditions/{condition_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/projects/{project_id}/conditions/{condition_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def delete_condition(
+    project_id: uuid.UUID,
     condition_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Delete a condition and all its measurements."""
-    condition = await db.get(Condition, condition_id)
+    result = await db.execute(
+        select(Condition).where(Condition.id == condition_id, Condition.project_id == project_id)
+    )
+    condition = result.scalar_one_or_none()
     if not condition:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Condition not found",
         )
-    
+
     await db.delete(condition)
     await db.commit()
 
 
-@router.post("/conditions/{condition_id}/duplicate", response_model=ConditionResponse)
+@router.post(
+    "/projects/{project_id}/conditions/{condition_id}/duplicate",
+    response_model=ConditionResponse,
+)
 async def duplicate_condition(
+    project_id: uuid.UUID,
     condition_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Duplicate a condition (without measurements)."""
-    condition = await db.get(Condition, condition_id)
+    result = await db.execute(
+        select(Condition).where(Condition.id == condition_id, Condition.project_id == project_id)
+    )
+    condition = result.scalar_one_or_none()
     if not condition:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -445,6 +472,7 @@ async def duplicate_condition(
         unit=condition.unit,
         depth=condition.depth,
         thickness=condition.thickness,
+        is_visible=condition.is_visible,
         sort_order=max_order + 1,
         extra_metadata=condition.extra_metadata,
     )

@@ -66,6 +66,8 @@ export interface Condition {
   total_quantity: number;
   measurement_count: number;
   sort_order: number;
+  is_ai_generated: boolean;
+  is_visible: boolean;
   extra_metadata?: JsonObject | null;
   created_at: string;
   updated_at: string;

@@ -59,6 +59,9 @@ class Condition(Base, UUIDMixin, TimestampMixin):
     
     # AI generation tracking
     is_ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Visibility toggle (UI Phase B)
+    is_visible: Mapped[bool] = mapped_column(Boolean, default=True)
     
     # Extra metadata
     extra_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
