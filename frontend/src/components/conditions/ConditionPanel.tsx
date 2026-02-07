@@ -155,7 +155,7 @@ export function ConditionPanel({ projectId }: ConditionPanelProps) {
   }, [setActiveCondition]);
 
   return (
-    <div className="flex h-full flex-col" data-testid="condition-panel">
+    <div className="flex flex-1 min-h-0 flex-col" data-testid="condition-panel">
       {/* Quick Create */}
       <QuickCreateBar projectId={projectId} onCreated={handleCreated} />
 
