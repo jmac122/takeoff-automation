@@ -25,6 +25,7 @@ export function ConditionPanel({ projectId }: ConditionPanelProps) {
   const setActiveCondition = useWorkspaceStore((s) => s.setActiveCondition);
   const setActiveTool = useWorkspaceStore((s) => s.setActiveTool);
   const focusRegion = useWorkspaceStore((s) => s.focusRegion);
+  const setFocusRegion = useWorkspaceStore((s) => s.setFocusRegion);
 
   const deleteCondition = useDeleteCondition(projectId);
   const duplicateCondition = useDuplicateCondition(projectId);
@@ -107,7 +108,13 @@ export function ConditionPanel({ projectId }: ConditionPanelProps) {
 
   const handleDelete = useCallback((condition: Condition) => {
     setDeleteConfirm(condition);
-  }, []);
+    setFocusRegion('dialog');
+  }, [setFocusRegion]);
+
+  const dismissDeleteConfirm = useCallback(() => {
+    setDeleteConfirm(null);
+    setFocusRegion('conditions');
+  }, [setFocusRegion]);
 
   const confirmDelete = useCallback(() => {
     if (deleteConfirm) {
@@ -116,9 +123,9 @@ export function ConditionPanel({ projectId }: ConditionPanelProps) {
         setActiveTool('select');
       }
       deleteCondition.mutate(deleteConfirm.id);
-      setDeleteConfirm(null);
+      dismissDeleteConfirm();
     }
-  }, [deleteConfirm, activeConditionId, setActiveCondition, setActiveTool, deleteCondition]);
+  }, [deleteConfirm, activeConditionId, setActiveCondition, setActiveTool, deleteCondition, dismissDeleteConfirm]);
 
   const handleMoveUp = useCallback((condition: Condition) => {
     const idx = conditions.findIndex((c) => c.id === condition.id);
@@ -195,7 +202,7 @@ export function ConditionPanel({ projectId }: ConditionPanelProps) {
             </p>
             <div className="mt-3 flex justify-end gap-2">
               <button
-                onClick={() => setDeleteConfirm(null)}
+                onClick={dismissDeleteConfirm}
                 className="rounded px-3 py-1.5 text-xs text-neutral-400 hover:bg-neutral-700"
               >
                 Cancel

@@ -52,11 +52,19 @@ export function ConditionList({ conditions, projectId, onContextMenu }: Conditio
       {conditions.map((condition, index) => {
         const isActive = condition.id === activeConditionId;
         return (
-          <button
+          <div
             key={condition.id}
+            role="button"
+            tabIndex={0}
             onClick={() => setActiveCondition(isActive ? null : condition.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveCondition(isActive ? null : condition.id);
+              }
+            }}
             onContextMenu={(e) => onContextMenu?.(e, condition)}
-            className={`flex w-full items-center gap-2 border-b border-neutral-800 px-3 py-2 text-left transition-colors ${
+            className={`flex w-full cursor-pointer items-center gap-2 border-b border-neutral-800 px-3 py-2 text-left transition-colors ${
               isActive
                 ? 'bg-blue-900/30 border-l-2 border-l-blue-500'
                 : 'hover:bg-neutral-800/50 border-l-2 border-l-transparent'
@@ -111,7 +119,7 @@ export function ConditionList({ conditions, projectId, onContextMenu }: Conditio
                 {index + 1}
               </span>
             )}
-          </button>
+          </div>
         );
       })}
     </div>

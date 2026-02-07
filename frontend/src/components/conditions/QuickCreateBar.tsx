@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, ChevronDown } from 'lucide-react';
 import { useConditionTemplates, useCreateConditionFromTemplate } from '@/hooks/useConditions';
 import type { ConditionTemplate } from '@/types';
@@ -18,8 +18,33 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function QuickCreateBar({ projectId, onCreated }: QuickCreateBarProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const { data: templates } = useConditionTemplates();
   const createFromTemplate = useCreateConditionFromTemplate(projectId);
+
+  // Close dropdown on click-outside or Escape
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
 
   const grouped = (templates ?? []).reduce<Record<string, ConditionTemplate[]>>((acc, t) => {
     const cat = t.category ?? 'other';
@@ -38,7 +63,7 @@ export function QuickCreateBar({ projectId, onCreated }: QuickCreateBarProps) {
 
   return (
     <div className="border-b border-neutral-700 px-3 py-2">
-      <div className="relative">
+      <div className="relative" ref={containerRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="flex w-full items-center gap-1.5 rounded bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors"

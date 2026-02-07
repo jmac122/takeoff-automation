@@ -33,11 +33,20 @@ export function TakeoffWorkspace() {
     if (toolRejectionMessage) {
       setToastText(toolRejectionMessage);
       setToastVisible(true);
+      // Clear the store value synchronously so it doesn't re-trigger,
+      // but do it after capturing the message above.
       clearToolRejection();
+    }
+  }, [toolRejectionMessage, clearToolRejection]);
+
+  // Separate effect for the auto-dismiss timer so clearing the store
+  // doesn't cancel it.
+  useEffect(() => {
+    if (toastVisible) {
       const timer = setTimeout(() => setToastVisible(false), 3000);
       return () => clearTimeout(timer);
     }
-  }, [toolRejectionMessage, clearToolRejection]);
+  }, [toastVisible]);
 
   // All hooks must be called before any early returns
   const {
