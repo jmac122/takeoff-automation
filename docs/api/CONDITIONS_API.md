@@ -180,10 +180,10 @@ POST /projects/{project_id}/conditions/from-template
 ### Get Condition
 
 ```
-GET /conditions/{condition_id}
+GET /projects/{project_id}/conditions/{condition_id}
 ```
 
-Returns a condition with all its measurements pre-loaded.
+Returns a condition with all its measurements pre-loaded. Scoped to the project to prevent IDOR access.
 
 **Response** `200 OK`:
 ```json
@@ -209,10 +209,10 @@ Returns a condition with all its measurements pre-loaded.
 ### Update Condition
 
 ```
-PUT /conditions/{condition_id}
+PUT /projects/{project_id}/conditions/{condition_id}
 ```
 
-Update any condition field. All fields are optional — only provided fields are modified.
+Update any condition field. All fields are optional — only provided fields are modified. Scoped to the project to prevent IDOR access.
 
 **Request Body**:
 ```json
@@ -248,7 +248,7 @@ Update any condition field. All fields are optional — only provided fields are
 ### Delete Condition
 
 ```
-DELETE /conditions/{condition_id}
+DELETE /projects/{project_id}/conditions/{condition_id}
 ```
 
 **Status**: `204 No Content`
@@ -262,7 +262,7 @@ DELETE /conditions/{condition_id}
 ### Duplicate Condition
 
 ```
-POST /conditions/{condition_id}/duplicate
+POST /projects/{project_id}/conditions/{condition_id}/duplicate
 ```
 
 **Status**: `201 Created`
@@ -272,7 +272,7 @@ Creates a copy of the condition **without** its measurements.
 **Notes**:
 - New name is prefixed with "Copy of "
 - New sort_order is assigned as max + 1
-- All other fields are copied from the original
+- All other fields are copied from the original, including `is_visible`
 
 ---
 
