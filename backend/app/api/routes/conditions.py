@@ -376,9 +376,11 @@ async def update_condition(
         condition.thickness = request.thickness
     if request.sort_order is not None:
         condition.sort_order = request.sort_order
+    if request.is_visible is not None:
+        condition.is_visible = request.is_visible
     if request.extra_metadata is not None:
         condition.extra_metadata = request.extra_metadata
-    
+
     await db.commit()
     await db.refresh(condition)
     

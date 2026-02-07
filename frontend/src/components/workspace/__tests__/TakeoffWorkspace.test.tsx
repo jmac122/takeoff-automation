@@ -45,6 +45,14 @@ vi.mock('lucide-react', () => {
     Grid3x3: stub('grid3x3'),
     List: stub('list'),
     MoreHorizontal: stub('morehorizontal'),
+    Plus: stub('plus'),
+    Eye: stub('eye'),
+    EyeOff: stub('eyeoff'),
+    Pencil: stub('pencil'),
+    Trash2: stub('trash2'),
+    Copy: stub('copy'),
+    ArrowUp: stub('arrowup'),
+    ArrowDown: stub('arrowdown'),
   };
 });
 
@@ -74,6 +82,17 @@ vi.mock('@/components/sheets/SheetContextMenu', () => ({
 
 vi.mock('@/components/sheets/ThumbnailStrip', () => ({
   ThumbnailStrip: () => <div data-testid="thumbnail-strip" />,
+}));
+
+// Mock the conditions hooks used by ConditionPanel (via RightPanel)
+vi.mock('@/hooks/useConditions', () => ({
+  useConditions: vi.fn(() => ({ data: { conditions: [], total: 0 }, isLoading: false, error: null })),
+  useConditionTemplates: vi.fn(() => ({ data: [] })),
+  useCreateConditionFromTemplate: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useDeleteCondition: vi.fn(() => ({ mutate: vi.fn() })),
+  useDuplicateCondition: vi.fn(() => ({ mutate: vi.fn() })),
+  useUpdateCondition: vi.fn(() => ({ mutate: vi.fn() })),
+  useReorderConditions: vi.fn(() => ({ mutate: vi.fn() })),
 }));
 
 // Mock the API client

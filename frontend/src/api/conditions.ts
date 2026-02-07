@@ -30,6 +30,7 @@ export interface ConditionUpdateRequest {
   depth?: number | null;
   thickness?: number | null;
   sort_order?: number;
+  is_visible?: boolean;
   extra_metadata?: JsonObject | null;
 }
 
