@@ -7,7 +7,7 @@ opencv-python-headless==4.9.0.80
 scikit-image==0.22.0
 
 # Deep Learning (for AI takeoff generation)
-torch==2.1.2
+torch==2.8.0
 torchvision==0.16.2
 ultralytics==8.1.0
 
