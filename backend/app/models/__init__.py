@@ -12,6 +12,7 @@ from app.models.classification_history import ClassificationHistory
 from app.models.task import TaskRecord
 from app.models.export_job import ExportJob
 from app.models.assembly import Assembly, AssemblyComponent, AssemblyTemplate, CostItem
+from app.models.auto_count import AutoCountSession, AutoCountDetection
 
 __all__ = [
     "Base",
@@ -30,4 +31,6 @@ __all__ = [
     "AssemblyComponent",
     "AssemblyTemplate",
     "CostItem",
+    "AutoCountSession",
+    "AutoCountDetection",
 ]

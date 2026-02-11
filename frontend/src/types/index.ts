@@ -405,3 +405,57 @@ export interface FormulaValidateResponse {
   error?: string | null;
   test_result?: number | null;
 }
+
+// Auto Count Types
+export interface BBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface AutoCountDetection {
+  id: string;
+  session_id: string;
+  measurement_id?: string | null;
+  bbox: BBox;
+  center_x: number;
+  center_y: number;
+  confidence: number;
+  detection_source: 'template' | 'llm' | 'both';
+  status: 'pending' | 'confirmed' | 'rejected';
+  is_auto_confirmed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutoCountSession {
+  id: string;
+  page_id: string;
+  condition_id: string;
+  template_bbox: BBox;
+  confidence_threshold: number;
+  scale_tolerance: number;
+  rotation_tolerance: number;
+  detection_method: 'template' | 'llm' | 'hybrid';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  total_detections: number;
+  confirmed_count: number;
+  rejected_count: number;
+  error_message?: string | null;
+  processing_time_ms?: number | null;
+  template_match_count: number;
+  llm_match_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutoCountSessionDetail extends AutoCountSession {
+  detections: AutoCountDetection[];
+}
+
+export interface AutoCountStartResponse {
+  session_id: string;
+  task_id: string;
+  status: string;
+}

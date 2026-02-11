@@ -14,6 +14,7 @@ import {
   ZoomOut,
   Search,
   Sparkles,
+  ScanSearch,
   ClipboardCheck,
   Zap,
   Loader2,
@@ -138,6 +139,15 @@ export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting }: TopTool
         title="Search (Ctrl+F)"
       >
         <Search size={16} />
+      </button>
+
+      {/* Auto Count */}
+      <button
+        className="flex items-center gap-1 rounded px-2 py-1.5 text-xs text-cyan-400 hover:bg-neutral-800 hover:text-cyan-300"
+        title="Auto Count — Find & count repeated elements"
+      >
+        <ScanSearch size={16} />
+        <span className="hidden lg:inline">Auto Count</span>
       </button>
 
       {/* AI Assist */}
