@@ -299,3 +299,109 @@ export interface TitleBlockRegion {
   height: number;
   source_page_id?: string | null;
 }
+
+// Assembly Types
+export interface Assembly {
+  id: string;
+  condition_id: string;
+  template_id?: string | null;
+  name: string;
+  description?: string | null;
+  csi_code?: string | null;
+  csi_description?: string | null;
+  default_waste_percent: number;
+  productivity_rate?: number | null;
+  productivity_unit?: string | null;
+  crew_size?: number | null;
+  material_cost: number;
+  labor_cost: number;
+  equipment_cost: number;
+  subcontract_cost: number;
+  other_cost: number;
+  total_cost: number;
+  unit_cost: number;
+  total_labor_hours: number;
+  overhead_percent: number;
+  profit_percent: number;
+  total_with_markup: number;
+  is_locked: boolean;
+  locked_at?: string | null;
+  locked_by?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssemblyComponent {
+  id: string;
+  assembly_id: string;
+  cost_item_id?: string | null;
+  name: string;
+  description?: string | null;
+  component_type: 'material' | 'labor' | 'equipment' | 'subcontract' | 'other';
+  sort_order: number;
+  quantity_formula: string;
+  calculated_quantity: number;
+  unit: string;
+  unit_cost: number;
+  waste_percent: number;
+  quantity_with_waste: number;
+  extended_cost: number;
+  labor_hours?: number | null;
+  labor_rate?: number | null;
+  crew_size?: number | null;
+  duration_hours?: number | null;
+  hourly_rate?: number | null;
+  daily_rate?: number | null;
+  is_included: boolean;
+  is_optional: boolean;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssemblyDetail extends Assembly {
+  components: AssemblyComponent[];
+}
+
+export interface AssemblyTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  scope: string;
+  category?: string | null;
+  subcategory?: string | null;
+  csi_code?: string | null;
+  csi_description?: string | null;
+  measurement_type: string;
+  expected_unit: string;
+  default_waste_percent: number;
+  productivity_rate?: number | null;
+  productivity_unit?: string | null;
+  crew_size?: number | null;
+  is_system: boolean;
+  is_active: boolean;
+  version: number;
+  component_definitions: Record<string, unknown>[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectCostSummary {
+  project_id: string;
+  total_conditions: number;
+  conditions_with_assemblies: number;
+  material_cost: number;
+  labor_cost: number;
+  equipment_cost: number;
+  subcontract_cost: number;
+  other_cost: number;
+  total_cost: number;
+  total_with_markup: number;
+}
+
+export interface FormulaValidateResponse {
+  is_valid: boolean;
+  error?: string | null;
+  test_result?: number | null;
+}

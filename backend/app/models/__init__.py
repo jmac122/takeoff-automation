@@ -11,6 +11,7 @@ from app.models.measurement_history import MeasurementHistory
 from app.models.classification_history import ClassificationHistory
 from app.models.task import TaskRecord
 from app.models.export_job import ExportJob
+from app.models.assembly import Assembly, AssemblyComponent, AssemblyTemplate, CostItem
 
 __all__ = [
     "Base",
@@ -25,4 +26,8 @@ __all__ = [
     "ClassificationHistory",
     "TaskRecord",
     "ExportJob",
+    "Assembly",
+    "AssemblyComponent",
+    "AssemblyTemplate",
+    "CostItem",
 ]

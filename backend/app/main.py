@@ -16,6 +16,10 @@ from app.models import (
     Measurement,
     MeasurementHistory,
     ExportJob,
+    Assembly,
+    AssemblyComponent,
+    AssemblyTemplate,
+    CostItem,
 )  # Import models to register with SQLAlchemy
 from app.api.routes import (
     health,
@@ -30,6 +34,7 @@ from app.api.routes import (
     tasks,
     sheets,
     review,
+    assemblies,
 )
 
 logger = structlog.get_logger()
@@ -84,6 +89,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks.router, prefix="/api/v1", tags=["Tasks"])
     app.include_router(sheets.router, prefix="/api/v1", tags=["Sheets"])
     app.include_router(review.router, prefix="/api/v1", tags=["Review"])
+    app.include_router(assemblies.router, prefix="/api/v1", tags=["Assemblies"])
 
     return app
 
