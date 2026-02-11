@@ -18,6 +18,11 @@ from app.schemas.document import (
     DocumentStatusResponse,
     TitleBlockRegionUpdateRequest,
     TitleBlockRegionUpdateResponse,
+    LinkRevisionRequest,
+    RevisionChainItem,
+    RevisionChainResponse,
+    PageComparisonRequest,
+    PageComparisonResponse,
 )
 from app.services.document_processor import get_document_processor
 from app.services.task_tracker import TaskTracker
@@ -169,6 +174,11 @@ async def list_project_documents(
                 updated_at=doc.updated_at,
                 pages=[],  # Don't load pages for list view
                 title_block_region=doc.title_block_region,
+                revision_number=doc.revision_number,
+                revision_date=doc.revision_date,
+                revision_label=doc.revision_label,
+                supersedes_document_id=doc.supersedes_document_id,
+                is_latest_revision=doc.is_latest_revision,
             )
             for doc in documents
         ],
@@ -297,3 +307,188 @@ async def delete_document(
     # Delete from database (cascades to pages)
     await db.delete(document)
     await db.commit()
+
+
+# ============================================================================
+# Revision Management
+# ============================================================================
+
+
+@router.put("/documents/{document_id}/revision", response_model=DocumentResponse)
+async def link_revision(
+    document_id: uuid.UUID,
+    request: LinkRevisionRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Link a document as a revision of another document.
+
+    Sets the current document's supersedes_document_id and marks the
+    previous document as no longer the latest revision.
+    """
+    # Load current document
+    result = await db.execute(
+        select(Document)
+        .options(selectinload(Document.pages))
+        .where(Document.id == document_id)
+    )
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Load the document being superseded
+    result = await db.execute(
+        select(Document).where(Document.id == request.supersedes_document_id)
+    )
+    old_doc = result.scalar_one_or_none()
+    if not old_doc:
+        raise HTTPException(status_code=404, detail="Superseded document not found")
+
+    # Must be in the same project
+    if document.project_id != old_doc.project_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Documents must belong to the same project",
+        )
+
+    # Update current document
+    document.supersedes_document_id = request.supersedes_document_id
+    document.revision_number = request.revision_number
+    document.revision_date = request.revision_date
+    document.revision_label = request.revision_label
+    document.is_latest_revision = True
+
+    # Mark old document as no longer latest
+    old_doc.is_latest_revision = False
+
+    await db.commit()
+    await db.refresh(document)
+    return document
+
+
+@router.get(
+    "/documents/{document_id}/revisions",
+    response_model=RevisionChainResponse,
+)
+async def get_revision_chain(
+    document_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Get the full revision chain for a document.
+
+    Walks the supersedes_document_id chain backwards to build an ordered
+    list from oldest to newest revision.
+    """
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Collect all documents in this project that form a chain
+    # Walk backward from the given document
+    chain: list[Document] = [document]
+    current = document
+    visited = {document.id}
+    while current.supersedes_document_id and current.supersedes_document_id not in visited:
+        result = await db.execute(
+            select(Document).where(Document.id == current.supersedes_document_id)
+        )
+        prev = result.scalar_one_or_none()
+        if not prev:
+            break
+        visited.add(prev.id)
+        chain.append(prev)
+        current = prev
+
+    # Walk forward from the given document (find docs that supersede it)
+    current = document
+    while True:
+        result = await db.execute(
+            select(Document).where(
+                Document.supersedes_document_id == current.id,
+                Document.id.notin_(visited),
+            )
+        )
+        next_doc = result.scalar_one_or_none()
+        if not next_doc:
+            break
+        visited.add(next_doc.id)
+        chain.insert(0, next_doc)  # Insert at front (newer)
+        current = next_doc
+
+    # Sort: oldest first (the one with no supersedes_document_id comes first)
+    chain.sort(key=lambda d: d.created_at)
+
+    return RevisionChainResponse(
+        chain=[
+            RevisionChainItem(
+                id=doc.id,
+                original_filename=doc.original_filename,
+                revision_number=doc.revision_number,
+                revision_date=doc.revision_date,
+                revision_label=doc.revision_label,
+                is_latest_revision=doc.is_latest_revision,
+                page_count=doc.page_count,
+                created_at=doc.created_at,
+            )
+            for doc in chain
+        ],
+        current_document_id=document_id,
+    )
+
+
+@router.post(
+    "/documents/compare-pages",
+    response_model=PageComparisonResponse,
+)
+async def compare_pages(
+    request: PageComparisonRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Compare a specific page between two document revisions.
+
+    Returns image URLs for both pages so the frontend can render
+    an overlay comparison.
+    """
+    storage = get_storage_service()
+
+    # Find old page
+    old_page_result = await db.execute(
+        select(Page).where(
+            Page.document_id == request.old_document_id,
+            Page.page_number == request.page_number,
+        )
+    )
+    old_page = old_page_result.scalar_one_or_none()
+
+    # Find new page
+    new_page_result = await db.execute(
+        select(Page).where(
+            Page.document_id == request.new_document_id,
+            Page.page_number == request.page_number,
+        )
+    )
+    new_page = new_page_result.scalar_one_or_none()
+
+    old_image_url = None
+    new_image_url = None
+
+    if old_page and old_page.image_key:
+        try:
+            old_image_url = storage.get_presigned_url(old_page.image_key, expires_in=3600)
+        except Exception:
+            pass
+
+    if new_page and new_page.image_key:
+        try:
+            new_image_url = storage.get_presigned_url(new_page.image_key, expires_in=3600)
+        except Exception:
+            pass
+
+    return PageComparisonResponse(
+        old_page_id=old_page.id if old_page else None,
+        new_page_id=new_page.id if new_page else None,
+        old_image_url=old_image_url,
+        new_image_url=new_image_url,
+        page_number=request.page_number,
+        has_both=old_page is not None and new_page is not None,
+    )

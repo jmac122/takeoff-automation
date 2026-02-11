@@ -19,6 +19,7 @@ import { BottomStatusBar } from './BottomStatusBar';
 import { CenterCanvas } from './CenterCanvas';
 import { RightPanel } from './RightPanel';
 import { SheetTree } from '@/components/sheets/SheetTree';
+import { PlanOverlayView } from '@/components/document/PlanOverlayView';
 import { Loader2 } from 'lucide-react';
 
 export function TakeoffWorkspace() {
@@ -31,6 +32,11 @@ export function TakeoffWorkspace() {
 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastText, setToastText] = useState('');
+  const [compareState, setCompareState] = useState<{
+    oldDocId: string;
+    newDocId: string;
+    maxPages: number;
+  } | null>(null);
 
   useEffect(() => {
     if (toolRejectionMessage) {
@@ -132,6 +138,20 @@ export function TakeoffWorkspace() {
     onReject: handleReviewReject,
     onEdit: handleReviewEdit,
   });
+
+  // Derive document ID from active sheet for revision panel
+  const activeDocumentId = activeSheet?.document_id ?? null;
+
+  const handleCompare = useCallback(
+    (oldDocId: string, newDocId: string) => {
+      // Use page counts from sheets data or a sensible default
+      const maxPages = Math.max(
+        ...(sheetsData?.groups.flatMap((g) => g.sheets.map((s) => s.page_number)) ?? [1]),
+      );
+      setCompareState({ oldDocId, newDocId, maxPages });
+    },
+    [sheetsData],
+  );
 
   // Batch AI Assist
   const { runBatchAi, isRunning: isBatchAiRunning } = useAiAssist(
@@ -245,12 +265,27 @@ export function TakeoffWorkspace() {
                   maxSize={40}
                   data-testid="right-panel-wrapper"
                 >
-                  <RightPanel projectId={projectId} pageId={activeSheetId ?? undefined} />
+                  <RightPanel
+                  projectId={projectId}
+                  pageId={activeSheetId ?? undefined}
+                  documentId={activeDocumentId ?? undefined}
+                  onCompare={handleCompare}
+                />
                 </Panel>
               </>
             )}
           </Group>
         </div>
+
+        {/* Plan Overlay Comparison View */}
+        {compareState && (
+          <PlanOverlayView
+            oldDocumentId={compareState.oldDocId}
+            newDocumentId={compareState.newDocId}
+            maxPageCount={compareState.maxPages}
+            onClose={() => setCompareState(null)}
+          />
+        )}
 
         {/* Bottom Status Bar */}
         <BottomStatusBar projectId={projectId} />

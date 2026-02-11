@@ -1,7 +1,7 @@
 """Document schemas."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -53,6 +53,13 @@ class DocumentResponse(BaseModel):
     pages: list[PageSummary] = []
     title_block_region: TitleBlockRegion | None = None
 
+    # Revision tracking
+    revision_number: str | None = None
+    revision_date: date | None = None
+    revision_label: str | None = None
+    supersedes_document_id: uuid.UUID | None = None
+    is_latest_revision: bool = True
+
 
 class DocumentListResponse(BaseModel):
     """Response for listing documents."""
@@ -86,3 +93,55 @@ class TitleBlockRegionUpdateResponse(BaseModel):
     document_id: uuid.UUID
     pages_queued: int
     title_block_region: TitleBlockRegion
+
+
+class LinkRevisionRequest(BaseModel):
+    """Request to link a document as a revision of another."""
+
+    supersedes_document_id: uuid.UUID = Field(
+        ..., description="ID of the document this one supersedes (previous revision)"
+    )
+    revision_number: str | None = Field(None, description="Revision identifier (e.g., 'A', 'Rev2')")
+    revision_date: date | None = Field(None, description="Date of this revision")
+    revision_label: str | None = Field(None, description="Free-form label (e.g., 'Issued for Permit')")
+
+
+class RevisionChainItem(BaseModel):
+    """A single document in a revision chain."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    original_filename: str
+    revision_number: str | None = None
+    revision_date: date | None = None
+    revision_label: str | None = None
+    is_latest_revision: bool = True
+    page_count: int | None = None
+    created_at: datetime
+
+
+class RevisionChainResponse(BaseModel):
+    """Full revision chain for a document."""
+
+    chain: list[RevisionChainItem]
+    current_document_id: uuid.UUID
+
+
+class PageComparisonRequest(BaseModel):
+    """Request to compare pages between two document revisions."""
+
+    old_document_id: uuid.UUID
+    new_document_id: uuid.UUID
+    page_number: int = Field(..., ge=1)
+
+
+class PageComparisonResponse(BaseModel):
+    """Page comparison result with image URLs for overlay."""
+
+    old_page_id: uuid.UUID | None = None
+    new_page_id: uuid.UUID | None = None
+    old_image_url: str | None = None
+    new_image_url: str | None = None
+    page_number: int
+    has_both: bool = False

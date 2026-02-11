@@ -290,6 +290,13 @@ export interface Document {
   updated_at: string;
   pages?: PageSummary[];
   title_block_region?: TitleBlockRegion | null;
+
+  // Revision tracking
+  revision_number?: string | null;
+  revision_date?: string | null;
+  revision_label?: string | null;
+  supersedes_document_id?: string | null;
+  is_latest_revision?: boolean;
 }
 
 export interface TitleBlockRegion {
