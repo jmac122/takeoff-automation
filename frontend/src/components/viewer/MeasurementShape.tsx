@@ -44,7 +44,7 @@ export function MeasurementShape({
     );
     const geometryBeforeDragRef = useRef<JsonObject | null>(null);
     const geometryBeforeTransformRef = useRef<JsonObject | null>(null);
-    const invalidLoggedRef = useRef<Set<string>>(new Set());
+
     const rectRef = useRef<Konva.Rect>(null);
     const circleRef = useRef<Konva.Circle>(null);
     const cursorRef = useRef<string | null>(null);
@@ -282,12 +282,6 @@ export function MeasurementShape({
     }, [localGeometry, measurement.geometry_type]);
 
     if (!isValidGeometry) {
-        if (!invalidLoggedRef.current.has(measurement.id)) {
-            invalidLoggedRef.current.add(measurement.id);
-            // #region agent log
-            fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run5',hypothesisId:'H1',location:'MeasurementShape.tsx:88',message:'invalid measurement geometry',data:{measurementId:measurement.id,geometryType:measurement.geometry_type,geometryData:measurement.geometry_data},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
-        }
         return null;
     }
 

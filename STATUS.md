@@ -1,407 +1,282 @@
 # ForgeX Takeoffs - Project Status
 
-**Last Updated:** January 26, 2026  
-**Current Phase:** ✅ Phase 3B Complete - Condition Management (Phase 3A still in progress)  
-**Recent Updates:** Takeoff viewer stability guard for invalid geometry, autonomous AI takeoff gating on calibrated scale, and condition UI improvements
+**Last Updated:** February 11, 2026
+**Current State:** Phases 1-6 complete. Phases 7 (Export UI), 8 (Plan Overlay), 9 (Housekeeping) remaining.
+**Branch:** `claude/create-phase-1-tasks-OBEE7`
 
 ---
 
-## 🎯 Quick Status
+## Quick Status
 
-| Component | Status | URL/Port |
-|-----------|--------|----------|
-| PostgreSQL | ✅ Running | localhost:5432 |
-| Redis | ✅ Running | localhost:6379 |
-| MinIO | ✅ Running | localhost:9000/9001 |
-| API | ✅ Running | http://localhost:8000 |
-| Frontend | ✅ Running | http://localhost:5173 |
-| Worker | ✅ Running | - |
-
----
-
-## ✅ Completed Phases
-
-### Phase 0: Project Setup (Week 1)
-**Status:** COMPLETE ✅  
-**Completed:** January 19, 2026
-
-- ✅ Repository structure
-- ✅ Docker environment (PostgreSQL, Redis, MinIO)
-- ✅ FastAPI backend with async support
-- ✅ React/TypeScript frontend with Vite
-- ✅ Database migrations with Alembic
-- ✅ Celery task queue
-- ✅ Multi-LLM provider configuration
-
-### Phase 1A: Document Ingestion (Weeks 2-3)
-**Status:** COMPLETE ✅  
-**Completed:** January 19, 2026
-
-- ✅ Document upload API (PDF/TIFF)
-- ✅ File storage in MinIO
-- ✅ Async processing with Celery
-- ✅ Page extraction and thumbnails
-- ✅ Status tracking
-- ✅ Frontend drag-and-drop uploader
-- ✅ Progress tracking and error handling
-
-### Phase 1B: OCR and Text Extraction (Weeks 4-6)
-**Status:** COMPLETE ✅  
-**Completed:** January 19, 2026
-
-- ✅ Google Cloud Vision integration
-- ✅ Automatic text extraction from pages
-- ✅ Pattern detection (scales, sheet numbers, titles)
-- ✅ Title block parsing
-- ✅ Full-text search with PostgreSQL
-- ✅ OCR API endpoints
-- ✅ Reprocess OCR capability
-
-### Phase 2A: Page Classification (Weeks 7-9)
-**Status:** COMPLETE ✅  
-**Completed:** January 19, 2026  
-**Optimized:** January 20, 2026
-
-- ✅ Multi-provider LLM client (Anthropic, OpenAI, Google, xAI)
-- ✅ **OCR-based classification service** (fast, free, default method)
-- ✅ **Automatic classification** after OCR processing (no user action needed)
-- ✅ AI-powered page classification service (LLM vision option)
-- ✅ Discipline detection (Structural, Architectural, Civil, etc.)
-- ✅ Page type detection (Plan, Elevation, Section, Detail, etc.)
-- ✅ Concrete relevance scoring (high/medium/low/none)
-- ✅ Classification confidence scoring
-- ✅ **Image compression** for LLM vision models (handles 5MB limit)
-- ✅ Celery tasks for async classification
-- ✅ Classification API endpoints (with `use_vision` parameter)
-- ✅ Frontend testing UI with page browser
-- ✅ **AI Evaluation page** with classification detail modal
-- ✅ Database migration for classification fields
-
-**Key Features:**
-- **OCR-Based Classification**: Default method uses OCR data (sheet numbers, titles) - <100ms, $0 cost, 95%+ accuracy
-- **Automatic Processing**: Pages automatically classified after OCR completes
-- **Multi-Provider Support**: Anthropic Claude, OpenAI GPT-4o, Google Gemini, xAI Grok (for detailed LLM vision)
-- **Automatic Fallback**: If primary provider fails, automatically tries fallbacks
-- **Retry Logic**: Exponential backoff for rate limits and transient errors
-- **Image Compression**: Automatically compresses images to stay under LLM size limits
-- **Detailed Metadata**: Stores LLM provider, model, latency for each classification
-- **Cost Optimization**: $250 → $0 per 1,000 documents (using OCR-based classification)
-
-**Documentation:**
-- [Phase 2A Complete Guide](docs/phase-guides/PHASE_2A_COMPLETE.md)
-- [Phase 2A Docker Testing](docs/phase-guides/PHASE_2A_DOCKER_TESTING.md)
-
-### Phase 2B: Scale Detection and Calibration (Weeks 10-12)
-**Status:** COMPLETE ✅  
-**Completed:** January 20, 2026
-
-- ✅ Scale parser service (15+ scale formats)
-- ✅ Pattern matching (architectural, engineering, ratio scales)
-- ✅ Visual scale bar detection (OpenCV)
-- ✅ Multi-strategy detection (OCR + CV + manual)
-- ✅ Automatic calibration (confidence ≥85%)
-- ✅ Manual calibration workflow
-- ✅ Scale copying between pages
-- ✅ Scale API endpoints (4 endpoints)
-- ✅ Frontend calibration component (shadcn/ui)
-- ✅ Database fields for scale storage
-- ✅ Backend fully tested (17/17 unit tests, 5/5 integration tests)
-
-**Key Features:**
-- **Supported Formats**: 1/4" = 1'-0", 1" = 20', 1:100, N.T.S., etc.
-- **Auto-Calibration**: High-confidence detections auto-calibrate pages
-- **Manual Fallback**: Draw line + enter distance for edge cases
-- **Scale Copying**: Copy calibrated scale between similar pages
-- **Unit Support**: Feet, inches, meters
-
-**Testing:**
-- ✅ Backend: Fully tested (unit + integration tests passing)
-- ⏭️ Frontend: Component created, will be tested in Phase 3A when page viewer is built
-
-**Documentation:**
-- [Phase 2B Complete Guide](docs/phase-guides/PHASE_2B_COMPLETE.md)
-- [Scale Service Docs](docs/services/SCALE_SERVICE.md)
-
-### Phase 3B: Condition Management (Weeks 14-18)
-**Status:** COMPLETE ✅  
-**Completed:** January 22, 2026
-
-- ✅ Condition templates with scope/category grouping
-- ✅ Condition duplication and reorder endpoints
-- ✅ Project condition filtering (scope/category)
-- ✅ Condition detail loads measurements
-- ✅ Drag-and-drop reorder in UI
-- ✅ Create/Edit condition modals (template + custom)
-- ✅ Condition totals and measurement counts in panel
-
-**Key Features:**
-- **Templates:** Common concrete conditions with standard styling (line width/fill opacity)
-- **Reordering:** Persisted sort order per project
-- **UX:** Grouped panel, context menu actions, and color picker
-
-**Testing:**
-- ✅ Backend tests: `tests/test_condition_templates.py`
-- ✅ Frontend lint clean in Docker
+| Service | Status | Address |
+|---------|--------|---------|
+| PostgreSQL 16 | Running | localhost:5432 |
+| Redis 7 | Running | localhost:6379 |
+| MinIO | Running | localhost:9000 (API) / 9001 (Console) |
+| FastAPI + Uvicorn | Running | http://localhost:8000 |
+| Vite Dev Server | Running | http://localhost:5173 |
+| Celery Worker | Running | concurrency=2 |
 
 ---
 
-## 🔄 Current Phase
+## Architecture
 
-### Phase 3A: Measurement Engine (Weeks 13-16)
-**Status:** IN PROGRESS ✅  
-**Updated:** January 22, 2026
-
-**Completed:**
-- ✅ Line measurement tool with real-time distance display
-- ✅ Manual scale calibration workflow (click-to-start, click-to-finish)
-- ✅ Feet and inches display format (e.g., `21' 6"`)
-- ✅ Konva.js canvas with pan/zoom controls
-- ✅ Calibration overlay with pixel distance preview
-- ✅ Backend calibration API endpoint (`POST /pages/{id}/calibrate`)
-- ✅ Measurement geometry validation guards to prevent Konva crashes
-- ✅ Autonomous AI takeoff enabled when page scale is calibrated
-
-**Key Implementation Notes:**
-- **Manual Calibration**: Draw line over known dimension → Enter distance → Scale saved
-- **Presigned URL Fix**: `usePageImage` hook uses base URL comparison to prevent reload on URL timestamp changes
-- **Click-to-Click Drawing**: Left-click starts/finishes line; right/middle-click for panning during calibration
-
-**Remaining:**
-- Polyline, polygon, rectangle, circle tools
-- Area/perimeter calculations
-- Measurement persistence and editing
-
-**See:** `plans/06-MEASUREMENT-ENGINE.md`
+| Layer | Stack |
+|-------|-------|
+| **Backend** | FastAPI, SQLAlchemy (async), Alembic, Celery, Redis, PostgreSQL, MinIO |
+| **Frontend** | React 18, TypeScript, Vite, react-konva, Zustand, React Query, Tailwind CSS |
+| **AI/LLM** | Multi-provider: Anthropic (Claude Sonnet), OpenAI (GPT-4o), Google (Gemini 2.5 Flash), xAI (Grok Vision) |
 
 ---
 
-## 🤖 AI/LLM Configuration
+## Completed Work
 
-### Supported Providers
+### Foundation (Pre-Phase)
+- Document ingestion pipeline (PDF/TIFF upload, page splitting, OCR via Google Vision)
+- Page classification (OCR-based default + LLM vision option)
+- Scale detection (auto-detect 15+ formats + manual calibration)
+- Multi-provider AI takeoff generation (`AITakeoffService`)
+- Measurement engine (area, linear, count calculations)
+- Conditions CRUD with color, unit, scope, category, templates
+- Unified Task API (`TaskTracker`, `TaskRecord`, `useTaskPolling`)
+- Export system backend (Excel, CSV, PDF, OST XML exporters + Celery worker)
+- Three-panel workspace layout (`TakeoffWorkspace`)
+- Sheet tree with grouping, conditions panel, properties inspector, quick create bar
 
-| Provider | Model | Status | Best For |
-|----------|-------|--------|----------|
-| Anthropic | Claude 3.5 Sonnet | ✅ Configured | Primary - best accuracy |
-| OpenAI | GPT-4o | ✅ Configured | Fast, good accuracy |
-| Google | Gemini 2.5 Flash | ✅ Configured | Cost-effective |
-| xAI | Grok Vision | ⚠️ Optional | Alternative |
+### Phase 1: Canvas Migration (Konva.js in New Workspace)
+- `CenterCanvas` replaced with `react-konva` Stage/Layer
+- 7 drawing tools (select, line, polyline, polygon, rectangle, circle, point) in `TopToolbar`
+- Measurement overlay rendering color-coded by condition
+- Undo/redo with server sync
+- Viewport persistence per sheet in `workspaceStore`
 
-### Environment Variables
+### Phase 2: Enhanced Review Interface
+- `MeasurementHistory` model with action audit trail
+- Review service: approve, reject, modify, auto-accept batch, stats, navigation
+- Review API: verify, reject, modify geometry, auto-accept, stats, next-unreviewed
+- Review mode toggle with keyboard shortcuts (A = approve, R = reject, S = skip, E = edit)
+- Confidence filtering slider + auto-accept button in toolbar
+- Review stats in `BottomStatusBar`
+
+### Phase 3: Assembly System
+- `Assembly`, `AssemblyComponent`, `AssemblyTemplate`, `AssemblyTemplateItem` models
+- Formula engine with AST-safe expression parsing (variables: quantity, depth, area, etc.)
+- Assembly service: CRUD, template creation, cost recalculation with markup
+- Full API: assembly CRUD, template endpoints, project cost summary
+- "Cost" tab in `RightPanel` with inline editing
+
+### Phase 4: Auto Count Feature
+- Template matching service (OpenCV `matchTemplate`, scale/rotation tolerance)
+- LLM similarity service (vision model fallback/validation)
+- Auto count orchestrator (template match -> LLM validation -> NMS dedup)
+- Celery task + API endpoint: `POST /pages/{id}/auto-count`
+- Frontend: Auto Count button in TopToolbar
+
+### Phase 5: Quick Adjust Tools
+- Geometry adjuster: 7 operations (nudge, snap, extend, trim, offset, split, join)
+- Single dispatch endpoint: `PUT /measurements/{id}/adjust`
+- `QuickAdjustToolbar` floating component (appears on selection)
+- `GridOverlay` SVG component (toggleable, configurable size)
+- Keyboard shortcuts: Arrow keys (nudge), G (snap toggle), X (extend)
+
+### Phase 6: AI Assist Layer
+- **AutoTab:** `PredictNextPointService` with synchronous endpoint `POST /pages/{id}/predict-next-point` (768px downscale, <800ms target, silent failure)
+- **GhostPointLayer:** Konva ghost overlay with pulsing cyan animation, Tab accept / Esc dismiss
+- **Batch AI Inline:** AI Assist button triggers `autonomous_ai_takeoff_task` via Celery + `useTaskPolling`
+- **Draft measurement styling:** Dashed stroke + 60% opacity for unverified AI-generated measurements
+- **AI Confidence Visualization:** Palette toggle in toolbar, color-codes by confidence (green/yellow/red)
+
+---
+
+## Remaining Phases
+
+| Phase | Description | Effort | Priority |
+|-------|-------------|--------|----------|
+| 7 | Export & Reporting UI | 1-2 days | Medium |
+| 8 | Plan Overlay / Version Comparison | 2-3 days | Low (post-MVP) |
+| 9 | Housekeeping & Quality | 1-2 days | High |
+
+See `docs/plans/REMAINING_PHASES_7_8_9_TASK_LIST.md` for detailed task breakdown.
+
+---
+
+## Database
+
+**22 Alembic migrations**, head: `q5r6s7t8u9v0`
+
+### Key Models
+| Model | Purpose |
+|-------|---------|
+| `Project` | Top-level container |
+| `Document` | Uploaded PDF/TIFF with revision tracking fields |
+| `Page` | Individual sheet with classification, scale, OCR |
+| `Condition` | Takeoff line item with color, unit, scope |
+| `Measurement` | Geometry + quantity, linked to condition and page |
+| `MeasurementHistory` | Audit trail for review actions |
+| `Assembly` | Cost breakdown linked 1:1 to condition |
+| `AssemblyComponent` | Line item in assembly (material/labor/equipment) |
+| `AssemblyTemplate` / `AssemblyTemplateItem` | Reusable cost templates |
+| `ExportJob` | Async export tracking (status, file key, download URL) |
+| `TaskRecord` | Unified async task status |
+| `AutoCountResult` / `AutoCountDetection` | Auto count results |
+
+---
+
+## API Endpoints
+
+### Projects
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/projects` | Create project |
+| GET | `/projects` | List projects |
+| GET | `/projects/{id}` | Get project |
+| PUT | `/projects/{id}` | Update project |
+| DELETE | `/projects/{id}` | Delete project |
+
+### Documents
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/projects/{id}/documents` | Upload document |
+| GET | `/projects/{id}/documents` | List documents |
+| GET | `/documents/{id}` | Get document with pages |
+| GET | `/documents/{id}/status` | Processing status |
+| PUT | `/documents/{id}/title-block-region` | Set title block |
+| DELETE | `/documents/{id}` | Delete document |
+
+### Conditions
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/projects/{id}/conditions` | Create condition |
+| GET | `/projects/{id}/conditions` | List conditions |
+| GET | `/conditions/{id}` | Get condition |
+| PUT | `/conditions/{id}` | Update condition |
+| DELETE | `/conditions/{id}` | Delete condition |
+| PATCH | `/conditions/{id}/visibility` | Toggle visibility |
+
+### Measurements
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/conditions/{id}/measurements` | Create measurement |
+| GET | `/measurements/{id}` | Get measurement |
+| PUT | `/measurements/{id}` | Update measurement |
+| DELETE | `/measurements/{id}` | Delete measurement |
+| PUT | `/measurements/{id}/adjust` | Quick adjust (7 operations) |
+| PUT | `/measurements/{id}/verify` | Approve measurement |
+| DELETE | `/measurements/{id}/reject` | Reject measurement |
+| PUT | `/measurements/{id}/geometry` | Modify geometry |
+
+### AI Takeoff
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/pages/{id}/ai-takeoff` | Targeted AI takeoff |
+| POST | `/pages/{id}/autonomous-takeoff` | Autonomous AI takeoff |
+| POST | `/batch-ai-takeoff` | Batch AI takeoff |
+| POST | `/pages/{id}/predict-next-point` | AutoTab prediction |
+| GET | `/providers` | Available LLM providers |
+
+### Review
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/projects/{id}/measurements/auto-accept` | Batch auto-accept |
+| GET | `/projects/{id}/review-stats` | Review statistics |
+| GET | `/pages/{id}/measurements/next-unreviewed` | Next unreviewed |
+
+### Auto Count
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/pages/{id}/auto-count` | Start auto count |
+
+### Assemblies
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/conditions/{id}/assembly` | Create assembly |
+| POST | `/conditions/{id}/assembly/from-template` | From template |
+| GET | `/conditions/{id}/assembly` | Get assembly |
+| PUT | `/assemblies/{id}` | Update assembly |
+| POST | `/assemblies/{id}/items` | Add item |
+| PUT | `/assembly-items/{id}` | Update item |
+| DELETE | `/assembly-items/{id}` | Remove item |
+| GET | `/assembly-templates` | List templates |
+| GET | `/projects/{id}/cost-summary` | Project cost rollup |
+
+### Exports
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/projects/{id}/export` | Start export (Excel/CSV/PDF/OST) |
+| GET | `/exports/{id}` | Get export + download URL |
+| GET | `/projects/{id}/exports` | List exports |
+| DELETE | `/exports/{id}` | Delete export |
+
+### Tasks
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/tasks/{id}/status` | Get task status |
+| POST | `/tasks/{id}/register` | Register task |
+| GET | `/projects/{id}/tasks` | List project tasks |
+
+---
+
+## Frontend Routes
+
+| Route | Component | Status |
+|-------|-----------|--------|
+| `/projects` | `Projects` | Active |
+| `/projects/:id` | `ProjectDetail` | Active |
+| `/projects/:id/workspace` | `TakeoffWorkspace` | Active (primary) |
+| `/projects/:id/documents/:id` | `DocumentDetail` | Active |
+| `/documents/:id/pages/:id` | `TakeoffViewer` | Deprecated (banner shown) |
+
+---
+
+## Key Frontend Files
+
+### Workspace (`frontend/src/components/workspace/`)
+| File | Purpose |
+|------|---------|
+| `TakeoffWorkspace.tsx` | Three-panel resizable layout |
+| `TopToolbar.tsx` | Drawing tools, zoom, grid, AI assist, review, confidence overlay |
+| `CenterCanvas.tsx` | Konva Stage + measurement overlays + ghost layer |
+| `BottomStatusBar.tsx` | Review stats, status indicators |
+| `RightPanel.tsx` | Conditions panel + cost tab |
+| `QuickAdjustToolbar.tsx` | Floating geometry adjustment tools |
+| `GridOverlay.tsx` | SVG grid overlay |
+
+### Hooks (`frontend/src/hooks/`)
+| File | Purpose |
+|------|---------|
+| `useAutoTab.ts` | AutoTab prediction + accept/dismiss |
+| `useAiAssist.ts` | Batch AI task management |
+| `useQuickAdjust.ts` | Geometry adjustment mutation + keyboard |
+| `useKeyboardShortcuts.ts` | Global keyboard handler |
+| `useTaskPolling.ts` | Reactive async task polling |
+| `useReviewActions.ts` | Review approve/reject/skip |
+
+### State (`frontend/src/stores/`)
+| File | Purpose |
+|------|---------|
+| `workspaceStore.ts` | Zustand: viewport, tools, panels, review, AI, grid, selection |
+
+---
+
+## Common Commands
+
 ```bash
-# Required for Phase 2A
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-GOOGLE_AI_API_KEY=...
+# Start all services
+cd docker && docker compose up -d
 
-# Optional
-XAI_API_KEY=...
-
-# LLM Configuration
-DEFAULT_LLM_PROVIDER=anthropic
-LLM_FALLBACK_PROVIDERS=openai,google
-```
-
----
-
-## 📦 Package Management
-
-### Current Setup (Optimized)
-```
-requirements.txt → requirements-base.txt (500MB)
-├── FastAPI, SQLAlchemy, Celery
-├── PDF/Image processing (PyMuPDF, Pillow)
-├── LLM clients (Anthropic, OpenAI, Google)
-└── Google Cloud Vision (OCR)
-```
-
-### ML Packages (For Phase 4A+)
-```
-requirements-ml.txt (2GB) - NOT INSTALLED YET
-├── PyTorch, torchvision
-├── OpenCV, scikit-image
-└── Ultralytics (YOLO)
-```
-
----
-
-## 🗄️ Database Schema
-
-### Tables Created
-```sql
-projects        -- Main project container
-├── documents   -- Uploaded PDF/TIFF files
-│   └── pages   -- Individual sheets (with classification)
-├── conditions  -- Takeoff line items
-    └── measurements -- Geometry and quantities
-```
-
-### Phase 2A & 2B Additions to `pages` Table
-```sql
--- Classification fields (Phase 2A)
-classification VARCHAR(100)           -- "Structural:Plan"
-classification_confidence FLOAT       -- 0.0 to 1.0
-concrete_relevance VARCHAR(20)        -- high/medium/low/none
-classification_metadata JSONB         -- Full LLM response data
-
--- Scale detection fields (Phase 2B)
-scale_text VARCHAR(100)               -- "1/4\" = 1'-0\""
-scale_value FLOAT                     -- pixels per foot
-scale_unit VARCHAR(20)                -- "foot", "inch", "meter"
-scale_calibrated BOOLEAN              -- manual or high-confidence auto
-scale_calibration_data JSONB          -- detection results + metadata
-```
-
----
-
-## 🚀 Common Commands
-
-### Start Everything
-```bash
-cd docker
-docker compose up -d
-```
-
-### Check Health
-```bash
+# Health check
 curl http://localhost:8000/api/v1/health
-# Should return: {"status":"healthy"}
-```
 
-### Run Migrations
-```bash
-cd docker
-docker compose exec api alembic upgrade head
-```
+# Run migrations
+cd docker && docker compose exec api alembic upgrade head
 
-### View Logs
-```bash
+# Backend tests
+cd backend && pytest tests/ -v --tb=short
+
+# Frontend type-check + tests
+cd frontend && npx tsc --noEmit && npm test -- --run
+
+# View logs
 docker logs forgex-api -f
 docker logs forgex-worker -f
 ```
-
-### Rebuild After Code Changes
-```bash
-cd docker
-docker compose build api frontend worker
-docker compose up -d
-```
-
----
-
-## 📊 API Endpoints Summary
-
-### Phase 1A - Documents
-- `POST /projects` - Create project
-- `POST /projects/{id}/documents` - Upload document
-- `GET /documents/{id}` - Get document details
-- `GET /documents/{id}/status` - Get processing status
-
-### Phase 1B - OCR
-- `GET /documents/{id}/pages` - List pages with OCR data
-- `GET /pages/{id}/ocr` - Get OCR text and blocks
-- `POST /pages/{id}/reprocess-ocr` - Reprocess OCR
-- `GET /projects/{id}/search?q=text` - Full-text search
-
-### Phase 2A - Classification
-- `POST /pages/{id}/classify` - Classify single page
-- `POST /documents/{id}/classify` - Classify all pages in document
-- `GET /pages/{id}/classification` - Get classification results
-- `GET /settings/llm/providers` - List available LLM providers
-
-### Phase 2B - Scale Detection
-- `POST /pages/{id}/detect-scale` - Auto-detect scale
-- `PUT /pages/{id}/scale` - Manually set scale
-- `POST /pages/{id}/calibrate` - Calibrate from measurement
-- `POST /pages/{id}/copy-scale-from/{source_id}` - Copy scale
-
-### Phase 3B - Condition Management
-- `GET /condition-templates` - List condition templates
-- `POST /projects/{id}/conditions/from-template` - Create from template
-- `POST /conditions/{id}/duplicate` - Duplicate condition
-- `PUT /projects/{id}/conditions/reorder` - Reorder conditions
-
----
-
-## 📚 Documentation
-
-| Document | Purpose |
-|----------|---------|
-| [docs/README.md](docs/README.md) | Documentation index |
-| [docs/api/API_REFERENCE.md](docs/api/API_REFERENCE.md) | API endpoint reference |
-| [docs/database/DATABASE_SCHEMA.md](docs/database/DATABASE_SCHEMA.md) | Database schema |
-| [docs/services/OCR_SERVICE.md](docs/services/OCR_SERVICE.md) | OCR service implementation |
-| [docs/services/SCALE_SERVICE.md](docs/services/SCALE_SERVICE.md) | Scale detection service |
-| [docs/frontend/FRONTEND_IMPLEMENTATION.md](docs/frontend/FRONTEND_IMPLEMENTATION.md) | Frontend architecture |
-| [docs/phase-guides/PHASE_2A_COMPLETE.md](docs/phase-guides/PHASE_2A_COMPLETE.md) | Phase 2A guide |
-| [docs/phase-guides/PHASE_2B_COMPLETE.md](docs/phase-guides/PHASE_2B_COMPLETE.md) | Phase 2B guide |
-| [PHASE_PROMPTS.md](PHASE_PROMPTS.md) | Complete implementation prompts |
-
----
-
-## 🐛 Known Issues & Workarounds
-
-### 1. Alembic Async Driver Issue
-**Problem:** `asyncpg` driver doesn't work with Alembic  
-**Solution:** Alembic env.py now auto-converts to sync driver
-
-### 2. Celery Sync Database
-**Problem:** Celery workers need synchronous database connections  
-**Solution:** Workers use `psycopg2` driver (already configured)
-
----
-
-## 📊 Project Metrics
-
-### Code Statistics
-- **Backend:** 40+ Python files
-- **Frontend:** 15+ TypeScript/TSX files
-- **Database:** 5 tables with relationships
-- **API Endpoints:** 20+ routes implemented
-- **Docker Services:** 6 containers
-
-### AI/LLM Stats
-- **Providers Supported:** 4 (Anthropic, OpenAI, Google, xAI)
-- **Classification Methods:** 2 (OCR-based default, LLM vision optional)
-- **Classification Categories:** 8 disciplines, 8 page types
-- **Concrete Relevance Levels:** 4 (high, medium, low, none)
-- **Scale Formats Supported:** 15+ (architectural, engineering, metric)
-- **Classification Performance:** <100ms (OCR-based), 3-5s (LLM vision)
-- **Cost Savings:** $250 → $0 per 1,000 documents (OCR-based classification)
-
----
-
-## 🎯 Immediate Next Steps
-
-1. **Test Phase 2B:**
-   - Go to http://localhost:5173
-   - Upload a PDF document with scale notations
-   - Click "Detect Scale" on a page
-   - Or manually calibrate: Draw line → Enter distance
-   - Verify scale is saved
-
-2. **Start Phase 3A:**
-   - Review `plans/06-MEASUREMENT-ENGINE.md`
-   - Implement measurement tools (line, polygon, area)
-   - Create interactive drawing interface
-
----
-
-## 🎉 Success Indicators
-
-- [x] All Docker containers healthy
-- [x] API responds to health check
-- [x] Frontend loads and displays
-- [x] Database has all tables
-- [x] Can upload files
-- [x] OCR extracts text
-- [x] Classification works with LLM
-- [x] Scale detection parses 15+ formats
-- [x] Manual calibration workflow complete
-- [x] Documentation organized and complete
-
----
-
-**Your platform is ready for Phase 3A - Measurement Engine!** 🚀
-
-For detailed implementation guides, see `PHASE_PROMPTS.md`  
-For Phase 2B testing, see `docs/phase-guides/PHASE_2B_COMPLETE.md`
