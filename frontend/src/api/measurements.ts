@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { JsonObject, Measurement } from '@/types';
+import type { JsonObject, Measurement, GeometryAdjustRequest, GeometryAdjustResponse } from '@/types';
 
 export interface MeasurementCreateRequest {
   page_id: string;
@@ -92,5 +92,19 @@ export async function recalculatePageMeasurements(pageId: string): Promise<{stat
  */
 export async function recalculateConditionMeasurements(conditionId: string): Promise<{status: string; recalculated_count: number; failed_count: number; failed_ids: string[]}> {
   const response = await apiClient.post<{status: string; recalculated_count: number; failed_count: number; failed_ids: string[]}>(`/conditions/${conditionId}/recalculate-all`);
+  return response.data;
+}
+
+/**
+ * Adjust measurement geometry (nudge, snap, extend, trim, offset, split, join)
+ */
+export async function adjustMeasurement(
+  measurementId: string,
+  data: GeometryAdjustRequest
+): Promise<GeometryAdjustResponse> {
+  const response = await apiClient.put<GeometryAdjustResponse>(
+    `/measurements/${measurementId}/adjust`,
+    data
+  );
   return response.data;
 }

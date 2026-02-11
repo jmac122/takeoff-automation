@@ -15,6 +15,7 @@ import {
   Search,
   Sparkles,
   ScanSearch,
+  Grid3X3,
   ClipboardCheck,
   Zap,
   Loader2,
@@ -54,6 +55,8 @@ export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting }: TopTool
   const toggleReviewMode = useWorkspaceStore((s) => s.toggleReviewMode);
   const reviewConfidenceFilter = useWorkspaceStore((s) => s.reviewConfidenceFilter);
   const setReviewConfidenceFilter = useWorkspaceStore((s) => s.setReviewConfidenceFilter);
+  const showGrid = useWorkspaceStore((s) => s.showGrid);
+  const toggleShowGrid = useWorkspaceStore((s) => s.toggleShowGrid);
   const { data: reviewStats } = useReviewStats(projectId);
 
   return (
@@ -129,6 +132,22 @@ export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting }: TopTool
         disabled
       >
         <Redo2 size={16} />
+      </button>
+
+      <div className="mx-1 h-5 w-px bg-neutral-700" />
+
+      {/* Grid toggle */}
+      <button
+        className={`rounded p-1.5 transition-colors ${
+          showGrid
+            ? 'bg-blue-600 text-white'
+            : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+        }`}
+        onClick={toggleShowGrid}
+        title={`${showGrid ? 'Hide' : 'Show'} Grid (G)`}
+        data-testid="grid-toggle"
+      >
+        <Grid3X3 size={16} />
       </button>
 
       <div className="flex-1" />

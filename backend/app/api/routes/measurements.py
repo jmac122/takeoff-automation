@@ -18,7 +18,9 @@ from app.schemas.measurement import (
     MeasurementResponse,
     MeasurementListResponse,
 )
+from app.schemas.geometry_adjust import GeometryAdjustRequest, GeometryAdjustResponse
 from app.services.measurement_engine import get_measurement_engine
+from app.services.geometry_adjuster import get_geometry_adjuster
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -242,3 +244,56 @@ async def recalculate_condition_measurements(
     return await _recalculate_measurements_batch(
         db, measurement_ids, {"condition_id": str(condition_id)}
     )
+
+
+@router.put(
+    "/measurements/{measurement_id}/adjust",
+    response_model=GeometryAdjustResponse,
+)
+async def adjust_measurement(
+    measurement_id: uuid.UUID,
+    request: GeometryAdjustRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Apply a quick-adjust geometry operation to a measurement.
+
+    Supported actions: nudge, snap_to_grid, extend, trim, offset, split, join.
+    """
+    adjuster = get_geometry_adjuster()
+
+    try:
+        measurement = await adjuster.adjust_measurement(
+            session=db,
+            measurement_id=measurement_id,
+            action=request.action,
+            params=request.params,
+        )
+
+        # For split, check if a new measurement was created
+        created_id = None
+        if request.action == "split":
+            # The newly created measurement has a note referencing the source
+            result = await db.execute(
+                select(Measurement.id)
+                .where(Measurement.notes == f"Split from {measurement_id}")
+                .order_by(Measurement.created_at.desc())
+                .limit(1)
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                created_id = str(row)
+
+        return GeometryAdjustResponse(
+            action=request.action,
+            measurement_id=str(measurement.id),
+            new_geometry_type=measurement.geometry_type,
+            new_geometry_data=measurement.geometry_data,
+            new_quantity=measurement.quantity,
+            new_unit=measurement.unit,
+            created_measurement_id=created_id,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )

@@ -459,3 +459,29 @@ export interface AutoCountStartResponse {
   task_id: string;
   status: string;
 }
+
+// Quick Adjust Types
+export type GeometryAdjustAction =
+  | 'nudge'
+  | 'snap_to_grid'
+  | 'extend'
+  | 'trim'
+  | 'offset'
+  | 'split'
+  | 'join';
+
+export interface GeometryAdjustRequest {
+  action: GeometryAdjustAction;
+  params: Record<string, unknown>;
+}
+
+export interface GeometryAdjustResponse {
+  status: string;
+  action: string;
+  measurement_id: string;
+  new_geometry_type: string;
+  new_geometry_data: Record<string, unknown>;
+  new_quantity: number;
+  new_unit: string;
+  created_measurement_id?: string | null;
+}

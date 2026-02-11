@@ -95,6 +95,11 @@ interface WorkspaceState {
   reviewCurrentId: string | null;
   reviewConfidenceFilter: number;
   reviewAutoAdvance: boolean;
+
+  // Quick Adjust / Grid
+  snapToGrid: boolean;
+  gridSize: number;     // pixels
+  showGrid: boolean;
 }
 
 interface WorkspaceActions {
@@ -146,6 +151,11 @@ interface WorkspaceActions {
   setReviewCurrentId: (id: string | null) => void;
   setReviewConfidenceFilter: (threshold: number) => void;
   advanceReview: (nextId: string | null) => void;
+
+  // Quick Adjust / Grid
+  toggleSnapToGrid: () => void;
+  setGridSize: (size: number) => void;
+  toggleShowGrid: () => void;
 
   // Reset
   resetDrawingState: () => void;
@@ -201,6 +211,10 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   reviewCurrentId: null,
   reviewConfidenceFilter: 0.0,
   reviewAutoAdvance: true,
+
+  snapToGrid: false,
+  gridSize: 10,
+  showGrid: false,
 
   // --- Actions ---
 
@@ -339,6 +353,15 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       selectedMeasurementIds: nextId ? [nextId] : [],
     }),
 
+  toggleSnapToGrid: () =>
+    set((s) => ({ snapToGrid: !s.snapToGrid })),
+
+  setGridSize: (size) =>
+    set({ gridSize: Math.max(1, size) }),
+
+  toggleShowGrid: () =>
+    set((s) => ({ showGrid: !s.showGrid })),
+
   resetDrawingState: () =>
     set({
       isDrawing: false,
@@ -378,3 +401,6 @@ export const selectReviewMode = (s: WorkspaceStore) => s.reviewMode;
 export const selectReviewCurrentId = (s: WorkspaceStore) => s.reviewCurrentId;
 export const selectReviewConfidenceFilter = (s: WorkspaceStore) => s.reviewConfidenceFilter;
 export const selectReviewAutoAdvance = (s: WorkspaceStore) => s.reviewAutoAdvance;
+export const selectSnapToGrid = (s: WorkspaceStore) => s.snapToGrid;
+export const selectGridSize = (s: WorkspaceStore) => s.gridSize;
+export const selectShowGrid = (s: WorkspaceStore) => s.showGrid;
