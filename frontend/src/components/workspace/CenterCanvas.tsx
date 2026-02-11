@@ -8,6 +8,7 @@ import {
   REVIEW_COLOR_LOW,
 } from '@/lib/constants';
 import type { Measurement } from '@/types';
+import { GhostPointLayer } from '@/components/viewer/GhostPointLayer';
 
 interface CenterCanvasProps {
   projectId: string;
@@ -56,6 +57,8 @@ export function CenterCanvas({ projectId, isLoadingSheet, sheetImageUrl, measure
   const reviewMode = useWorkspaceStore((s) => s.reviewMode);
   const reviewCurrentId = useWorkspaceStore((s) => s.reviewCurrentId);
   const reviewConfidenceFilter = useWorkspaceStore((s) => s.reviewConfidenceFilter);
+  const aiConfidenceOverlay = useWorkspaceStore((s) => s.aiConfidenceOverlay);
+  const viewport = useWorkspaceStore((s) => s.viewport);
 
   // Filter measurements for rendering (excludes rejected, applies confidence filter in review mode)
   const visibleMeasurements = measurements
@@ -88,6 +91,8 @@ export function CenterCanvas({ projectId, isLoadingSheet, sheetImageUrl, measure
             className="max-h-full max-w-full object-contain"
             draggable={false}
           />
+          {/* AutoTab ghost prediction overlay */}
+          <GhostPointLayer scale={viewport.zoom} />
           {/* Review mode indicator overlay */}
           {reviewMode && (
             <div className="absolute left-2 top-2 rounded bg-green-600/80 px-2 py-1 text-xs font-medium text-white">

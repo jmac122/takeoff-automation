@@ -13,6 +13,7 @@ import { getProjectSheets, type SheetInfo } from '@/api/sheets';
 import { projectsApi } from '@/api/projects';
 import { useReviewActions } from '@/hooks/useReviewActions';
 import { useReviewKeyboardShortcuts } from '@/hooks/useReviewKeyboardShortcuts';
+import { useAiAssist } from '@/hooks/useAiAssist';
 import { TopToolbar } from './TopToolbar';
 import { BottomStatusBar } from './BottomStatusBar';
 import { CenterCanvas } from './CenterCanvas';
@@ -132,6 +133,12 @@ export function TakeoffWorkspace() {
     onEdit: handleReviewEdit,
   });
 
+  // Batch AI Assist
+  const { runBatchAi, isRunning: isBatchAiRunning } = useAiAssist(
+    projectId ?? null,
+    activeSheetId,
+  );
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -184,6 +191,8 @@ export function TakeoffWorkspace() {
           projectId={projectId}
           onAutoAccept={handleAutoAccept}
           isAutoAccepting={isAutoAccepting}
+          onRunBatchAi={runBatchAi}
+          isBatchAiRunning={isBatchAiRunning}
         />
 
         {/* Main Content Area */}

@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
   Zap,
   Loader2,
+  Palette,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
@@ -40,9 +41,11 @@ interface TopToolbarProps {
   projectId?: string;
   onAutoAccept?: (threshold: number) => void;
   isAutoAccepting?: boolean;
+  onRunBatchAi?: () => void;
+  isBatchAiRunning?: boolean;
 }
 
-export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting }: TopToolbarProps) {
+export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting, onRunBatchAi, isBatchAiRunning }: TopToolbarProps) {
   const activeTool = useWorkspaceStore((s) => s.activeTool);
   const setActiveTool = useWorkspaceStore((s) => s.setActiveTool);
   const viewport = useWorkspaceStore((s) => s.viewport);
@@ -57,6 +60,8 @@ export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting }: TopTool
   const setReviewConfidenceFilter = useWorkspaceStore((s) => s.setReviewConfidenceFilter);
   const showGrid = useWorkspaceStore((s) => s.showGrid);
   const toggleShowGrid = useWorkspaceStore((s) => s.toggleShowGrid);
+  const aiConfidenceOverlay = useWorkspaceStore((s) => s.aiConfidenceOverlay);
+  const toggleAiConfidenceOverlay = useWorkspaceStore((s) => s.toggleAiConfidenceOverlay);
   const { data: reviewStats } = useReviewStats(projectId);
 
   return (
@@ -171,11 +176,31 @@ export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting }: TopTool
 
       {/* AI Assist */}
       <button
-        className="flex items-center gap-1 rounded px-2 py-1.5 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white"
-        title="AI Assist"
+        className={`flex items-center gap-1 rounded px-2 py-1.5 text-xs transition-colors ${
+          isBatchAiRunning
+            ? 'bg-purple-600 text-white'
+            : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+        } disabled:opacity-50`}
+        title="AI Assist — Run autonomous AI takeoff on current sheet"
+        onClick={onRunBatchAi}
+        disabled={isBatchAiRunning}
       >
-        <Sparkles size={16} />
-        <span className="hidden lg:inline">AI Assist</span>
+        {isBatchAiRunning ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+        <span className="hidden lg:inline">{isBatchAiRunning ? 'AI Running...' : 'AI Assist'}</span>
+      </button>
+
+      {/* AI Confidence Overlay Toggle */}
+      <button
+        className={`rounded p-1.5 transition-colors ${
+          aiConfidenceOverlay
+            ? 'bg-blue-600 text-white'
+            : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+        }`}
+        onClick={toggleAiConfidenceOverlay}
+        title={`${aiConfidenceOverlay ? 'Hide' : 'Show'} AI Confidence Colors`}
+        data-testid="confidence-overlay-toggle"
+      >
+        <Palette size={16} />
       </button>
 
       {/* Review Mode Toggle */}

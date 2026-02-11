@@ -84,6 +84,24 @@ export interface AvailableProvidersResponse {
     task_config: Record<string, string>;
 }
 
+export interface PredictNextPointRequest {
+    condition_id: string;
+    last_geometry_type: string;
+    last_geometry_data: Record<string, unknown>;
+    viewport_bounds?: Record<string, unknown> | null;
+}
+
+export interface PredictNextPointPrediction {
+    geometry_type: string;
+    geometry_data: Record<string, unknown>;
+    confidence: number;
+}
+
+export interface PredictNextPointResponse {
+    prediction: PredictNextPointPrediction | null;
+    latency_ms: number;
+}
+
 // ============================================================================
 // API Functions
 // ============================================================================
@@ -161,6 +179,21 @@ export const takeoffApi = {
                 condition_id: conditionId,
                 provider,
             }
+        );
+        return response.data;
+    },
+
+    /**
+     * Predict the next measurement point (AutoTab).
+     * Synchronous endpoint — no polling needed.
+     */
+    predictNextPoint: async (
+        pageId: string,
+        data: PredictNextPointRequest
+    ): Promise<PredictNextPointResponse> => {
+        const response = await apiClient.post<PredictNextPointResponse>(
+            `/pages/${pageId}/predict-next-point`,
+            data
         );
         return response.data;
     },

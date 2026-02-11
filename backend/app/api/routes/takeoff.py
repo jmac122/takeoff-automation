@@ -1,7 +1,8 @@
 """API routes for AI takeoff generation."""
 
+import time
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
@@ -16,6 +17,7 @@ from app.models.document import Document
 from app.models.condition import Condition
 from app.schemas.task import StartTaskResponse
 from app.services.task_tracker import TaskTracker
+from app.services.ai_predict_point import get_predict_point_service
 from app.workers.takeoff_tasks import (
     generate_ai_takeoff_task,
     compare_providers_task,
@@ -73,6 +75,22 @@ class AvailableProvidersResponse(BaseModel):
     available: list[str]
     default: str
     task_config: dict[str, str]
+
+
+class PredictNextPointRequest(BaseModel):
+    """Request to predict the next measurement point (AutoTab)."""
+
+    condition_id: uuid.UUID
+    last_geometry_type: str
+    last_geometry_data: dict[str, Any]
+    viewport_bounds: dict[str, Any] | None = None  # Reserved for future viewport cropping
+
+
+class PredictNextPointResponse(BaseModel):
+    """Response with predicted next measurement point."""
+
+    prediction: dict[str, Any] | None = None
+    latency_ms: float = 0.0
 
 
 # ============================================================================
@@ -442,6 +460,49 @@ async def get_available_providers() -> AvailableProvidersResponse:
             "measurement": settings.get_provider_for_task("measurement"),
         },
     )
+
+
+@router.post("/pages/{page_id}/predict-next-point", response_model=PredictNextPointResponse)
+async def predict_next_point(
+    page_id: uuid.UUID,
+    request_body: PredictNextPointRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    page_data: Annotated[CalibratedPageData, Depends(get_calibrated_page)],
+) -> PredictNextPointResponse:
+    """Predict the next measurement point for AutoTab.
+
+    Synchronous (non-Celery) endpoint targeting <800ms latency.
+    Returns ``prediction: null`` on any failure — never raises 500.
+    """
+    start = time.monotonic()
+    try:
+        # Read page image
+        import pathlib
+        image_path = pathlib.Path(page_data.page.image_path) if page_data.page.image_path else None
+        if not image_path or not image_path.exists():
+            return PredictNextPointResponse(
+                prediction=None,
+                latency_ms=round((time.monotonic() - start) * 1000, 1),
+            )
+
+        image_bytes = image_path.read_bytes()
+
+        service = get_predict_point_service()
+        prediction = service.predict_next(
+            image_bytes=image_bytes,
+            image_width=page_data.page.image_width or 1,
+            image_height=page_data.page.image_height or 1,
+            last_geometry_type=request_body.last_geometry_type,
+            last_geometry_data=request_body.last_geometry_data,
+            provider=None,
+        )
+
+        latency = round((time.monotonic() - start) * 1000, 1)
+        return PredictNextPointResponse(prediction=prediction, latency_ms=latency)
+
+    except Exception:
+        latency = round((time.monotonic() - start) * 1000, 1)
+        return PredictNextPointResponse(prediction=None, latency_ms=latency)
 
 
 @router.get(

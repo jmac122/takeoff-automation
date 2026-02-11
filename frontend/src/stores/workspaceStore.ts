@@ -86,6 +86,13 @@ interface WorkspaceState {
   // AI Assist
   autoTabEnabled: boolean;
   pendingPrediction: boolean;
+  ghostPrediction: {
+    geometry_type: string;
+    geometry_data: Record<string, unknown>;
+    confidence: number;
+  } | null;
+  aiConfidenceOverlay: boolean;
+  batchAiTaskId: string | null;
 
   // Transient feedback (cleared on next successful action)
   toolRejectionMessage: string | null;
@@ -141,6 +148,11 @@ interface WorkspaceActions {
   // AI
   setAutoTabEnabled: (enabled: boolean) => void;
   setPendingPrediction: (pending: boolean) => void;
+  setGhostPrediction: (prediction: WorkspaceState['ghostPrediction']) => void;
+  clearGhostPrediction: () => void;
+  toggleAiConfidenceOverlay: () => void;
+  setBatchAiTaskId: (taskId: string | null) => void;
+  clearBatchAiTaskId: () => void;
 
   // Feedback
   clearToolRejection: () => void;
@@ -204,6 +216,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   autoTabEnabled: false,
   pendingPrediction: false,
+  ghostPrediction: null,
+  aiConfidenceOverlay: false,
+  batchAiTaskId: null,
 
   toolRejectionMessage: null,
 
@@ -320,6 +335,21 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   setPendingPrediction: (pending) =>
     set({ pendingPrediction: pending }),
 
+  setGhostPrediction: (prediction) =>
+    set({ ghostPrediction: prediction }),
+
+  clearGhostPrediction: () =>
+    set({ ghostPrediction: null }),
+
+  toggleAiConfidenceOverlay: () =>
+    set((s) => ({ aiConfidenceOverlay: !s.aiConfidenceOverlay })),
+
+  setBatchAiTaskId: (taskId) =>
+    set({ batchAiTaskId: taskId }),
+
+  clearBatchAiTaskId: () =>
+    set({ batchAiTaskId: null }),
+
   clearToolRejection: () =>
     set({ toolRejectionMessage: null }),
 
@@ -377,6 +407,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       selectedMeasurementIds: [],
       reviewMode: false,
       reviewCurrentId: null,
+      ghostPrediction: null,
     }),
 }));
 
@@ -404,3 +435,6 @@ export const selectReviewAutoAdvance = (s: WorkspaceStore) => s.reviewAutoAdvanc
 export const selectSnapToGrid = (s: WorkspaceStore) => s.snapToGrid;
 export const selectGridSize = (s: WorkspaceStore) => s.gridSize;
 export const selectShowGrid = (s: WorkspaceStore) => s.showGrid;
+export const selectGhostPrediction = (s: WorkspaceStore) => s.ghostPrediction;
+export const selectAiConfidenceOverlay = (s: WorkspaceStore) => s.aiConfidenceOverlay;
+export const selectBatchAiTaskId = (s: WorkspaceStore) => s.batchAiTaskId;

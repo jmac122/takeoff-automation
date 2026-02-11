@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { DrawingTool } from '@/components/viewer/DrawingToolbar';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 interface UseKeyboardShortcutsOptions {
     drawing: {
@@ -12,6 +13,8 @@ interface UseKeyboardShortcutsOptions {
     onClearSelection: () => void;
     onUndo: () => void;
     onRedo: () => void;
+    onAcceptGhost?: () => void;
+    onDismissGhost?: () => void;
 }
 
 export function useKeyboardShortcuts({
@@ -22,12 +25,29 @@ export function useKeyboardShortcuts({
     onClearSelection,
     onUndo,
     onRedo,
+    onAcceptGhost,
+    onDismissGhost,
 }: UseKeyboardShortcutsOptions) {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'F11') {
                 e.preventDefault();
                 onToggleFullscreen();
+                return;
+            }
+
+            // AutoTab ghost: Tab to accept, Esc to dismiss
+            const hasGhost = useWorkspaceStore.getState().ghostPrediction !== null;
+
+            if (e.key === 'Tab' && hasGhost) {
+                e.preventDefault();
+                onAcceptGhost?.();
+                return;
+            }
+
+            if (e.key === 'Escape' && hasGhost) {
+                e.preventDefault();
+                onDismissGhost?.();
                 return;
             }
 
@@ -66,5 +86,7 @@ export function useKeyboardShortcuts({
         onClearSelection,
         onUndo,
         onRedo,
+        onAcceptGhost,
+        onDismissGhost,
     ]);
 }
