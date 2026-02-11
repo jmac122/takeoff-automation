@@ -219,3 +219,36 @@ class TestExcelExporter:
         result = exporter.generate(sample_project_data)
         wb = load_workbook(BytesIO(result))
         assert "By Page" in wb.sheetnames
+
+    def test_cost_summary_sheet_created(self, exporter, sample_project_data):
+        """Cost Summary sheet is created when conditions have assembly costs."""
+        result = exporter.generate(sample_project_data)
+        wb = load_workbook(BytesIO(result))
+        assert "Cost Summary" in wb.sheetnames
+
+    def test_cost_columns_in_summary(self, exporter, sample_project_data):
+        """Summary sheet includes cost columns when assembly costs exist."""
+        result = exporter.generate(sample_project_data)
+        wb = load_workbook(BytesIO(result))
+        ws = wb["Summary"]
+        # Header row 4 should include cost columns
+        assert ws.cell(row=4, column=8).value == "Unit Cost"
+        assert ws.cell(row=4, column=12).value == "Markup Total"
+        # Floor Slab has costs
+        assert ws.cell(row=5, column=8).value == 5.47  # unit_cost
+
+    def test_cost_summary_sheet_totals(self, exporter, sample_project_data):
+        """Cost Summary sheet has correct totals row."""
+        result = exporter.generate(sample_project_data)
+        wb = load_workbook(BytesIO(result))
+        ws = wb["Cost Summary"]
+        # Only Floor Slab has costs, so data row 5, total row 6
+        assert ws.cell(row=5, column=1).value == "Floor Slab"
+        assert ws.cell(row=5, column=5).value == 4500.00  # material_cost
+        assert ws.cell(row=6, column=1).value == "TOTAL"
+
+    def test_no_cost_sheet_without_assemblies(self, exporter, empty_project_data):
+        """No Cost Summary sheet when no conditions have assembly costs."""
+        result = exporter.generate(empty_project_data)
+        wb = load_workbook(BytesIO(result))
+        assert "Cost Summary" not in wb.sheetnames

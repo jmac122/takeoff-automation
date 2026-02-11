@@ -26,6 +26,7 @@ import {
   PanelRightOpen,
 } from 'lucide-react';
 import type { DrawingTool } from '@/stores/workspaceStore';
+import { ExportDropdown } from './ExportDropdown';
 
 const tools: { tool: DrawingTool; icon: React.ReactNode; label: string; shortcut?: string }[] = [
   { tool: 'select', icon: <MousePointer2 size={16} />, label: 'Select', shortcut: 'V' },
@@ -156,6 +157,9 @@ export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting, onRunBatc
       </button>
 
       <div className="flex-1" />
+
+      {/* Export */}
+      {projectId && <ExportDropdown projectId={projectId} />}
 
       {/* Search */}
       <button

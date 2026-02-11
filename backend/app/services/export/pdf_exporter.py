@@ -61,19 +61,27 @@ class PDFExporter(BaseExporter):
 
         # Summary section
         elements.append(Paragraph("Project Summary", heading_style))
-        summary_data = [["Condition", "Type", "Unit", "Quantity", "Count"]]
+        has_costs = any(c.assembly_cost for c in data.conditions)
+        if has_costs:
+            summary_data = [["Condition", "Type", "Unit", "Quantity", "Count", "Unit Cost", "Total"]]
+        else:
+            summary_data = [["Condition", "Type", "Unit", "Quantity", "Count"]]
         for cond in data.conditions:
-            summary_data.append([
+            row = [
                 cond.name,
                 cond.measurement_type,
                 format_unit(cond.unit),
                 f"{cond.total_quantity:.2f}",
                 str(cond.measurement_count),
-            ])
+            ]
+            if has_costs:
+                ac = cond.assembly_cost
+                row.append(f"${ac.unit_cost:,.2f}" if ac else "")
+                row.append(f"${ac.total_with_markup:,.2f}" if ac else "")
+            summary_data.append(row)
 
         if len(summary_data) > 1:
-            summary_table = Table(summary_data, repeatRows=1)
-            summary_table.setStyle(TableStyle([
+            summary_style = [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2B579A")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
@@ -85,8 +93,20 @@ class PDFExporter(BaseExporter):
                 ("FONTSIZE", (0, 1), (-1, -1), 9),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]))
+            ]
+            if has_costs:
+                summary_style.append(("ALIGN", (5, 0), (6, -1), "RIGHT"))
+            summary_table = Table(summary_data, repeatRows=1)
+            summary_table.setStyle(TableStyle(summary_style))
             elements.append(summary_table)
+
+            # Project cost total
+            if has_costs:
+                elements.append(Spacer(1, 0.1 * inch))
+                elements.append(Paragraph(
+                    f"<b>Project Total (with markup): ${data.total_project_cost:,.2f}</b>",
+                    styles["Normal"],
+                ))
         else:
             elements.append(Paragraph("No conditions found.", styles["Normal"]))
 

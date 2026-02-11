@@ -33,6 +33,23 @@ class MeasurementData:
 
 
 @dataclass
+class AssemblyCostData:
+    """Assembly cost summary for export."""
+
+    material_cost: float
+    labor_cost: float
+    equipment_cost: float
+    subcontract_cost: float
+    other_cost: float
+    total_cost: float
+    unit_cost: float
+    total_labor_hours: float
+    overhead_percent: float
+    profit_percent: float
+    total_with_markup: float
+
+
+@dataclass
 class ConditionData:
     """Condition with its measurements for export."""
 
@@ -51,6 +68,7 @@ class ConditionData:
     building: str | None
     area: str | None
     elevation: str | None
+    assembly_cost: AssemblyCostData | None = None
     measurements: list[MeasurementData] = field(default_factory=list)
 
 
@@ -71,6 +89,15 @@ class ExportData:
         for condition in self.conditions:
             result.extend(condition.measurements)
         return result
+
+    @property
+    def total_project_cost(self) -> float:
+        """Sum of total_with_markup across all conditions with assemblies."""
+        return sum(
+            c.assembly_cost.total_with_markup
+            for c in self.conditions
+            if c.assembly_cost
+        )
 
 
 # Unit abbreviation map
