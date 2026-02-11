@@ -303,7 +303,10 @@ class MeasurementEngine:
             select(
                 func.sum(Measurement.quantity),
                 func.count(Measurement.id),
-            ).where(Measurement.condition_id == condition.id)
+            ).where(
+                Measurement.condition_id == condition.id,
+                Measurement.is_rejected == False,
+            )
         )
         row = result.one()
         

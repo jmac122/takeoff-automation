@@ -69,6 +69,15 @@ export const Z_ORDER = {
 } as const;
 
 // ============================================================================
+// Review Confidence Thresholds & Colors
+// ============================================================================
+export const REVIEW_CONFIDENCE_HIGH = 0.9;
+export const REVIEW_CONFIDENCE_MEDIUM = 0.7;
+export const REVIEW_COLOR_HIGH = '#22C55E';    // green-500
+export const REVIEW_COLOR_MEDIUM = '#EAB308';  // yellow-500
+export const REVIEW_COLOR_LOW = '#EF4444';     // red-500
+
+// ============================================================================
 // LocalStorage Keys
 // ============================================================================
 export const LS_SHEET_TREE_STATE = 'forgex-sheet-tree-state';

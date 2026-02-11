@@ -41,11 +41,67 @@ export interface Measurement {
   pixel_area?: number | null;
   is_ai_generated: boolean;
   ai_confidence?: number | null;
+  ai_model?: string | null;
   is_modified: boolean;
   is_verified: boolean;
+  is_rejected: boolean;
+  rejection_reason?: string | null;
+  review_notes?: string | null;
+  reviewed_at?: string | null;
+  original_geometry?: JsonObject | null;
+  original_quantity?: number | null;
   notes?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Review Types
+export interface ReviewActionResponse {
+  status: string;
+  measurement_id: string;
+  new_quantity?: number | null;
+}
+
+export interface AutoAcceptResponse {
+  auto_accepted_count: number;
+  threshold: number;
+}
+
+export interface ConfidenceDistribution {
+  high: number;
+  medium: number;
+  low: number;
+}
+
+export interface ReviewStatistics {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  modified: number;
+  ai_generated_count: number;
+  ai_accuracy_percent: number;
+  confidence_distribution: ConfidenceDistribution;
+}
+
+export interface NextUnreviewedResponse {
+  measurement: Measurement | null;
+  remaining_count: number;
+}
+
+export interface MeasurementHistoryEntry {
+  id: string;
+  measurement_id: string;
+  action: string;
+  actor: string;
+  actor_type: string;
+  previous_status?: string | null;
+  new_status?: string | null;
+  previous_quantity?: number | null;
+  new_quantity?: number | null;
+  change_description?: string | null;
+  notes?: string | null;
+  created_at: string;
 }
 
 // Condition Types

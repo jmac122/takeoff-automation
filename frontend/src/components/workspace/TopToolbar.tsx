@@ -1,4 +1,5 @@
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useReviewStats } from '@/hooks/useReviewStats';
 import { TOP_TOOLBAR_HEIGHT } from '@/lib/constants';
 import {
   MousePointer2,
@@ -13,6 +14,9 @@ import {
   ZoomOut,
   Search,
   Sparkles,
+  ClipboardCheck,
+  Zap,
+  Loader2,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
@@ -30,7 +34,13 @@ const tools: { tool: DrawingTool; icon: React.ReactNode; label: string; shortcut
   { tool: 'measure', icon: <Ruler size={16} />, label: 'Measure', shortcut: 'M' },
 ];
 
-export function TopToolbar() {
+interface TopToolbarProps {
+  projectId?: string;
+  onAutoAccept?: (threshold: number) => void;
+  isAutoAccepting?: boolean;
+}
+
+export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting }: TopToolbarProps) {
   const activeTool = useWorkspaceStore((s) => s.activeTool);
   const setActiveTool = useWorkspaceStore((s) => s.setActiveTool);
   const viewport = useWorkspaceStore((s) => s.viewport);
@@ -39,6 +49,11 @@ export function TopToolbar() {
   const rightPanelCollapsed = useWorkspaceStore((s) => s.rightPanelCollapsed);
   const toggleLeftPanel = useWorkspaceStore((s) => s.toggleLeftPanel);
   const toggleRightPanel = useWorkspaceStore((s) => s.toggleRightPanel);
+  const reviewMode = useWorkspaceStore((s) => s.reviewMode);
+  const toggleReviewMode = useWorkspaceStore((s) => s.toggleReviewMode);
+  const reviewConfidenceFilter = useWorkspaceStore((s) => s.reviewConfidenceFilter);
+  const setReviewConfidenceFilter = useWorkspaceStore((s) => s.setReviewConfidenceFilter);
+  const { data: reviewStats } = useReviewStats(projectId);
 
   return (
     <div
@@ -133,6 +148,60 @@ export function TopToolbar() {
         <Sparkles size={16} />
         <span className="hidden lg:inline">AI Assist</span>
       </button>
+
+      {/* Review Mode Toggle */}
+      <button
+        className={`flex items-center gap-1 rounded px-2 py-1.5 text-xs transition-colors ${
+          reviewMode
+            ? 'bg-green-600 text-white'
+            : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+        }`}
+        onClick={toggleReviewMode}
+        title="Toggle Review Mode"
+        data-testid="review-mode-toggle"
+      >
+        <ClipboardCheck size={16} />
+        <span className="hidden lg:inline">Review</span>
+      </button>
+
+      {/* Review mode controls */}
+      {reviewMode && (
+        <>
+          {/* Review progress */}
+          {reviewStats && (
+            <span className="text-xs text-neutral-300">
+              {reviewStats.total - reviewStats.pending}/{reviewStats.total}
+            </span>
+          )}
+
+          {/* Confidence filter slider */}
+          <div className="flex items-center gap-1">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(reviewConfidenceFilter * 100)}
+              onChange={(e) => setReviewConfidenceFilter(Number(e.target.value) / 100)}
+              className="h-1 w-16 cursor-pointer accent-green-500"
+              title={`Confidence filter: >= ${Math.round(reviewConfidenceFilter * 100)}%`}
+            />
+            <span className="text-xs text-neutral-400 min-w-[2.5rem]">
+              {`>=${Math.round(reviewConfidenceFilter * 100)}%`}
+            </span>
+          </div>
+
+          {/* Auto-accept button */}
+          <button
+            className="flex items-center gap-1 rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-500 disabled:opacity-50"
+            onClick={() => onAutoAccept?.(reviewConfidenceFilter || 0.9)}
+            disabled={isAutoAccepting}
+            title={`Auto-Accept >= ${Math.round((reviewConfidenceFilter || 0.9) * 100)}%`}
+          >
+            {isAutoAccepting ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+            <span className="hidden lg:inline">Auto-Accept</span>
+          </button>
+        </>
+      )}
 
       <div className="mx-1 h-5 w-px bg-neutral-700" />
 

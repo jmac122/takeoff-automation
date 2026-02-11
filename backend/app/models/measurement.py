@@ -3,7 +3,9 @@
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import String, Float, Boolean, ForeignKey, Text
+from datetime import datetime
+
+from sqlalchemy import String, Float, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,6 +13,7 @@ from app.models.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from app.models.condition import Condition
+    from app.models.measurement_history import MeasurementHistory
     from app.models.page import Page
 
 
@@ -66,9 +69,19 @@ class Measurement(Base, UUIDMixin, TimestampMixin):
     is_modified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Review fields
+    is_rejected: Mapped[bool] = mapped_column(Boolean, default=False)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    original_geometry: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    original_quantity: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     # Notes
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    
+
     # Extra metadata
     extra_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
@@ -77,3 +90,9 @@ class Measurement(Base, UUIDMixin, TimestampMixin):
         "Condition", back_populates="measurements"
     )
     page: Mapped["Page"] = relationship("Page", back_populates="measurements")
+    history: Mapped[list["MeasurementHistory"]] = relationship(
+        "MeasurementHistory",
+        back_populates="measurement",
+        cascade="all, delete-orphan",
+        order_by="MeasurementHistory.created_at.desc()",
+    )

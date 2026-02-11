@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Panel, Group, Separator } from 'react-resizable-panels';
@@ -11,6 +11,8 @@ import {
 } from '@/lib/constants';
 import { getProjectSheets, type SheetInfo } from '@/api/sheets';
 import { projectsApi } from '@/api/projects';
+import { useReviewActions } from '@/hooks/useReviewActions';
+import { useReviewKeyboardShortcuts } from '@/hooks/useReviewKeyboardShortcuts';
 import { TopToolbar } from './TopToolbar';
 import { BottomStatusBar } from './BottomStatusBar';
 import { CenterCanvas } from './CenterCanvas';
@@ -96,6 +98,40 @@ export function TakeoffWorkspace() {
     }
   }, [activeSheet?.image_url]);
 
+  // Review mode integration
+  const reviewCurrentId = useWorkspaceStore((s) => s.reviewCurrentId);
+  const { approve, reject, autoAccept, isAutoAccepting } = useReviewActions(
+    activeSheetId ?? undefined,
+    projectId,
+  );
+
+  const handleReviewApprove = useCallback(() => {
+    if (!reviewCurrentId) return;
+    approve({ measurementId: reviewCurrentId, reviewer: 'user' });
+  }, [reviewCurrentId, approve]);
+
+  const handleReviewReject = useCallback(() => {
+    if (!reviewCurrentId) return;
+    // Simple reject with default reason — the panel UI provides the detailed flow
+    reject({ measurementId: reviewCurrentId, reviewer: 'user', reason: 'Rejected via keyboard shortcut' });
+  }, [reviewCurrentId, reject]);
+
+  const handleReviewEdit = useCallback(() => {
+    // Edit mode is handled by the existing tool system - switch to select tool
+    // The user can then modify the geometry
+  }, []);
+
+  const handleAutoAccept = useCallback((threshold: number) => {
+    autoAccept({ threshold });
+  }, [autoAccept]);
+
+  useReviewKeyboardShortcuts({
+    pageId: activeSheetId ?? undefined,
+    onApprove: handleReviewApprove,
+    onReject: handleReviewReject,
+    onEdit: handleReviewEdit,
+  });
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -144,7 +180,11 @@ export function TakeoffWorkspace() {
     <FocusProvider>
       <div className="flex h-screen flex-col bg-neutral-950" data-testid="takeoff-workspace">
         {/* Top Toolbar */}
-        <TopToolbar />
+        <TopToolbar
+          projectId={projectId}
+          onAutoAccept={handleAutoAccept}
+          isAutoAccepting={isAutoAccepting}
+        />
 
         {/* Main Content Area */}
         <div
@@ -196,7 +236,7 @@ export function TakeoffWorkspace() {
                   maxSize={40}
                   data-testid="right-panel-wrapper"
                 >
-                  <RightPanel projectId={projectId} />
+                  <RightPanel projectId={projectId} pageId={activeSheetId ?? undefined} />
                 </Panel>
               </>
             )}
@@ -204,7 +244,7 @@ export function TakeoffWorkspace() {
         </div>
 
         {/* Bottom Status Bar */}
-        <BottomStatusBar />
+        <BottomStatusBar projectId={projectId} />
 
         {/* Tool rejection toast */}
         {toastVisible && (

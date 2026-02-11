@@ -89,6 +89,12 @@ interface WorkspaceState {
 
   // Transient feedback (cleared on next successful action)
   toolRejectionMessage: string | null;
+
+  // Review mode
+  reviewMode: boolean;
+  reviewCurrentId: string | null;
+  reviewConfidenceFilter: number;
+  reviewAutoAdvance: boolean;
 }
 
 interface WorkspaceActions {
@@ -133,6 +139,13 @@ interface WorkspaceActions {
 
   // Feedback
   clearToolRejection: () => void;
+
+  // Review mode
+  toggleReviewMode: () => void;
+  setReviewMode: (active: boolean) => void;
+  setReviewCurrentId: (id: string | null) => void;
+  setReviewConfidenceFilter: (threshold: number) => void;
+  advanceReview: (nextId: string | null) => void;
 
   // Reset
   resetDrawingState: () => void;
@@ -183,6 +196,11 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   pendingPrediction: false,
 
   toolRejectionMessage: null,
+
+  reviewMode: false,
+  reviewCurrentId: null,
+  reviewConfidenceFilter: 0.0,
+  reviewAutoAdvance: true,
 
   // --- Actions ---
 
@@ -291,6 +309,36 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   clearToolRejection: () =>
     set({ toolRejectionMessage: null }),
 
+  toggleReviewMode: () => {
+    const state = get();
+    const newMode = !state.reviewMode;
+    set({
+      reviewMode: newMode,
+      reviewCurrentId: newMode ? state.reviewCurrentId : null,
+      activeTool: newMode ? 'select' : state.activeTool,
+    });
+  },
+
+  setReviewMode: (active) => {
+    set({
+      reviewMode: active,
+      reviewCurrentId: active ? get().reviewCurrentId : null,
+      activeTool: active ? 'select' : get().activeTool,
+    });
+  },
+
+  setReviewCurrentId: (id) =>
+    set({ reviewCurrentId: id }),
+
+  setReviewConfidenceFilter: (threshold) =>
+    set({ reviewConfidenceFilter: clamp(threshold, 0, 1) }),
+
+  advanceReview: (nextId) =>
+    set({
+      reviewCurrentId: nextId,
+      selectedMeasurementIds: nextId ? [nextId] : [],
+    }),
+
   resetDrawingState: () =>
     set({
       isDrawing: false,
@@ -304,6 +352,8 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       currentPoints: [],
       activeTool: 'select',
       selectedMeasurementIds: [],
+      reviewMode: false,
+      reviewCurrentId: null,
     }),
 }));
 
@@ -324,3 +374,7 @@ export const selectSheetSearchQuery = (s: WorkspaceStore) => s.sheetSearchQuery;
 export const selectExpandedGroups = (s: WorkspaceStore) => s.expandedGroups;
 export const selectHighlightedSheetId = (s: WorkspaceStore) => s.highlightedSheetId;
 export const selectToolRejectionMessage = (s: WorkspaceStore) => s.toolRejectionMessage;
+export const selectReviewMode = (s: WorkspaceStore) => s.reviewMode;
+export const selectReviewCurrentId = (s: WorkspaceStore) => s.reviewCurrentId;
+export const selectReviewConfidenceFilter = (s: WorkspaceStore) => s.reviewConfidenceFilter;
+export const selectReviewAutoAdvance = (s: WorkspaceStore) => s.reviewAutoAdvance;
