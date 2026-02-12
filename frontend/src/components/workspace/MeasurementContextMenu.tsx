@@ -7,6 +7,18 @@ interface MeasurementContextMenuProps {
   onClose: () => void;
   onDelete: (measurement: Measurement) => void;
   onDuplicate?: (measurement: Measurement) => void;
+  onBringToFront?: (measurement: Measurement) => void;
+  onSendToBack?: (measurement: Measurement) => void;
+  onToggleHidden?: (measurement: Measurement) => void;
+  isHidden?: boolean;
+}
+
+interface MenuItem {
+  label: string;
+  shortcut?: string;
+  onClick: () => void;
+  danger: boolean;
+  separator: boolean;
 }
 
 /**
@@ -19,6 +31,10 @@ export function MeasurementContextMenu({
   onClose,
   onDelete,
   onDuplicate,
+  onBringToFront,
+  onSendToBack,
+  onToggleHidden,
+  isHidden,
 }: MeasurementContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -41,20 +57,52 @@ export function MeasurementContextMenu({
     };
   }, [onClose]);
 
-  const items = [
-    {
-      label: 'Delete',
-      shortcut: 'Del',
-      onClick: () => { onDelete(measurement); onClose(); },
-      danger: true,
-    },
-    ...(onDuplicate ? [{
+  const items: MenuItem[] = [];
+
+  if (onDuplicate) {
+    items.push({
       label: 'Duplicate',
       shortcut: 'Ctrl+D',
       onClick: () => { onDuplicate(measurement); onClose(); },
       danger: false,
-    }] : []),
-  ];
+      separator: false,
+    });
+  }
+
+  if (onToggleHidden) {
+    items.push({
+      label: isHidden ? 'Show' : 'Hide',
+      onClick: () => { onToggleHidden(measurement); onClose(); },
+      danger: false,
+      separator: false,
+    });
+  }
+
+  if (onBringToFront) {
+    items.push({
+      label: 'Bring to Front',
+      onClick: () => { onBringToFront(measurement); onClose(); },
+      danger: false,
+      separator: false,
+    });
+  }
+
+  if (onSendToBack) {
+    items.push({
+      label: 'Send to Back',
+      onClick: () => { onSendToBack(measurement); onClose(); },
+      danger: false,
+      separator: false,
+    });
+  }
+
+  items.push({
+    label: 'Delete',
+    shortcut: 'Del',
+    onClick: () => { onDelete(measurement); onClose(); },
+    danger: true,
+    separator: items.length > 0,
+  });
 
   return (
     <div
@@ -66,6 +114,8 @@ export function MeasurementContextMenu({
         <button
           key={item.label}
           className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition-colors ${
+            item.separator ? 'border-t border-neutral-700 ' : ''
+          }${
             item.danger
               ? 'text-red-400 hover:bg-red-500/20'
               : 'text-neutral-300 hover:bg-neutral-800'

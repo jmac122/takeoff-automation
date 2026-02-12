@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { NotificationProvider } from '@/contexts/NotificationContext';
 
 // Mock constants
 vi.mock('@/lib/constants', async (importOriginal) => {
@@ -51,6 +52,8 @@ vi.mock('lucide-react', () => {
     // ReviewMeasurementPanel
     Check: stub('Check'), AlertCircle: stub('AlertCircle'), History: stub('History'),
     ExternalLink: stub('ExternalLink'), ArrowRight: stub('ArrowRight'),
+    // TopToolbar scale/title block
+    MapPin: stub('MapPin'), Crop: stub('Crop'),
     // BottomStatusBar
     Info: stub('Info'),
     // LinkRevisionDialog
@@ -90,6 +93,46 @@ vi.mock('@/components/document/LinkRevisionDialog', () => ({
 // Mock useAiAssist to avoid deep Konva imports
 vi.mock('@/hooks/useAiAssist', () => ({
   useAiAssist: () => ({ runBatchAi: vi.fn(), isRunning: false }),
+}));
+
+// Mock scale/undo hooks used by TakeoffWorkspace
+vi.mock('@/hooks/useScaleCalibration', () => ({
+  useScaleCalibration: () => ({
+    state: { isCalibrating: false, calibrationLine: null, pixelDistance: null, isDrawing: false, startPoint: null },
+    startCalibration: vi.fn(),
+    cancelCalibration: vi.fn(),
+    startDrawing: vi.fn(),
+    updateDrawing: vi.fn(),
+    finishDrawing: vi.fn(),
+    clearLine: vi.fn(),
+    submitCalibration: vi.fn(),
+  }),
+}));
+
+vi.mock('@/hooks/useScaleDetection', () => ({
+  useScaleDetection: () => ({
+    isDetecting: false,
+    detectionResult: null,
+    scaleHighlightBox: null,
+    detectScale: vi.fn(),
+    dismissResult: vi.fn(),
+  }),
+}));
+
+vi.mock('@/hooks/useUndoRedo', () => ({
+  useUndoRedo: () => ({
+    push: vi.fn(),
+    undo: vi.fn(),
+    redo: vi.fn(),
+    clear: vi.fn(),
+    canUndo: false,
+    canRedo: false,
+  }),
+}));
+
+// Mock ScaleCalibrationDialog
+vi.mock('@/components/viewer/ScaleCalibrationDialog', () => ({
+  ScaleCalibrationDialog: () => null,
 }));
 
 // Mock useReviewKeyboardShortcuts (depends on FocusProvider context)
@@ -166,18 +209,20 @@ function renderWorkspace(projectId: string = 'proj-123') {
   const queryClient = createQueryClient();
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/projects/${projectId}/workspace`]}>
-        <Routes>
-          <Route
-            path="/projects/:id/workspace"
-            element={<TakeoffWorkspace />}
-          />
-          <Route
-            path="/projects/:id"
-            element={<div data-testid="old-project-page">Old project page</div>}
-          />
-        </Routes>
-      </MemoryRouter>
+      <NotificationProvider>
+        <MemoryRouter initialEntries={[`/projects/${projectId}/workspace`]}>
+          <Routes>
+            <Route
+              path="/projects/:id/workspace"
+              element={<TakeoffWorkspace />}
+            />
+            <Route
+              path="/projects/:id"
+              element={<div data-testid="old-project-page">Old project page</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </NotificationProvider>
     </QueryClientProvider>,
   );
 }

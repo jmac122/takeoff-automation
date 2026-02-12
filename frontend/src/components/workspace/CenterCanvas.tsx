@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
-import { Stage, Layer, Image as KonvaImage } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Rect } from 'react-konva';
 import type Konva from 'konva';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
@@ -21,11 +21,16 @@ import { useWorkspaceCanvasControls } from '@/hooks/useWorkspaceCanvasControls';
 import { useWorkspaceDrawingState } from '@/hooks/useWorkspaceDrawingState';
 import { useWorkspaceCanvasEvents } from '@/hooks/useWorkspaceCanvasEvents';
 import { useUndoRedo } from '@/hooks/useUndoRedo';
-import { createMeasurementGeometry, type MeasurementResult } from '@/utils/measurementUtils';
+import { createMeasurementGeometry, offsetGeometryData, type MeasurementResult } from '@/utils/measurementUtils';
 import { MeasurementLayer } from '@/components/viewer/MeasurementLayer';
 import { DrawingPreviewLayer } from '@/components/viewer/DrawingPreviewLayer';
 import { GhostPointLayer } from '@/components/viewer/GhostPointLayer';
+import { CalibrationOverlay } from '@/components/viewer/CalibrationOverlay';
+import { ScaleDetectionBanner } from '@/components/viewer/ScaleDetectionBanner';
+import { MeasurementsPanel } from '@/components/viewer/MeasurementsPanel';
 import { MeasurementContextMenu } from './MeasurementContextMenu';
+import type { CalibrationState } from '@/hooks/useScaleCalibration';
+import type { ScaleDetectionResult } from '@/types';
 
 // ============================================================================
 // Props & Helpers
@@ -39,6 +44,31 @@ interface CenterCanvasProps {
   scaleValue?: number | null;
   scaleUnit?: string | null;
   pixelsPerUnit?: number | null;
+  // Scale calibration
+  calibrationState?: CalibrationState;
+  calibrationCurrentPoint?: { x: number; y: number } | null;
+  onCalibrationClick?: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  onCalibrationMouseMove?: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  // Scale detection
+  scaleDetectionResult?: ScaleDetectionResult | null;
+  scaleHighlightBox?: { x: number; y: number; width: number; height: number } | null;
+  onDismissDetection?: () => void;
+  // Scale location display
+  showScaleLocation?: boolean;
+  scaleLocationBbox?: { x: number; y: number; width: number; height: number } | null;
+  // Title block mode
+  isTitleBlockMode?: boolean;
+  showTitleBlockRegion?: boolean;
+  titleBlockRegion?: { x: number; y: number; width: number; height: number } | null;
+  onTitleBlockClick?: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  onTitleBlockMouseMove?: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  titleBlockDraftRect?: { x: number; y: number; width: number; height: number } | null;
+  // Scale calibrated flag
+  isScaleCalibrated?: boolean;
+  // Undo/redo
+  undoRedo?: ReturnType<typeof useUndoRedo>;
+  // Active sheet info
+  activeSheetScaleUnit?: string | null;
 }
 
 /** Get the review color for a measurement based on AI confidence. */
@@ -99,6 +129,24 @@ export function CenterCanvas({
   sheetImageUrl,
   pixelsPerUnit,
   scaleUnit,
+  calibrationState,
+  calibrationCurrentPoint,
+  onCalibrationClick,
+  onCalibrationMouseMove,
+  scaleDetectionResult,
+  scaleHighlightBox,
+  onDismissDetection,
+  showScaleLocation,
+  scaleLocationBbox,
+  isTitleBlockMode,
+  showTitleBlockRegion,
+  titleBlockRegion,
+  onTitleBlockClick,
+  onTitleBlockMouseMove,
+  titleBlockDraftRect,
+  isScaleCalibrated,
+  undoRedo: externalUndoRedo,
+  activeSheetScaleUnit,
 }: CenterCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -126,6 +174,10 @@ export function CenterCanvas({
     position: { x: number; y: number };
   } | null>(null);
 
+  // Hidden measurements & ordering (local state, like TakeoffViewer)
+  const [hiddenMeasurementIds, setHiddenMeasurementIds] = useState<Set<string>>(new Set());
+  const [measurementOrder, setMeasurementOrder] = useState<string[]>([]);
+
   // ---------------------------------------------------------------------------
   // Data fetching: measurements & conditions
   // ---------------------------------------------------------------------------
@@ -152,15 +204,61 @@ export function CenterCanvas({
     return map;
   }, [conditionsData]);
 
-  // Filter measurements: exclude rejected, apply review mode filter, apply condition visibility
+  // All measurements (unfiltered)
   const allMeasurements = measurementsData?.measurements ?? [];
+
+  // Sync measurement order when measurements change
+  useEffect(() => {
+    if (allMeasurements.length === 0) {
+      setMeasurementOrder((prev) => (prev.length === 0 ? prev : []));
+      return;
+    }
+    setMeasurementOrder((prev) => {
+      const availableIds = new Set(allMeasurements.map((m) => m.id));
+      const filtered = prev.filter((id) => availableIds.has(id));
+      const missing = allMeasurements.map((m) => m.id).filter((id) => !filtered.includes(id));
+      return [...filtered, ...missing];
+    });
+  }, [allMeasurements]);
+
+  // Clean up hidden IDs when measurements change
+  useEffect(() => {
+    if (allMeasurements.length === 0) {
+      setHiddenMeasurementIds((prev) => (prev.size === 0 ? prev : new Set()));
+      return;
+    }
+    setHiddenMeasurementIds((prev) => {
+      const availableIds = new Set(allMeasurements.map((m) => m.id));
+      const next = new Set<string>();
+      prev.forEach((id) => { if (availableIds.has(id)) next.add(id); });
+      return next;
+    });
+  }, [allMeasurements]);
+
+  // Order and filter measurements
+  const orderedMeasurements = useMemo(() => {
+    if (measurementOrder.length === 0) return allMeasurements;
+    const orderIndex = new Map(measurementOrder.map((id, i) => [id, i]));
+    return [...allMeasurements].sort((a, b) => {
+      const ai = orderIndex.get(a.id) ?? 0;
+      const bi = orderIndex.get(b.id) ?? 0;
+      return ai - bi;
+    });
+  }, [measurementOrder, allMeasurements]);
+
   const visibleMeasurements = useMemo(() => {
-    const filtered = filterMeasurementsForCanvas(allMeasurements, reviewMode, reviewConfidenceFilter);
+    const filtered = filterMeasurementsForCanvas(orderedMeasurements, reviewMode, reviewConfidenceFilter);
     return filtered.filter((m) => {
+      if (hiddenMeasurementIds.has(m.id)) return false;
       const condition = conditionsMap.get(m.condition_id);
       return condition?.is_visible !== false;
     });
-  }, [allMeasurements, reviewMode, reviewConfidenceFilter, conditionsMap]);
+  }, [orderedMeasurements, reviewMode, reviewConfidenceFilter, conditionsMap, hiddenMeasurementIds]);
+
+  // Measurements filtered by selected condition (for MeasurementsPanel)
+  const filteredMeasurements = activeConditionId
+    ? visibleMeasurements.filter((m) => m.condition_id === activeConditionId)
+    : [];
 
   // ---------------------------------------------------------------------------
   // Image loading & stage sizing
@@ -194,7 +292,7 @@ export function CenterCanvas({
   }, [isImageReady, stageSize, effectivePageId, handleFitToScreen, setViewport]);
 
   // CM-039: Clear undo stack & reset drawing on sheet switch
-  const undoRedo = useUndoRedo();
+  const undoRedo = externalUndoRedo ?? useUndoRedo();
   useEffect(() => {
     undoRedo.clear();
     useWorkspaceStore.getState().resetDrawingState();
@@ -232,7 +330,6 @@ export function CenterCanvas({
       invalidateMeasurements();
       setSelectedMeasurements([created.id]);
 
-      // Push undo action
       const capturedConditionId = activeConditionId;
       const capturedPageId = effectivePageId;
       const capturedGeometry = geometry;
@@ -327,6 +424,83 @@ export function CenterCanvas({
     }
   }, [invalidateMeasurements, setSelectedMeasurements, undoRedo]);
 
+  // Duplicate measurement (offset by 12px)
+  const handleMeasurementDuplicate = useCallback(async (measurement: Measurement) => {
+    if (!effectivePageId) return;
+    const offset = 12;
+    const duplicatedGeometry = offsetGeometryData(
+      measurement.geometry_type,
+      measurement.geometry_data as JsonObject,
+      offset,
+      offset,
+    );
+
+    try {
+      const created = await createMeasurement(measurement.condition_id, {
+        page_id: effectivePageId,
+        geometry_type: measurement.geometry_type,
+        geometry_data: duplicatedGeometry as JsonObject,
+      });
+      if (!created?.id) return;
+      let currentId = created.id;
+
+      invalidateMeasurements();
+      setSelectedMeasurements([currentId]);
+      setActiveCondition(measurement.condition_id);
+
+      undoRedo.push({
+        label: 'Duplicate measurement',
+        undo: async () => {
+          await deleteMeasurement(currentId);
+          setSelectedMeasurements([]);
+          invalidateMeasurements();
+        },
+        redo: async () => {
+          const recreated = await createMeasurement(measurement.condition_id, {
+            page_id: effectivePageId,
+            geometry_type: measurement.geometry_type,
+            geometry_data: duplicatedGeometry as JsonObject,
+          });
+          if (recreated?.id) {
+            currentId = recreated.id;
+            setSelectedMeasurements([currentId]);
+            invalidateMeasurements();
+          }
+        },
+      });
+    } catch (err) {
+      console.error('Failed to duplicate measurement:', err);
+    }
+  }, [effectivePageId, invalidateMeasurements, setSelectedMeasurements, setActiveCondition, undoRedo]);
+
+  // Bring measurement to front / send to back
+  const bringMeasurementToFront = useCallback((measurement: Measurement) => {
+    setMeasurementOrder((prev) => {
+      const filtered = prev.filter((id) => id !== measurement.id);
+      return [...filtered, measurement.id];
+    });
+  }, []);
+
+  const sendMeasurementToBack = useCallback((measurement: Measurement) => {
+    setMeasurementOrder((prev) => {
+      const filtered = prev.filter((id) => id !== measurement.id);
+      return [measurement.id, ...filtered];
+    });
+  }, []);
+
+  // Toggle measurement visibility
+  const toggleMeasurementHidden = useCallback((measurement: Measurement) => {
+    setHiddenMeasurementIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(measurement.id)) {
+        next.delete(measurement.id);
+      } else {
+        next.add(measurement.id);
+      }
+      return next;
+    });
+  }, []);
+
   // ---------------------------------------------------------------------------
   // Canvas events
   // ---------------------------------------------------------------------------
@@ -336,13 +510,60 @@ export function CenterCanvas({
     handleWheel: canvasControls.handleWheel,
   });
 
+  // Wrapped event handlers for calibration/title block mode
+  const isCalibrating = calibrationState?.isCalibrating ?? false;
+
+  const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isCalibrating || isTitleBlockMode) {
+      // In calibration/title block mode, only allow panning with right/middle click
+      if (e.evt.button !== 0) {
+        canvasEvents.handleStageMouseDown(e);
+      }
+      return;
+    }
+    canvasEvents.handleStageMouseDown(e);
+  }, [canvasEvents, isCalibrating, isTitleBlockMode]);
+
+  const handleStageMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isTitleBlockMode) {
+      onTitleBlockMouseMove?.(e);
+      canvasEvents.handleStageMouseMove(e);
+      return;
+    }
+    if (isCalibrating) {
+      onCalibrationMouseMove?.(e);
+      canvasEvents.handleStageMouseMove(e);
+    } else {
+      canvasEvents.handleStageMouseMove(e);
+    }
+  }, [canvasEvents, isCalibrating, isTitleBlockMode, onCalibrationMouseMove, onTitleBlockMouseMove]);
+
+  const handleStageMouseUp = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isCalibrating || isTitleBlockMode) {
+      if (e.evt.button !== 0) {
+        canvasEvents.handleStageMouseUp(e);
+      }
+      return;
+    }
+    canvasEvents.handleStageMouseUp(e);
+  }, [canvasEvents, isCalibrating, isTitleBlockMode]);
+
+  const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isTitleBlockMode) {
+      onTitleBlockClick?.(e);
+      return;
+    }
+    if (isCalibrating) {
+      onCalibrationClick?.(e);
+    }
+  }, [isCalibrating, isTitleBlockMode, onCalibrationClick, onTitleBlockClick]);
+
   // ---------------------------------------------------------------------------
   // Selection & context menu handlers
   // ---------------------------------------------------------------------------
   const handleMeasurementSelect = useCallback((id: string | null) => {
     if (id) {
       setSelectedMeasurements([id]);
-      // Auto-select the condition of the selected measurement
       const measurement = allMeasurements.find((m) => m.id === id);
       if (measurement) {
         setActiveCondition(measurement.condition_id);
@@ -370,10 +591,8 @@ export function CenterCanvas({
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't fire shortcuts when typing in inputs
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
-      // Only fire when canvas is focused
       if (useWorkspaceStore.getState().focusRegion !== 'canvas') return;
 
       // Undo/Redo (CM-035)
@@ -396,7 +615,7 @@ export function CenterCanvas({
         return;
       }
 
-      // Escape: cancel drawing or clear selection
+      // Escape: cancel drawing, calibration, title block, or clear selection
       if (e.key === 'Escape') {
         e.preventDefault();
         if (drawing.isDrawing) {
@@ -418,8 +637,8 @@ export function CenterCanvas({
         return;
       }
 
-      // Tool shortcuts (single key, no modifiers)
-      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Tool shortcuts (single key, no modifiers) — disabled during calibration/title block
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && !isCalibrating && !isTitleBlockMode) {
         const setActiveTool = useWorkspaceStore.getState().setActiveTool;
         switch (e.key.toLowerCase()) {
           case 'v': setActiveTool('select'); break;
@@ -435,23 +654,27 @@ export function CenterCanvas({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [drawing, undoRedo, allMeasurements, handleMeasurementDelete]);
+  }, [drawing, undoRedo, allMeasurements, handleMeasurementDelete, isCalibrating, isTitleBlockMode]);
 
   // ---------------------------------------------------------------------------
   // Cursor management (CM-006)
   // ---------------------------------------------------------------------------
   const cursorStyle = useMemo(() => {
+    if (isCalibrating || isTitleBlockMode) return 'crosshair';
     if (canvasEvents.isPanning) return 'grabbing';
     if (activeTool && activeTool !== 'select') return 'crosshair';
     return 'default';
-  }, [activeTool, canvasEvents.isPanning]);
+  }, [activeTool, canvasEvents.isPanning, isCalibrating, isTitleBlockMode]);
 
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
   const selectedMeasurementId = selectedMeasurementIds[0] ?? null;
   const isEditing = activeTool === 'select';
-  const showDrawingOverlay = !!(activeTool && activeTool !== 'select' && activeConditionId);
+  const showDrawingOverlay = !!(
+    activeTool && activeTool !== 'select' && activeConditionId &&
+    !isCalibrating && !isTitleBlockMode
+  );
 
   return (
     <div
@@ -480,6 +703,34 @@ export function CenterCanvas({
         </div>
       ) : sheetImageUrl && stageSize.width > 0 && stageSize.height > 0 ? (
         <>
+          {/* Scale detection banner */}
+          {scaleDetectionResult && onDismissDetection && (
+            <div className="absolute top-0 left-0 right-0 z-20">
+              <ScaleDetectionBanner
+                result={scaleDetectionResult}
+                onDismiss={onDismissDetection}
+              />
+            </div>
+          )}
+
+          {/* Calibration mode banner */}
+          {isCalibrating && (
+            <div className="absolute top-0 left-0 right-0 z-20 bg-amber-500 text-black px-4 py-2 font-mono text-sm flex items-center justify-between">
+              <span className="font-bold">
+                CALIBRATION MODE: Draw a line over a known dimension
+              </span>
+            </div>
+          )}
+
+          {/* Title block mode banner */}
+          {isTitleBlockMode && (
+            <div className="absolute top-0 left-0 right-0 z-20 bg-sky-500 text-black px-4 py-2 font-mono text-sm flex items-center justify-between">
+              <span className="font-bold">
+                TITLE BLOCK MODE: Click two corners to set the title block region
+              </span>
+            </div>
+          )}
+
           {/* CM-001/CM-012: Konva Stage with viewport transform */}
           <Stage
             ref={stageRef}
@@ -491,9 +742,10 @@ export function CenterCanvas({
             y={viewport.panY}
             draggable={false}
             pixelRatio={1}
-            onMouseDown={canvasEvents.handleStageMouseDown}
-            onMouseMove={canvasEvents.handleStageMouseMove}
-            onMouseUp={canvasEvents.handleStageMouseUp}
+            onMouseDown={handleStageMouseDown}
+            onMouseMove={handleStageMouseMove}
+            onMouseUp={handleStageMouseUp}
+            onClick={handleStageClick}
             onMouseLeave={canvasEvents.handleStageMouseLeave}
             onWheel={canvasEvents.handleWheelEvent}
             onDblClick={canvasEvents.handleStageDoubleClick}
@@ -528,14 +780,98 @@ export function CenterCanvas({
               scale={viewport.zoom}
               isCloseToStart={canvasEvents.isCloseToStart}
               pixelsPerUnit={pixelsPerUnit}
-              unitLabel={scaleUnit ?? undefined}
+              unitLabel={activeSheetScaleUnit ?? scaleUnit ?? undefined}
             />
 
             {/* Layer 3: Ghost prediction overlay */}
             <GhostPointLayer scale={viewport.zoom} />
+
+            {/* Title block region overlay (existing saved region) */}
+            {showTitleBlockRegion && titleBlockRegion && (
+              <Layer>
+                <Rect
+                  x={titleBlockRegion.x}
+                  y={titleBlockRegion.y}
+                  width={titleBlockRegion.width}
+                  height={titleBlockRegion.height}
+                  fill="rgba(34, 197, 94, 0.12)"
+                  stroke="rgb(34, 197, 94)"
+                  strokeWidth={2 / viewport.zoom}
+                  listening={false}
+                />
+              </Layer>
+            )}
+
+            {/* Title block draft rect (being drawn) */}
+            {titleBlockDraftRect && (
+              <Layer>
+                <Rect
+                  x={titleBlockDraftRect.x}
+                  y={titleBlockDraftRect.y}
+                  width={titleBlockDraftRect.width}
+                  height={titleBlockDraftRect.height}
+                  fill="rgba(59, 130, 246, 0.15)"
+                  stroke="rgb(59, 130, 246)"
+                  strokeWidth={2 / viewport.zoom}
+                  dash={[8 / viewport.zoom, 4 / viewport.zoom]}
+                  listening={false}
+                />
+              </Layer>
+            )}
+
+            {/* Scale detection highlight overlay */}
+            {scaleHighlightBox && (
+              <Layer>
+                <Rect
+                  x={scaleHighlightBox.x}
+                  y={scaleHighlightBox.y}
+                  width={scaleHighlightBox.width}
+                  height={scaleHighlightBox.height}
+                  fill="rgba(251, 191, 36, 0.15)"
+                  stroke="rgb(251, 191, 36)"
+                  strokeWidth={3 / viewport.zoom}
+                  listening={false}
+                />
+              </Layer>
+            )}
+
+            {/* Scale location overlay (historical, from calibration data) */}
+            {showScaleLocation && scaleLocationBbox && (
+              <Layer>
+                <Rect
+                  x={scaleLocationBbox.x}
+                  y={scaleLocationBbox.y}
+                  width={scaleLocationBbox.width}
+                  height={scaleLocationBbox.height}
+                  fill="rgba(34, 197, 94, 0.15)"
+                  stroke="rgb(34, 197, 94)"
+                  strokeWidth={3 / viewport.zoom}
+                  listening={false}
+                />
+              </Layer>
+            )}
+
+            {/* Calibration overlay */}
+            {isCalibrating && calibrationState && (
+              <CalibrationOverlay
+                calibrationLine={calibrationState.calibrationLine}
+                startPoint={calibrationState.startPoint}
+                isDrawing={calibrationState.isDrawing}
+                currentPoint={calibrationCurrentPoint ?? null}
+                pixelDistance={calibrationState.pixelDistance}
+                scale={viewport.zoom}
+              />
+            )}
           </Stage>
 
           {/* HTML overlays on top of canvas */}
+
+          {/* Scale warning */}
+          {isScaleCalibrated === false && activeSheetId && (
+            <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 rounded-lg border border-amber-500/50 bg-amber-500/20 px-4 py-2 text-sm text-amber-400 shadow-lg">
+              Scale not calibrated. Measurements will not be accurate.
+            </div>
+          )}
 
           {/* Review mode indicator */}
           {reviewMode && (
@@ -579,6 +915,21 @@ export function CenterCanvas({
             </div>
           )}
 
+          {/* Measurements panel (per-condition list) */}
+          {filteredMeasurements.length > 0 && !isCalibrating && !isTitleBlockMode && (
+            <MeasurementsPanel
+              measurements={filteredMeasurements}
+              selectedMeasurementId={selectedMeasurementId}
+              onSelectMeasurement={(id) => {
+                const measurement = allMeasurements.find((m) => m.id === id);
+                handleMeasurementSelect(id);
+                if (measurement) {
+                  setActiveCondition(measurement.condition_id);
+                }
+              }}
+            />
+          )}
+
           {/* Context menu */}
           {contextMenu && (
             <MeasurementContextMenu
@@ -586,6 +937,11 @@ export function CenterCanvas({
               position={contextMenu.position}
               onClose={() => setContextMenu(null)}
               onDelete={(m) => void handleMeasurementDelete(m)}
+              onDuplicate={(m) => void handleMeasurementDuplicate(m)}
+              onBringToFront={bringMeasurementToFront}
+              onSendToBack={sendMeasurementToBack}
+              onToggleHidden={toggleMeasurementHidden}
+              isHidden={hiddenMeasurementIds.has(contextMenu.measurement.id)}
             />
           )}
         </>

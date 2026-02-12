@@ -24,6 +24,10 @@ import {
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  MapPin,
+  Crop,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import type { DrawingTool } from '@/stores/workspaceStore';
 import { ExportDropdown } from './ExportDropdown';
@@ -44,9 +48,45 @@ interface TopToolbarProps {
   isAutoAccepting?: boolean;
   onRunBatchAi?: () => void;
   isBatchAiRunning?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onSetScale?: () => void;
+  onDetectScale?: () => void;
+  isDetectingScale?: boolean;
+  onToggleScaleLocation?: () => void;
+  showScaleLocation?: boolean;
+  hasScaleLocation?: boolean;
+  onToggleTitleBlockMode?: () => void;
+  isTitleBlockMode?: boolean;
+  onToggleTitleBlockRegion?: () => void;
+  showTitleBlockRegion?: boolean;
+  hasTitleBlockRegion?: boolean;
 }
 
-export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting, onRunBatchAi, isBatchAiRunning }: TopToolbarProps) {
+export function TopToolbar({
+  projectId,
+  onAutoAccept,
+  isAutoAccepting,
+  onRunBatchAi,
+  isBatchAiRunning,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  onSetScale,
+  onDetectScale,
+  isDetectingScale,
+  onToggleScaleLocation,
+  showScaleLocation,
+  hasScaleLocation,
+  onToggleTitleBlockMode,
+  isTitleBlockMode,
+  onToggleTitleBlockRegion,
+  showTitleBlockRegion,
+  hasTitleBlockRegion,
+}: TopToolbarProps) {
   const activeTool = useWorkspaceStore((s) => s.activeTool);
   const setActiveTool = useWorkspaceStore((s) => s.setActiveTool);
   const viewport = useWorkspaceStore((s) => s.viewport);
@@ -128,12 +168,16 @@ export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting, onRunBatc
       <button
         className="rounded p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white disabled:opacity-40"
         title="Undo (Ctrl+Z)"
+        onClick={onUndo}
+        disabled={!canUndo}
       >
         <Undo2 size={16} />
       </button>
       <button
         className="rounded p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white disabled:opacity-40"
         title="Redo (Ctrl+Shift+Z)"
+        onClick={onRedo}
+        disabled={!canRedo}
       >
         <Redo2 size={16} />
       </button>
@@ -153,6 +197,71 @@ export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting, onRunBatc
       >
         <Grid3X3 size={16} />
       </button>
+
+      <div className="mx-1 h-5 w-px bg-neutral-700" />
+
+      {/* Scale section */}
+      <button
+        className="flex items-center gap-1 rounded px-2 py-1.5 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white"
+        onClick={onSetScale}
+        title="Set Scale"
+      >
+        <Ruler size={16} />
+        <span className="hidden lg:inline">Set Scale</span>
+      </button>
+      <button
+        className="flex items-center gap-1 rounded px-2 py-1.5 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-white disabled:opacity-50"
+        onClick={onDetectScale}
+        disabled={isDetectingScale}
+        title="Auto Detect Scale"
+      >
+        {isDetectingScale ? <Loader2 size={16} className="animate-spin" /> : <Ruler size={16} />}
+        <span className="hidden lg:inline">Auto Detect</span>
+      </button>
+      {hasScaleLocation && (
+        <button
+          className={`flex items-center gap-1 rounded px-2 py-1.5 text-xs transition-colors ${
+            showScaleLocation
+              ? 'bg-blue-600 text-white'
+              : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+          }`}
+          onClick={onToggleScaleLocation}
+          title="Show Scale Location"
+        >
+          <MapPin size={16} />
+          <span className="hidden lg:inline">Show Location</span>
+        </button>
+      )}
+
+      <div className="mx-1 h-5 w-px bg-neutral-700" />
+
+      {/* Title Block section */}
+      <button
+        className={`flex items-center gap-1 rounded px-2 py-1.5 text-xs transition-colors ${
+          isTitleBlockMode
+            ? 'bg-blue-600 text-white'
+            : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+        }`}
+        onClick={onToggleTitleBlockMode}
+        title="Title Block"
+      >
+        <Crop size={16} />
+        <span className="hidden lg:inline">Title Block</span>
+      </button>
+      {hasTitleBlockRegion && (
+        <button
+          className={`flex items-center gap-1 rounded px-2 py-1.5 text-xs transition-colors ${
+            showTitleBlockRegion
+              ? 'bg-blue-600 text-white'
+              : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+          }`}
+          onClick={onToggleTitleBlockRegion}
+          title="Show Title Block Region"
+        >
+          {showTitleBlockRegion ? <Eye size={16} /> : <EyeOff size={16} />}
+          <span className="hidden lg:inline">Show Region</span>
+        </button>
+      )}
 
       <div className="flex-1" />
 
