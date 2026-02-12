@@ -1,7 +1,7 @@
 # ForgeX Takeoffs - Project Status
 
 **Last Updated:** February 11, 2026
-**Current State:** Phases 1-6 complete. Phases 7 (Export UI), 8 (Plan Overlay), 9 (Housekeeping) remaining.
+**Current State:** All 9 phases complete.
 **Branch:** `claude/create-phase-1-tasks-OBEE7`
 
 ---
@@ -86,17 +86,26 @@
 - **Draft measurement styling:** Dashed stroke + 60% opacity for unverified AI-generated measurements
 - **AI Confidence Visualization:** Palette toggle in toolbar, color-codes by confidence (green/yellow/red)
 
----
+### Phase 7: Export & Reporting UI
+- **Cost data classes:** `AssemblyCostData` dataclass in `base.py`, joinedload in `export_tasks.py`
+- **Excel exporter:** Cost columns on Summary sheet (Unit Cost, Material, Labor, Total Cost, Markup Total) + "Cost Summary" sheet
+- **PDF exporter:** Cost columns in summary table + project total with markup line
+- **Frontend:** `ExportDropdown` component with 4 format options + cost/unverified toggles, `useExport` hook with polling + auto-download
+- **Wired into** `TopToolbar` with loading state
 
-## Remaining Phases
+### Phase 8: Plan Overlay / Version Comparison
+- **Revision schema:** `DocumentResponse` extended with revision fields; `LinkRevisionRequest`, `RevisionChainItem`, `RevisionChainResponse`, `PageComparisonRequest/Response` schemas
+- **API endpoints:** `PUT /documents/{id}/revision` (link), `GET /documents/{id}/revisions` (chain), `POST /documents/compare-pages` (image comparison)
+- **Frontend:** `RevisionChainPanel` (timeline view + selection), `LinkRevisionDialog` (modal), `PlanOverlayView` (overlay/side-by-side/swipe modes with opacity slider)
+- **Integration:** "Revisions" tab in `RightPanel`, overlay view in `TakeoffWorkspace`
 
-| Phase | Description | Effort | Priority |
-|-------|-------------|--------|----------|
-| 7 | Export & Reporting UI | 1-2 days | Medium |
-| 8 | Plan Overlay / Version Comparison | 2-3 days | Low (post-MVP) |
-| 9 | Housekeeping & Quality | 1-2 days | High |
-
-See `docs/plans/REMAINING_PHASES_7_8_9_TASK_LIST.md` for detailed task breakdown.
+### Phase 9: Housekeeping & Quality
+- **STATUS.md** fully rewritten to reflect all phases
+- **Dead file cleanup:** Removed 3 `.bak` files from `frontend/src/pages/`
+- **Debug telemetry removal:** Removed 7 `fetch('http://127.0.0.1:7244/...')` blocks from `TakeoffViewer.tsx` and `MeasurementShape.tsx`
+- **Old viewer deprecation:** Added deprecation banner on `TakeoffViewer` route
+- **Migration audit:** Single head (`q5r6s7t8u9v0`), all branches merged, clean chain
+- **Model fix:** Renamed reserved `metadata` attribute to `extra_data` in `CostItem`, `Assembly`, `AssemblyComponent` models (DB column unchanged)
 
 ---
 
@@ -142,6 +151,9 @@ See `docs/plans/REMAINING_PHASES_7_8_9_TASK_LIST.md` for detailed task breakdown
 | GET | `/documents/{id}/status` | Processing status |
 | PUT | `/documents/{id}/title-block-region` | Set title block |
 | DELETE | `/documents/{id}` | Delete document |
+| PUT | `/documents/{id}/revision` | Link as revision |
+| GET | `/documents/{id}/revisions` | Get revision chain |
+| POST | `/documents/compare-pages` | Compare page images |
 
 ### Conditions
 | Method | Path | Description |
@@ -237,7 +249,8 @@ See `docs/plans/REMAINING_PHASES_7_8_9_TASK_LIST.md` for detailed task breakdown
 | `TopToolbar.tsx` | Drawing tools, zoom, grid, AI assist, review, confidence overlay |
 | `CenterCanvas.tsx` | Konva Stage + measurement overlays + ghost layer |
 | `BottomStatusBar.tsx` | Review stats, status indicators |
-| `RightPanel.tsx` | Conditions panel + cost tab |
+| `RightPanel.tsx` | Conditions panel + cost tab + revisions tab |
+| `ExportDropdown.tsx` | Export format selector with options |
 | `QuickAdjustToolbar.tsx` | Floating geometry adjustment tools |
 | `GridOverlay.tsx` | SVG grid overlay |
 
@@ -246,6 +259,7 @@ See `docs/plans/REMAINING_PHASES_7_8_9_TASK_LIST.md` for detailed task breakdown
 |------|---------|
 | `useAutoTab.ts` | AutoTab prediction + accept/dismiss |
 | `useAiAssist.ts` | Batch AI task management |
+| `useExport.ts` | Export polling + auto-download |
 | `useQuickAdjust.ts` | Geometry adjustment mutation + keyboard |
 | `useKeyboardShortcuts.ts` | Global keyboard handler |
 | `useTaskPolling.ts` | Reactive async task polling |
