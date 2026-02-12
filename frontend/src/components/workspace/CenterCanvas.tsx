@@ -177,6 +177,7 @@ export function CenterCanvas({
   const { viewport } = canvasControls;
 
   // CM-011: Fit-to-page on first sheet load
+  const { handleFitToScreen } = canvasControls;
   useEffect(() => {
     if (isImageReady && stageSize.width > 0 && stageSize.height > 0) {
       if (hasInitialFitRef.current !== effectivePageId) {
@@ -185,12 +186,12 @@ export function CenterCanvas({
         if (saved) {
           setViewport(saved);
         } else {
-          canvasControls.handleFitToScreen();
+          handleFitToScreen();
         }
         hasInitialFitRef.current = effectivePageId ?? null;
       }
     }
-  }, [isImageReady, stageSize, effectivePageId, canvasControls, setViewport]);
+  }, [isImageReady, stageSize, effectivePageId, handleFitToScreen, setViewport]);
 
   // CM-039: Clear undo stack & reset drawing on sheet switch
   const undoRedo = useUndoRedo();
@@ -391,6 +392,17 @@ export function CenterCanvas({
           drawing.redo();
         } else {
           void undoRedo.redo();
+        }
+        return;
+      }
+
+      // Escape: cancel drawing or clear selection
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (drawing.isDrawing) {
+          drawing.cancelDrawing();
+        } else {
+          useWorkspaceStore.getState().escapeAll();
         }
         return;
       }
