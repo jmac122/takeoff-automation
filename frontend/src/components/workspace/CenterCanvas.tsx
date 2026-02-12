@@ -50,14 +50,12 @@ export function filterMeasurementsForCanvas(
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function CenterCanvas({ projectId, isLoadingSheet, sheetImageUrl, measurements }: CenterCanvasProps) {
+export function CenterCanvas({ projectId: _projectId, isLoadingSheet, sheetImageUrl, measurements }: CenterCanvasProps) {
   const activeSheetId = useWorkspaceStore((s) => s.activeSheetId);
   const setFocusRegion = useWorkspaceStore((s) => s.setFocusRegion);
   const reviewMode = useWorkspaceStore((s) => s.reviewMode);
   const reviewCurrentId = useWorkspaceStore((s) => s.reviewCurrentId);
   const reviewConfidenceFilter = useWorkspaceStore((s) => s.reviewConfidenceFilter);
-  const aiConfidenceOverlay = useWorkspaceStore((s) => s.aiConfidenceOverlay);
   const viewport = useWorkspaceStore((s) => s.viewport);
 
   // Filter measurements for rendering (excludes rejected, applies confidence filter in review mode)

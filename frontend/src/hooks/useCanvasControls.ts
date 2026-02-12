@@ -37,9 +37,6 @@ export function useCanvasControls({ image, containerId }: UseCanvasControlsOptio
                     width: container.clientWidth,
                     height: container.clientHeight,
                 });
-                // #region agent log
-                fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H4',location:'useCanvasControls.ts:37',message:'stage init',data:{containerId,containerWidth:container.clientWidth,containerHeight:container.clientHeight,imageWidth:image.width,imageHeight:image.height,zoom:scale},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
             }
         }
     }, [image, containerId]);
@@ -54,9 +51,6 @@ export function useCanvasControls({ image, containerId }: UseCanvasControlsOptio
 
                 setStageSize(prev => {
                     if (prev.width !== newWidth || prev.height !== newHeight) {
-                        // #region agent log
-                        fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H5',location:'useCanvasControls.ts:55',message:'stage resize',data:{containerId,newWidth,newHeight,prevWidth:prev.width,prevHeight:prev.height},timestamp:Date.now()})}).catch(()=>{});
-                        // #endregion
                         return { width: newWidth, height: newHeight };
                     }
                     return prev;

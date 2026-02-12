@@ -1017,7 +1017,7 @@ export function TakeoffViewer() {
                         >
                             {/* Background image */}
                             <Layer>
-                                {isImageReady && <KonvaImage image={image} />}
+                                {isImageReady && image && <KonvaImage image={image} />}
                             </Layer>
 
                             {/* Measurements */}

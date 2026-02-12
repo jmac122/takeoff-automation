@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   Download,
 } from 'lucide-react';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   useAutoCountSession,
   useBulkConfirmDetections,
@@ -32,7 +31,7 @@ export function AutoCountTool({ pageId, conditionId }: AutoCountToolProps) {
   const [thresholdSlider, setThresholdSlider] = useState(0.80);
 
   const startAutoCount = useStartAutoCount(pageId);
-  const { data: session, isLoading: sessionLoading } =
+  const { data: session } =
     useAutoCountSession(activeSessionId ?? undefined);
   const confirmDetection = useConfirmDetection(activeSessionId ?? undefined);
   const rejectDetection = useRejectDetection(activeSessionId ?? undefined);
@@ -51,6 +50,7 @@ export function AutoCountTool({ pageId, conditionId }: AutoCountToolProps) {
     setToolState('reviewing');
   }
 
+  // Called by canvas when user finishes drawing bbox in 'selecting' state
   const handleStartDetection = (templateBbox: BBox) => {
     setToolState('processing');
     startAutoCount.mutate(
@@ -70,6 +70,7 @@ export function AutoCountTool({ pageId, conditionId }: AutoCountToolProps) {
       }
     );
   };
+  void handleStartDetection;
 
   const handleConfirm = (detectionId: string) => {
     confirmDetection.mutate(detectionId);

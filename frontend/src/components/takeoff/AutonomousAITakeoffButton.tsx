@@ -120,9 +120,6 @@ export function AutonomousAITakeoffButton({
 
     const isRunning = taskStatus === 'pending' || taskStatus === 'processing';
 
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run2',hypothesisId:'H2',location:'AutonomousAITakeoffButton.tsx:124',message:'auto detect render state',data:{isPageCalibrated,taskStatus,showDialog},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (!isPageCalibrated) {
         return (
             <TooltipProvider>

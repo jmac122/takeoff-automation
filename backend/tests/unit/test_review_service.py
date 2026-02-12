@@ -193,8 +193,10 @@ class TestModifyMeasurement:
                 geometry_data=new_geometry,
             )
 
-        # Original should be stored
-        assert mock_measurement.original_geometry == mock_measurement.geometry_data
+        # Original should store the pre-modification geometry
+        assert mock_measurement.original_geometry == {"points": [{"x": 0, "y": 0}, {"x": 1, "y": 0}, {"x": 1, "y": 1}]}
+        # geometry_data should be updated to new geometry
+        assert mock_measurement.geometry_data == new_geometry
         assert mock_measurement.is_modified is True
         assert mock_measurement.is_verified is True
 
