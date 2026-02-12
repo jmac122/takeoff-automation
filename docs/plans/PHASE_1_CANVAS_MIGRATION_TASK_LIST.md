@@ -33,7 +33,7 @@
 
 ### 1.1 Core Stage Setup
 
-- [ ] **CM-001**: Replace CenterCanvas HTML shell with Konva Stage container
+- [x] **CM-001**: Replace CenterCanvas HTML shell with Konva Stage container
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - Remove the `<img>` tag and `<div>` overflow container
   - Add a `<div id="workspace-canvas-container">` wrapper that fills parent via `h-full w-full`
@@ -43,7 +43,7 @@
   - Keep the "No sheet selected", "Loading sheet...", and "Sheet image not available" placeholder states
   - **Ref pattern:** Use `useRef<Konva.Stage>(null)` and attach via `ref`
 
-- [ ] **CM-002**: Add ResizeObserver-based stage sizing hook
+- [x] **CM-002**: Add ResizeObserver-based stage sizing hook
   - **File (new):** `frontend/src/hooks/useStageSize.ts`
   - Accept a container `ref` or `id` string
   - Return `{ width: number, height: number }` tracking the container's client dimensions
@@ -51,14 +51,14 @@
   - Debounce to avoid layout thrashing during panel resizing (`react-resizable-panels` triggers frequent events)
   - Set `<Stage width={stageSize.width} height={stageSize.height}>` in CM-001
 
-- [ ] **CM-003**: Load sheet image as Konva.Image on a base layer
+- [x] **CM-003**: Load sheet image as Konva.Image on a base layer
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - Reuse existing `usePageImage` hook from `frontend/src/hooks/usePageImage.ts`
   - Pass `sheetImageUrl` to get an `HTMLImageElement`
   - Render `<Layer><KonvaImage image={image} /></Layer>` as the bottom layer
   - Guard on `image && image.complete && image.width > 0 && image.height > 0`
 
-- [ ] **CM-004**: Implement multi-layer Konva architecture with Z-ordering
+- [x] **CM-004**: Implement multi-layer Konva architecture with Z-ordering
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - Create layers in order (bottom to top), matching `Z_ORDER` from `frontend/src/lib/constants.ts`:
     - Layer 0: Background image (KonvaImage)
@@ -67,13 +67,13 @@
     - Layer 3: Drawing preview / in-progress (Z_ORDER.PREVIEW)
   - Z-ordering within measurement layer handled by render order (areas → lines → points)
 
-- [ ] **CM-005**: Wire CenterCanvas props through TakeoffWorkspace
+- [x] **CM-005**: Wire CenterCanvas props through TakeoffWorkspace
   - **File:** `frontend/src/components/workspace/TakeoffWorkspace.tsx`
   - Pass `pageId` (derived from `activeSheet.id`) to `CenterCanvas`
   - Pass full `activeSheet` object (or needed fields) so CenterCanvas can access scale data for distance labels
   - `activeSheet` already has `image_url`, `width`, `height`, `scale_value`, `scale_unit`, `scale_calibrated`
 
-- [ ] **CM-006**: Implement cursor management for canvas modes
+- [x] **CM-006**: Implement cursor management for canvas modes
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - Set `cursor` style on canvas container `div` based on state:
     - `activeTool === 'select'` and not panning: `default`
@@ -87,7 +87,7 @@
 
 ## 2. Viewport Controls (Pan, Zoom, Fit)
 
-- [ ] **CM-007**: Create workspace-aware canvas controls hook
+- [x] **CM-007**: Create workspace-aware canvas controls hook
   - **File (new):** `frontend/src/hooks/useWorkspaceCanvasControls.ts`
   - Replaces old `useCanvasControls.ts` (which uses local `useState`) with one that reads/writes viewport from `workspaceStore`
   - Read `viewport` (`zoom`, `panX`, `panY`) from `useWorkspaceStore`
@@ -97,7 +97,7 @@
   - Port `handleZoomIn` / `handleZoomOut`: multiply/divide by 1.2, clamped to `MIN_ZOOM`..`MAX_ZOOM` from constants
   - Remove debug `fetch()` calls present in old hook
 
-- [ ] **CM-008**: Implement scroll-wheel zoom with pointer-anchoring
+- [x] **CM-008**: Implement scroll-wheel zoom with pointer-anchoring
   - **File:** `frontend/src/hooks/useWorkspaceCanvasControls.ts`
   - Port `handleWheel` from existing `useCanvasControls.ts` lines 109-126
   - Scale factor: `1.1` per wheel event
@@ -110,7 +110,7 @@
     ```
   - Wire to `<Stage onWheel={...}>` via Konva event adapter
 
-- [ ] **CM-009**: Implement mouse-drag panning
+- [x] **CM-009**: Implement mouse-drag panning
   - **File (new):** `frontend/src/hooks/useWorkspaceCanvasEvents.ts`
   - Port panning logic from existing `useCanvasEvents.ts`
   - Pan triggers: right-click drag, middle-click drag, or left-click drag when `activeTool === 'select'` and clicking empty stage
@@ -118,13 +118,13 @@
   - On mouse move while panning: compute delta and update `setViewport({ panX, panY })`
   - Global `window.addEventListener('mouseup')` to prevent stuck panning state
 
-- [ ] **CM-010**: Wire TopToolbar zoom buttons to workspace canvas controls
+- [x] **CM-010**: Wire TopToolbar zoom buttons to workspace canvas controls
   - **File:** `frontend/src/components/workspace/TopToolbar.tsx`
   - Currently zoom buttons call `setZoom(viewport.zoom + 0.1)` — replace with proper `handleZoomIn()` / `handleZoomOut()` from new hook
   - Add `zoomIn()`, `zoomOut()` actions to `workspaceStore` that apply the 1.2x multiplier with clamping
   - Add `fitToScreen` action (requires image dimensions — store in workspace store or use a ref)
 
-- [ ] **CM-011**: Implement fit-to-page on first sheet load
+- [x] **CM-011**: Implement fit-to-page on first sheet load
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - When `image` loads and stage size is known, auto-compute fit-to-page zoom
   - Only trigger on initial load — use a `hasInitialFit` ref per sheet
@@ -132,7 +132,7 @@
   - Formula: `zoom = Math.min(stageWidth / imageWidth, stageHeight / imageHeight) * 0.95`
   - Center the image: `panX = (stageWidth - imageWidth * zoom) / 2`, `panY = ...`
 
-- [ ] **CM-012**: Apply viewport transform to Konva Stage
+- [x] **CM-012**: Apply viewport transform to Konva Stage
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - Set Stage props: `scaleX={viewport.zoom}`, `scaleY={viewport.zoom}`, `x={viewport.panX}`, `y={viewport.panY}`
   - Set `draggable={false}` (panning is manual, not Konva's built-in drag)
@@ -142,7 +142,7 @@
 
 ## 3. Drawing Tool Integration
 
-- [ ] **CM-013**: Create workspace-aware drawing state hook
+- [x] **CM-013**: Create workspace-aware drawing state hook
   - **File (new):** `frontend/src/hooks/useWorkspaceDrawingState.ts`
   - Bridge between `workspaceStore` (which has `activeTool`, `isDrawing`, `currentPoints`) and drawing preview logic from `useDrawingState.ts`
   - Read `activeTool`, `isDrawing`, `currentPoints` from store
@@ -151,7 +151,7 @@
   - Port `startDrawing()`, `addPoint()`, `updatePreview()`, `finishDrawing()`, `cancelDrawing()`
   - Port per-point undo/redo during drawing
 
-- [ ] **CM-014**: Implement click-click drawing event handler for line, polyline, polygon
+- [x] **CM-014**: Implement click-click drawing event handler for line, polyline, polygon
   - **File:** `frontend/src/hooks/useWorkspaceCanvasEvents.ts`
   - On left-click with drawing tool active (not `select`):
     - Convert screen coords to image coords via `stage.getRelativePointerPosition()`
@@ -162,20 +162,20 @@
   - On mouse-move with drawing active: call `updatePreview(mousePos)` to update live preview
   - Enforce condition requirement: check `activeConditionId` is set before starting (except `measure` tool); show toast via `toolRejectionMessage` if not
 
-- [ ] **CM-015**: Implement click-drag-release drawing for rectangle and circle
+- [x] **CM-015**: Implement click-drag-release drawing for rectangle and circle
   - **File:** `frontend/src/hooks/useWorkspaceCanvasEvents.ts`
   - **Rectangle:** mouse-down starts, mouse-move updates preview, mouse-up finishes
   - **Circle:** mouse-down sets center, mouse-move computes radius from distance, mouse-up finishes
   - Minimum size check: reject shapes smaller than 5px (pattern from `useCanvasEvents.ts` lines 243-254)
 
-- [ ] **CM-016**: Implement double-click finish for polyline and polygon
+- [x] **CM-016**: Implement double-click finish for polyline and polygon
   - **File:** `frontend/src/hooks/useWorkspaceCanvasEvents.ts`
   - Port `handleStageDoubleClick` from existing `useCanvasEvents.ts` lines 279-318
   - Polyline: finish if at least 2 points; add final point if not near last point
   - Polygon: finish if at least 3 points; snap to start if close, otherwise add final point
   - Prevent double-click from also triggering single-click point add (filter `e.evt.detail > 1`)
 
-- [ ] **CM-017**: Create measurement on drawing completion
+- [x] **CM-017**: Create measurement on drawing completion
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx` (callback)
   - Convert result to API geometry format using `createMeasurementGeometry()` from `frontend/src/utils/measurementUtils.ts`
   - Call `createMeasurementAsync()` from `useMeasurements` hook with:
@@ -185,13 +185,13 @@
   - On success: reset drawing state, invalidate measurements query
   - On error: show error toast, do NOT lose drawing data
 
-- [ ] **CM-018**: Render DrawingPreviewLayer for in-progress shapes
+- [x] **CM-018**: Render DrawingPreviewLayer for in-progress shapes
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - **Reuse** existing `DrawingPreviewLayer` component from `frontend/src/components/viewer/DrawingPreviewLayer.tsx` as-is
   - Pass: `previewShape`, `points`, `isDrawing`, `color` (from active condition), `scale`, `isCloseToStart`, `pixelsPerUnit`, `unitLabel`
   - Place as the topmost layer in the Stage
 
-- [ ] **CM-019**: Wire keyboard shortcuts for tool selection via FocusContext
+- [x] **CM-019**: Wire keyboard shortcuts for tool selection via FocusContext
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx` or dedicated hook
   - Use `useFocusContext().shouldFireShortcut(e)` to gate single-key shortcuts
   - Map keys to `setActiveTool()`: V→select, L→line, P→polyline, A→polygon, R→rectangle, C→circle, M→measure
@@ -199,7 +199,7 @@
   - `Delete`/`Backspace` → delete selected measurement(s)
   - Register on `window.addEventListener('keydown')` with cleanup
 
-- [ ] **CM-020**: Display DrawingInstructions overlay for active tool
+- [x] **CM-020**: Display DrawingInstructions overlay for active tool
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - **Reuse or adapt** `DrawingInstructions` from `frontend/src/components/viewer/DrawingInstructions.tsx`
   - Show contextual instructions when drawing tool is active and condition is selected
@@ -209,33 +209,33 @@
 
 ## 4. Measurement Overlay Rendering
 
-- [ ] **CM-021**: Fetch page measurements via React Query
+- [x] **CM-021**: Fetch page measurements via React Query
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - Use `useQuery` with key `['measurements', activeSheetId]` and fetcher `listPageMeasurements(activeSheetId)`
   - API function exists at `frontend/src/api/measurements.ts` — `GET /pages/{page_id}/measurements`
   - Only enable when `activeSheetId` is set
   - Returns `{ measurements: Measurement[], total: number }`
 
-- [ ] **CM-022**: Fetch project conditions for color-coding
+- [x] **CM-022**: Fetch project conditions for color-coding
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - Use `useConditions(projectId)` hook from `frontend/src/hooks/useConditions.ts`
   - Build a `Map<string, Condition>` for fast lookup by ID
   - Filter measurements by condition `is_visible` flag — skip rendering measurements whose condition has `is_visible === false`
 
-- [ ] **CM-023**: Render MeasurementLayer with all measurements for active sheet
+- [x] **CM-023**: Render MeasurementLayer with all measurements for active sheet
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - **Reuse** existing `MeasurementLayer` from `frontend/src/components/viewer/MeasurementLayer.tsx`
   - Pass: `measurements` (filtered list), `conditions` (Map), `selectedMeasurementId`, `onMeasurementSelect`, `onMeasurementUpdate`, `onMeasurementContextMenu`, `isEditing`, `scale`
   - Wire `selectedMeasurementId` to `workspaceStore.selectedMeasurementIds[0]` (single selection initially)
   - Wire `onMeasurementSelect` to `setSelectedMeasurements([id])` and `setActiveCondition(measurement.condition_id)`
 
-- [ ] **CM-024**: Verify quantity labels display on measurements
+- [x] **CM-024**: Verify quantity labels display on measurements
   - Already handled by `MeasurementShape.tsx` — renders `${measurement.quantity.toFixed(1)} ${measurement.unit}` as Konva `Text`
   - **File:** `frontend/src/components/viewer/MeasurementShape.tsx`
   - Verify labels are readable at different zoom levels (fontSize is `12/scale` or `14/scale`)
   - No code changes expected — verify in integration
 
-- [ ] **CM-025**: Color-code measurements by condition and enforce visibility
+- [x] **CM-025**: Color-code measurements by condition and enforce visibility
   - Already handled by `MeasurementShape.tsx` which uses `condition.color` for stroke and fill
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - When rendering, filter by `condition.is_visible`:
@@ -251,33 +251,33 @@
 
 ## 5. Measurement Interaction (Select, Edit, Move, Delete)
 
-- [ ] **CM-026**: Implement measurement selection on click
+- [x] **CM-026**: Implement measurement selection on click
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - When `activeTool === 'select'` and user clicks a measurement shape, `MeasurementShape` fires `onSelect`
   - Wire to: `setSelectedMeasurements([measurement.id])`, `setActiveCondition(measurement.condition_id)`
   - Clicking empty stage (target === stage): `clearSelection()`
   - Selection updates RightPanel to show the selected condition's properties
 
-- [ ] **CM-027**: Implement measurement drag-to-move
+- [x] **CM-027**: Implement measurement drag-to-move
   - Already handled by `MeasurementShape.tsx` `commonGroupProps.draggable` (enabled when `isSelected && isEditing`)
   - `isEditing` should be `true` when `activeTool === 'select'` and measurement is selected
   - On drag end: calls `onUpdate(newGeometry, previousGeometry)` which triggers `PUT /measurements/{id}`
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - Wire `onMeasurementUpdate` callback to call `updateMeasurementAsync()` and push to undo stack
 
-- [ ] **CM-028**: Implement vertex editing for polyline and polygon
+- [x] **CM-028**: Implement vertex editing for polyline and polygon
   - Already handled by `MeasurementShape.tsx` vertex handles (lines 276-319)
   - When `isSelected && isEditing` and geometry is polyline/polygon, draggable vertex circles appear
   - Each vertex drag fires `onUpdate` with modified geometry
   - Verify works correctly with workspace store state
 
-- [ ] **CM-029**: Implement shape transformer for rectangle and circle resize
+- [x] **CM-029**: Implement shape transformer for rectangle and circle resize
   - Already handled by `ShapeTransformer.tsx` from `frontend/src/components/viewer/ShapeTransformer.tsx`
   - `MeasurementShape.tsx` renders `<ShapeTransformer>` for rectangle/circle when `isSelected && isEditing`
   - On transform end: computes new geometry from Konva node's scale/position and fires `onUpdate`
   - Verify integration
 
-- [ ] **CM-030**: Implement right-click context menu on measurements
+- [x] **CM-030**: Implement right-click context menu on measurements
   - **File (new):** `frontend/src/components/workspace/MeasurementContextMenu.tsx`
   - **Reuse or adapt** `ShapeContextMenu` from `frontend/src/components/viewer/ShapeContextMenu.tsx`
   - Options: Edit, Duplicate, Delete, Bring to Front, Send to Back
@@ -289,7 +289,7 @@
 
 ## 6. Undo/Redo System with Server Sync
 
-- [ ] **CM-031**: Create workspace undo/redo manager
+- [x] **CM-031**: Create workspace undo/redo manager
   - **File (new):** `frontend/src/hooks/useWorkspaceUndoRedo.ts`
   - **Adapt** existing `useUndoRedo.ts` from `frontend/src/hooks/useUndoRedo.ts`
   - Existing hook already supports async `undo()` / `redo()` functions
@@ -297,14 +297,14 @@
   - When pushing new action, trim history to stack depth
   - Expose `canUndo`, `canRedo`, `push`, `undo`, `redo`, `clear`
 
-- [ ] **CM-032**: Push create-measurement actions to undo stack
+- [x] **CM-032**: Push create-measurement actions to undo stack
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - After successful `createMeasurementAsync()`, push to undo stack:
     - `undo`: call `deleteMeasurementAsync(createdId)`, clear selection
     - `redo`: call `createMeasurementAsync(sameParams)`, update selection to new ID
   - Pattern reference: `TakeoffViewer.tsx` `handleMeasurementCreate` lines 150-218
 
-- [ ] **CM-033**: Push delete-measurement actions to undo stack
+- [x] **CM-033**: Push delete-measurement actions to undo stack
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - Before deleting, capture measurement's full data (`condition_id`, `geometry_type`, `geometry_data`)
   - After successful `deleteMeasurementAsync()`, push:
@@ -312,14 +312,14 @@
     - `redo`: `deleteMeasurementAsync(recreatedId)`
   - Pattern reference: `TakeoffViewer.tsx` `handleDeleteMeasurement` lines 315-373
 
-- [ ] **CM-034**: Push update-measurement (move/edit) actions to undo stack
+- [x] **CM-034**: Push update-measurement (move/edit) actions to undo stack
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - `onMeasurementUpdate(id, newGeometry, previousGeometry)` handler
   - After successful `updateMeasurementAsync()`, push:
     - `undo`: `updateMeasurementAsync(id, previousGeometry)`
     - `redo`: `updateMeasurementAsync(id, newGeometry)`
 
-- [ ] **CM-035**: Wire undo/redo to TopToolbar buttons and keyboard shortcuts
+- [x] **CM-035**: Wire undo/redo to TopToolbar buttons and keyboard shortcuts
   - **File:** `frontend/src/components/workspace/TopToolbar.tsx`
   - Currently undo/redo buttons are `disabled` — remove `disabled` and wire `onClick`
   - Pass `canUndo`, `canRedo` as props (or read from shared hook/store)
@@ -331,12 +331,12 @@
 
 ## 7. Viewport Persistence (Per-Sheet State)
 
-- [ ] **CM-036**: Add per-sheet viewport map to workspaceStore
+- [x] **CM-036**: Add per-sheet viewport map to workspaceStore
   - **File:** `frontend/src/stores/workspaceStore.ts`
   - Add new state field: `sheetViewports: Record<string, ViewportState>`
   - Default: `{}`
 
-- [ ] **CM-037**: Save viewport state when leaving a sheet
+- [x] **CM-037**: Save viewport state when leaving a sheet
   - **File:** `frontend/src/stores/workspaceStore.ts`
   - Modify `setActiveSheet` to save current viewport before switching:
     ```ts
@@ -349,13 +349,13 @@
     }
     ```
 
-- [ ] **CM-038**: Restore viewport state when switching to a sheet
+- [x] **CM-038**: Restore viewport state when switching to a sheet
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - On `activeSheetId` change, check `sheetViewports[activeSheetId]`
   - If saved viewport exists: restore via `setViewport(savedViewport)`
   - If no saved viewport (first visit): trigger fit-to-page (CM-011)
 
-- [ ] **CM-039**: Clear undo stack on sheet switch
+- [x] **CM-039**: Clear undo stack on sheet switch
   - **File:** `frontend/src/components/workspace/CenterCanvas.tsx`
   - When `activeSheetId` changes, call `undoRedo.clear()`
   - Undo history is per-sheet and lost on switch (intentional — server is source of truth)
@@ -365,7 +365,7 @@
 
 ## 8. Testing & Verification
 
-- [ ] **CM-040**: Create CenterCanvas.test.tsx — Stage rendering and image loading
+- [x] **CM-040**: Create CenterCanvas.test.tsx — Stage rendering and image loading
   - **File (new):** `frontend/src/components/workspace/__tests__/CenterCanvas.test.tsx`
   - Test: renders "No sheet selected" when `activeSheetId` is null
   - Test: renders loading state when `isLoadingSheet` is true
@@ -374,7 +374,7 @@
   - Test: `data-focus-region="canvas"` is present
   - Mock `react-konva` Stage/Layer components
 
-- [ ] **CM-041**: Create useWorkspaceCanvasControls.test.ts — zoom/pan behavior
+- [x] **CM-041**: Create useWorkspaceCanvasControls.test.ts — zoom/pan behavior
   - **File (new):** `frontend/src/hooks/__tests__/useWorkspaceCanvasControls.test.ts`
   - Test: `handleZoomIn` multiplies zoom by 1.2
   - Test: `handleZoomOut` divides zoom by 1.2
@@ -382,7 +382,7 @@
   - Test: `handleWheel` anchors zoom around pointer position
   - Test: `handleFitToScreen` computes correct zoom for given image and stage dimensions
 
-- [ ] **CM-042**: Create useWorkspaceDrawingState.test.ts — drawing tool completion
+- [x] **CM-042**: Create useWorkspaceDrawingState.test.ts — drawing tool completion
   - **File (new):** `frontend/src/hooks/__tests__/useWorkspaceDrawingState.test.ts`
   - Test: `startDrawing` sets `isDrawing=true` and records first point
   - Test: `addPoint` appends to `currentPoints`
@@ -391,13 +391,13 @@
   - Test: per-point undo/redo works correctly
   - Test: line tool auto-finishes after 2 points
 
-- [ ] **CM-043**: Create MeasurementOverlay.test.tsx — renders correct shapes from data
+- [x] **CM-043**: Create MeasurementOverlay.test.tsx — renders correct shapes from data
   - **File (new):** `frontend/src/components/workspace/__tests__/MeasurementOverlay.test.tsx`
   - Test: renders shapes for each geometry type (line, polygon, rectangle, circle, point)
   - Test: applies condition color to shapes
   - Test: filters out measurements for conditions with `is_visible: false`
 
-- [ ] **CM-044**: Create useWorkspaceUndoRedo.test.ts — undo/redo stack behavior
+- [x] **CM-044**: Create useWorkspaceUndoRedo.test.ts — undo/redo stack behavior
   - **File (new):** `frontend/src/hooks/__tests__/useWorkspaceUndoRedo.test.ts`
   - Test: `push` adds action, `canUndo` becomes true
   - Test: `undo` calls action's undo function, `canRedo` becomes true
@@ -406,25 +406,25 @@
   - Test: stack respects `UNDO_STACK_DEPTH` limit (100)
   - Test: `clear` empties the stack
 
-- [ ] **CM-045**: End-to-end verification gate
+- [x] **CM-045**: End-to-end verification gate
   - Run full verification suite:
     ```bash
     cd frontend && npx tsc --noEmit && npm run lint && npm test -- --run
     ```
   - Manual smoke test checklist:
-    - [ ] Sheet image loads on Konva canvas
-    - [ ] Pan with right-click drag works
-    - [ ] Scroll-wheel zoom with pointer anchoring works
-    - [ ] Fit-to-page on first sheet load
-    - [ ] Draw a line measurement (2 clicks)
-    - [ ] Draw a polygon measurement (multi-click + double-click)
-    - [ ] Draw a rectangle (click-drag-release)
-    - [ ] Existing measurements render with correct colors
-    - [ ] Click measurement to select, see properties in RightPanel
-    - [ ] Drag selected measurement to move
-    - [ ] Undo (Ctrl+Z) after creating a measurement
-    - [ ] Redo (Ctrl+Shift+Z) restores the measurement
-    - [ ] Switch sheets and back; viewport is restored
+    - [x]Sheet image loads on Konva canvas
+    - [x]Pan with right-click drag works
+    - [x]Scroll-wheel zoom with pointer anchoring works
+    - [x]Fit-to-page on first sheet load
+    - [x]Draw a line measurement (2 clicks)
+    - [x]Draw a polygon measurement (multi-click + double-click)
+    - [x]Draw a rectangle (click-drag-release)
+    - [x]Existing measurements render with correct colors
+    - [x]Click measurement to select, see properties in RightPanel
+    - [x]Drag selected measurement to move
+    - [x]Undo (Ctrl+Z) after creating a measurement
+    - [x]Redo (Ctrl+Shift+Z) restores the measurement
+    - [x]Switch sheets and back; viewport is restored
 
 ---
 
@@ -604,3 +604,12 @@ Phase 1 is complete when a user can:
 | `frontend/src/components/viewer/MeasurementLayer.tsx` | **Reuse**: renders all measurements for a page |
 | `frontend/src/utils/measurementUtils.ts` | **Reuse**: geometry creation and offset utilities |
 | `frontend/src/api/measurements.ts` | **Reuse**: measurement API client functions |
+
+---
+
+## Completion Status
+
+**All 45 tasks completed.** Phase 1 Canvas Migration is fully implemented.
+
+- Canvas migration: February 2026
+- 10-feature migration (scale calibration, scale detection, scale warning, measurement duplication, visibility toggle, z-ordering, undo/redo wiring, title block mode, scale location display, measurements panel): February 12, 2026

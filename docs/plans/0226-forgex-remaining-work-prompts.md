@@ -19,7 +19,7 @@
 | **Unified Task API (Phase 2.5)** | ✅ Complete | `tasks.py` route, `TaskRecord` model, `TaskTracker` service, `useTaskPolling` hook |
 | **Architecture Prep (Phase 17)** | ✅ Schema Only | Revision fields on `Document` model, vector PDF detection fields on `Page` model, `building`/`area`/`elevation` on `Condition` model |
 | **Core Backend Pipeline** | ✅ Complete | Document ingestion, OCR, page classification, scale detection, measurement engine, AI takeoff generation, conditions CRUD |
-| **Drawing Tools (Old Viewer)** | ⚠️ Partial | `DrawingToolbar.tsx` exists in old `viewer/` directory with tool definitions. `useCanvasControls.ts`, `useCanvasEvents.ts`, `useDrawingState.ts`, `useUndoRedo.ts` hooks exist. But these are NOT integrated into the new `TakeoffWorkspace` |
+| **Drawing Tools (Old Viewer)** | ✅ Migrated | Drawing tools fully migrated to new workspace. Workspace-specific hooks: `useWorkspaceCanvasControls.ts`, `useWorkspaceCanvasEvents.ts`, `useWorkspaceDrawingState.ts`. Old hooks still exist for deprecated TakeoffViewer route. |
 
 ### What Does NOT Exist Yet
 
@@ -38,11 +38,13 @@
 
 ### Key Gaps Requiring Attention
 
-1. **CenterCanvas is empty** — The new workspace's canvas is just an `<img>` tag. All drawing, measurement overlay, and interaction must be rebuilt with Konva.js in the new workspace context. The old `TakeoffViewer.tsx` + `viewer/` components exist but are a separate route/paradigm.
-2. **Old viewer vs. new workspace disconnect** — Drawing hooks (`useCanvasControls`, `useCanvasEvents`, `useDrawingState`, `useUndoRedo`) and `DrawingToolbar.tsx` exist in the old viewer pattern. These need to be migrated/refactored into the new workspace architecture (Zustand store, FocusContext, resizable panels).
+> **Update (February 12, 2026):** Gaps 1, 2, and 5 have been fully resolved. Phase 1 (Canvas Migration) and the 10-feature migration from TakeoffViewer are complete. See `PHASE_1_CANVAS_MIGRATION_TASK_LIST.md` for details.
+
+1. ~~**CenterCanvas is empty**~~ — **RESOLVED.** CenterCanvas now has a full Konva Stage with measurement overlays, drawing tools, calibration overlay, title block overlay, scale overlays, and more.
+2. ~~**Old viewer vs. new workspace disconnect**~~ — **RESOLVED.** Workspace-specific hooks created (`useWorkspaceCanvasControls`, `useWorkspaceCanvasEvents`, `useWorkspaceDrawingState`). All 10 TakeoffViewer features migrated to TakeoffWorkspace.
 3. **No review workflow in new workspace** — The enhanced review interface (approve/reject/skip with keyboard shortcuts, auto-accept, confidence filtering) has no implementation.
 4. **Export UI missing** — Backend is complete but the workspace has no export trigger UI.
-5. **STATUS.md is very outdated** (last updated Jan 26) — needs full rewrite.
+5. ~~**STATUS.md is very outdated**~~ — **RESOLVED.** STATUS.md fully rewritten (February 12, 2026).
 
 ---
 

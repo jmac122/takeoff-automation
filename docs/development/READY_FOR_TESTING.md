@@ -1,6 +1,8 @@
 # ✅ Ready for Testing - All Changes Deployed
 
-**Date:** January 20, 2026, 11:34 PM  
+> **Historical Context (January 20, 2026):** This document records a specific deployment snapshot from January 2026. The features described here have been incorporated into subsequent phases. See `STATUS.md` for current project status.
+
+**Date:** January 20, 2026, 11:34 PM
 **Status:** All Docker containers rebuilt and running
 
 ---

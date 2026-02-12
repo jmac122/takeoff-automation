@@ -14,10 +14,21 @@ App (React Router)
         ├── FocusProvider (Context)
         │
         ├── TopToolbar
-        │   ├── Drawing tool buttons (Select, Line, Polyline, Polygon, Rectangle, Circle, Measure)
-        │   ├── Undo / Redo buttons
+        │   ├── Drawing tool buttons (Select, Line, Polyline, Polygon, Rectangle, Circle, Point, Measure)
+        │   ├── Undo / Redo buttons (wired to useUndoRedo)
         │   ├── Zoom controls (Zoom In, Zoom Out, percentage)
-        │   ├── AI Assist toggle
+        │   ├── Scale section
+        │   │   ├── Set Scale button (opens calibration mode)
+        │   │   ├── Auto Detect button (triggers AI scale detection)
+        │   │   └── Show Location toggle (MapPin, conditional on scale bbox)
+        │   ├── Title Block section
+        │   │   ├── Title Block mode toggle (Crop icon)
+        │   │   └── Show Region toggle (Eye icon, conditional on saved region)
+        │   ├── Grid section (snap toggle, show grid toggle)
+        │   ├── AI Assist button (batch AI takeoff)
+        │   ├── AI Confidence overlay toggle
+        │   ├── Review mode toggle
+        │   ├── ExportDropdown
         │   └── Panel collapse toggles (Left, Right)
         │
         ├── Panel Group (react-resizable-panels, horizontal)
@@ -38,16 +49,36 @@ App (React Router)
         │   │
         │   ├── Center Panel (min 30%)
         │   │   └── CenterCanvas
-        │   │       ├── Sheet image display
-        │   │       ├── Measurement overlays (Konva)
-        │   │       ├── Drawing cursor
-        │   │       └── Loading spinner
+        │   │       ├── Konva Stage
+        │   │       │   ├── Layer: Sheet image (KonvaImage)
+        │   │       │   ├── Layer: Measurement overlays (MeasurementLayer → MeasurementShape)
+        │   │       │   ├── Layer: Drawing preview (DrawingPreviewLayer)
+        │   │       │   ├── Layer: Calibration overlay (CalibrationOverlay — amber dashed line)
+        │   │       │   ├── Layer: Title block region (green filled Rect)
+        │   │       │   ├── Layer: Title block draft (blue dashed Rect)
+        │   │       │   ├── Layer: Scale detection highlight (amber Rect)
+        │   │       │   ├── Layer: Scale location overlay (green Rect)
+        │   │       │   └── Layer: GhostPointLayer (AI prediction, cyan pulsing)
+        │   │       ├── HTML Overlays
+        │   │       │   ├── Scale warning banner (uncalibrated sheet)
+        │   │       │   ├── ScaleDetectionBanner (post-detection result)
+        │   │       │   ├── Calibration mode banner (blue)
+        │   │       │   ├── Title block mode banner (purple)
+        │   │       │   └── MeasurementsPanel (bottom-right floating)
+        │   │       ├── MeasurementContextMenu (absolute positioned)
+        │   │       │   ├── Duplicate
+        │   │       │   ├── Show / Hide
+        │   │       │   ├── Bring to Front / Send to Back
+        │   │       │   └── Delete
+        │   │       └── Loading spinner / placeholder states
         │   │
         │   ├── Separator (draggable, blue on hover)
         │   │
         │   └── Right Panel (25% default, 18-40%, collapsible)
-        │       └── RightPanel
-        │           └── ConditionPanel
+        │       └── RightPanel (tabbed)
+        │           ├── Conditions tab → ConditionPanel
+        │           ├── Cost tab → Assembly cost breakdown
+        │           └── Revisions tab → RevisionChainPanel
         │               ├── QuickCreateBar
         │               │   ├── "Add Condition" button
         │               │   └── Template dropdown
@@ -88,7 +119,19 @@ App (React Router)
         │   ├── Scale display
         │   ├── Zoom percentage
         │   ├── Active tool
-        │   └── Measurement count
+        │   ├── Measurement count
+        │   └── Review stats (when review mode active)
+        │
+        ├── ScaleCalibrationDialog (modal, after calibration line drawn)
+        │   ├── Pixel distance display
+        │   ├── Real distance input
+        │   ├── Unit selector (foot, inch, meter, etc.)
+        │   └── Submit / Cancel buttons
+        │
+        ├── Title block save banner (fixed overlay, after title block drawn)
+        │   ├── "Save Title Block Region?" prompt
+        │   ├── Save button (re-runs OCR with new region)
+        │   └── Reset button
         │
         └── Tool rejection toast (amber, bottom-center, auto-dismiss 3s)
 ```
@@ -109,6 +152,11 @@ App (React Router)
                   │ leftPanelCollapsed      │◄──── TopToolbar toggle
                   │ rightPanelCollapsed     │◄──── TopToolbar toggle
                   │ toolRejectionMessage    │◄──── setActiveTool validation
+                  │ reviewMode              │◄──── TopToolbar toggle
+                  │ ghostPrediction         │◄──── AI AutoTab prediction
+                  │ aiConfidenceOverlay     │◄──── TopToolbar toggle
+                  │ batchAiTaskId           │◄──── AI Assist button
+                  │ snapToGrid / showGrid   │◄──── TopToolbar toggles
                   └──────────┬──────────────┘
                              │
               ┌──────────────┼──────────────┐
@@ -132,6 +180,8 @@ App (React Router)
                   │ ['project-sheets', id]  │──── getProjectSheets()
                   │ ['conditions', id]      │──── listProjectConditions()
                   │ ['condition-templates'] │──── listConditionTemplates()
+                  │ ['page', sheetId]       │──── GET /pages/{id} (scale, title block)
+                  │ ['measurements', sheetId]│──── listPageMeasurements()
                   └──────────┬──────────────┘
                              │
               ┌──────────────┼──────────────┐

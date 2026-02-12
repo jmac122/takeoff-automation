@@ -1,6 +1,6 @@
 # ForgeX Takeoffs - Project Status
 
-**Last Updated:** February 11, 2026
+**Last Updated:** February 12, 2026
 **Current State:** All 9 phases complete.
 **Branch:** `claude/create-phase-1-tasks-OBEE7`
 
@@ -49,6 +49,16 @@
 - Measurement overlay rendering color-coded by condition
 - Undo/redo with server sync
 - Viewport persistence per sheet in `workspaceStore`
+- Scale calibration dialog and overlay (draw-to-calibrate workflow)
+- Scale warning banner for uncalibrated sheets
+- Auto detect scale via AI (toolbar button + detection banner)
+- Measurement duplication with 12px offset (context menu)
+- Toggle measurement visibility (context menu show/hide)
+- Bring to front / send to back z-ordering (context menu)
+- Undo/redo toolbar buttons wired to canvas actions
+- Title block mode (draw region, re-run OCR, save/reset)
+- Scale location display toggle (MapPin overlay)
+- Measurements list panel (per-sheet, filterable by condition)
 
 ### Phase 2: Enhanced Review Interface
 - `MeasurementHistory` model with action audit trail
@@ -106,6 +116,7 @@
 - **Old viewer deprecation:** Added deprecation banner on `TakeoffViewer` route
 - **Migration audit:** Single head (`q5r6s7t8u9v0`), all branches merged, clean chain
 - **Model fix:** Renamed reserved `metadata` attribute to `extra_data` in `CostItem`, `Assembly`, `AssemblyComponent` models (DB column unchanged)
+- **10-feature workspace migration:** Migrated scale calibration, scale detection, scale warning, measurement duplication, visibility toggle, z-ordering, undo/redo wiring, title block mode, scale location display, and measurements panel from `TakeoffViewer` to `TakeoffWorkspace`
 
 ---
 
