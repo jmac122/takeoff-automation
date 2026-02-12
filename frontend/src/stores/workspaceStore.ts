@@ -22,6 +22,7 @@ export type DrawingTool =
   | 'polygon'
   | 'rectangle'
   | 'circle'
+  | 'point'     // Single-click count marker
   | 'measure'  // "M" key — no condition required
   | null;
 
@@ -56,6 +57,9 @@ interface WorkspaceState {
   activeSheetId: string | null;
   selectedSheetIds: string[];
   highlightedSheetId: string | null;
+
+  // Per-sheet viewport persistence (CM-036)
+  sheetViewports: Record<string, ViewportState>;
 
   // Conditions & Drawing
   activeConditionId: string | null;
@@ -193,6 +197,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   activeSheetId: null,
   selectedSheetIds: [],
   highlightedSheetId: null,
+  sheetViewports: {},
 
   activeConditionId: null,
   activeTool: 'select',
@@ -233,8 +238,14 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   // --- Actions ---
 
-  setActiveSheet: (sheetId) =>
-    set({ activeSheetId: sheetId }),
+  // CM-037: Save viewport state when switching sheets
+  setActiveSheet: (sheetId) => {
+    const { activeSheetId, viewport, sheetViewports } = get();
+    const nextViewports = activeSheetId
+      ? { ...sheetViewports, [activeSheetId]: { ...viewport } }
+      : sheetViewports;
+    set({ activeSheetId: sheetId, sheetViewports: nextViewports });
+  },
 
   setSelectedSheets: (sheetIds) =>
     set({ selectedSheetIds: sheetIds }),

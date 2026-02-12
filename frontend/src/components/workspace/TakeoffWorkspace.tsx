@@ -249,8 +249,15 @@ export function TakeoffWorkspace() {
             <Panel id="center-canvas" minSize={30}>
               <CenterCanvas
                 projectId={projectId}
+                pageId={activeSheetId ?? undefined}
                 isLoadingSheet={isLoadingSheetImage}
                 sheetImageUrl={activeSheet?.image_url}
+                scaleValue={activeSheet?.scale_value}
+                pixelsPerUnit={
+                  activeSheet?.scale_calibrated && activeSheet?.scale_value
+                    ? activeSheet.scale_value
+                    : undefined
+                }
               />
             </Panel>
 

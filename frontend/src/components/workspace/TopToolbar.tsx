@@ -103,11 +103,11 @@ export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting, onRunBatc
 
       <div className="mx-1 h-5 w-px bg-neutral-700" />
 
-      {/* Zoom controls */}
+      {/* Zoom controls (CM-010) */}
       <button
         className="rounded p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"
-        onClick={() => setZoom(viewport.zoom - 0.1)}
-        title="Zoom out"
+        onClick={() => setZoom(Math.max(viewport.zoom / 1.2, 0.1))}
+        title="Zoom out (-)"
       >
         <ZoomOut size={16} />
       </button>
@@ -116,26 +116,24 @@ export function TopToolbar({ projectId, onAutoAccept, isAutoAccepting, onRunBatc
       </span>
       <button
         className="rounded p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"
-        onClick={() => setZoom(viewport.zoom + 0.1)}
-        title="Zoom in"
+        onClick={() => setZoom(Math.min(viewport.zoom * 1.2, 10))}
+        title="Zoom in (+)"
       >
         <ZoomIn size={16} />
       </button>
 
       <div className="mx-1 h-5 w-px bg-neutral-700" />
 
-      {/* Undo/Redo */}
+      {/* Undo/Redo (CM-035 — wired via keyboard shortcuts in CenterCanvas) */}
       <button
-        className="rounded p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"
+        className="rounded p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white disabled:opacity-40"
         title="Undo (Ctrl+Z)"
-        disabled
       >
         <Undo2 size={16} />
       </button>
       <button
-        className="rounded p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white"
+        className="rounded p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-white disabled:opacity-40"
         title="Redo (Ctrl+Shift+Z)"
-        disabled
       >
         <Redo2 size={16} />
       </button>
