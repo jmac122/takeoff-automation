@@ -25,6 +25,7 @@ logger = structlog.get_logger()
 # Pure geometry helpers (operate on dicts matching geometry_data shapes)
 # ---------------------------------------------------------------------------
 
+
 def _translate_point(pt: dict[str, float], dx: float, dy: float) -> dict[str, float]:
     """Translate a {x, y} point."""
     return {"x": pt["x"] + dx, "y": pt["y"] + dy}
@@ -53,7 +54,14 @@ def _project_point_on_segment(
     len_sq = dx * dx + dy * dy
     if len_sq < 1e-12:
         return dict(seg_start)
-    t = max(0.0, min(1.0, ((pt["x"] - seg_start["x"]) * dx + (pt["y"] - seg_start["y"]) * dy) / len_sq))
+    t = max(
+        0.0,
+        min(
+            1.0,
+            ((pt["x"] - seg_start["x"]) * dx + (pt["y"] - seg_start["y"]) * dy)
+            / len_sq,
+        ),
+    )
     return {"x": seg_start["x"] + t * dx, "y": seg_start["y"] + t * dy}
 
 
@@ -96,6 +104,7 @@ def _perpendicular(v: dict[str, float]) -> dict[str, float]:
 # Nudge
 # ---------------------------------------------------------------------------
 
+
 def nudge_geometry(
     geometry_type: str,
     geometry_data: dict[str, Any],
@@ -106,8 +115,16 @@ def nudge_geometry(
 
     direction: "up" | "down" | "left" | "right"
     """
-    dx = distance_px if direction == "right" else (-distance_px if direction == "left" else 0.0)
-    dy = distance_px if direction == "down" else (-distance_px if direction == "up" else 0.0)
+    dx = (
+        distance_px
+        if direction == "right"
+        else (-distance_px if direction == "left" else 0.0)
+    )
+    dy = (
+        distance_px
+        if direction == "down"
+        else (-distance_px if direction == "up" else 0.0)
+    )
 
     if geometry_type == "line":
         return {
@@ -145,6 +162,7 @@ def nudge_geometry(
 # Snap to grid
 # ---------------------------------------------------------------------------
 
+
 def snap_geometry_to_grid(
     geometry_type: str,
     geometry_data: dict[str, Any],
@@ -166,7 +184,9 @@ def snap_geometry_to_grid(
             "points": [_snap_point(p, grid_size_px) for p in geometry_data["points"]],
         }
     elif geometry_type == "rectangle":
-        snapped = _snap_point({"x": geometry_data["x"], "y": geometry_data["y"]}, grid_size_px)
+        snapped = _snap_point(
+            {"x": geometry_data["x"], "y": geometry_data["y"]}, grid_size_px
+        )
         return {
             **geometry_data,
             "x": snapped["x"],
@@ -181,7 +201,9 @@ def snap_geometry_to_grid(
             "radius": round(geometry_data["radius"] / grid_size_px) * grid_size_px,
         }
     elif geometry_type == "point":
-        snapped = _snap_point({"x": geometry_data["x"], "y": geometry_data["y"]}, grid_size_px)
+        snapped = _snap_point(
+            {"x": geometry_data["x"], "y": geometry_data["y"]}, grid_size_px
+        )
         return {**geometry_data, **snapped}
     else:
         return geometry_data
@@ -190,6 +212,7 @@ def snap_geometry_to_grid(
 # ---------------------------------------------------------------------------
 # Extend  (lines / polylines only)
 # ---------------------------------------------------------------------------
+
 
 def extend_geometry(
     geometry_type: str,
@@ -215,9 +238,15 @@ def extend_geometry(
         new_end = dict(end)
 
         if endpoint in ("start", "both"):
-            new_start = {"x": start["x"] - ux * distance_px, "y": start["y"] - uy * distance_px}
+            new_start = {
+                "x": start["x"] - ux * distance_px,
+                "y": start["y"] - uy * distance_px,
+            }
         if endpoint in ("end", "both"):
-            new_end = {"x": end["x"] + ux * distance_px, "y": end["y"] + uy * distance_px}
+            new_end = {
+                "x": end["x"] + ux * distance_px,
+                "y": end["y"] + uy * distance_px,
+            }
 
         return {**geometry_data, "start": new_start, "end": new_end}
 
@@ -234,7 +263,10 @@ def extend_geometry(
             length = math.sqrt(dx * dx + dy * dy)
             if length > 1e-12:
                 ux, uy = dx / length, dy / length
-                points[-1] = {"x": p2["x"] + ux * distance_px, "y": p2["y"] + uy * distance_px}
+                points[-1] = {
+                    "x": p2["x"] + ux * distance_px,
+                    "y": p2["y"] + uy * distance_px,
+                }
 
         if endpoint in ("start", "both"):
             p1 = points[1]
@@ -244,7 +276,10 @@ def extend_geometry(
             length = math.sqrt(dx * dx + dy * dy)
             if length > 1e-12:
                 ux, uy = dx / length, dy / length
-                points[0] = {"x": p2["x"] + ux * distance_px, "y": p2["y"] + uy * distance_px}
+                points[0] = {
+                    "x": p2["x"] + ux * distance_px,
+                    "y": p2["y"] + uy * distance_px,
+                }
 
         return {**geometry_data, "points": points}
     else:
@@ -254,6 +289,7 @@ def extend_geometry(
 # ---------------------------------------------------------------------------
 # Trim  (lines / polylines only)
 # ---------------------------------------------------------------------------
+
 
 def trim_geometry(
     geometry_type: str,
@@ -310,6 +346,7 @@ def trim_geometry(
 # Offset  (polygons / rectangles only — creates a new geometry)
 # ---------------------------------------------------------------------------
 
+
 def offset_geometry(
     geometry_type: str,
     geometry_data: dict[str, Any],
@@ -355,7 +392,7 @@ def offset_geometry(
         # Average normal
         avg_x = n1["x"] + n2["x"]
         avg_y = n1["y"] + n2["y"]
-        avg_len = math.sqrt(avg_x ** 2 + avg_y ** 2)
+        avg_len = math.sqrt(avg_x**2 + avg_y**2)
 
         if avg_len < 1e-12:
             new_points.append(dict(curr_pt))
@@ -372,20 +409,26 @@ def offset_geometry(
         miter_len = distance_px / cos_half if cos_half > 1e-6 else distance_px
 
         if corner_type == "miter" and abs(miter_len) < abs(distance_px) * 4:
-            new_points.append({
-                "x": curr_pt["x"] + avg_x * miter_len,
-                "y": curr_pt["y"] + avg_y * miter_len,
-            })
+            new_points.append(
+                {
+                    "x": curr_pt["x"] + avg_x * miter_len,
+                    "y": curr_pt["y"] + avg_y * miter_len,
+                }
+            )
         else:
             # Bevel — two points
-            new_points.append({
-                "x": curr_pt["x"] + n1["x"] * distance_px,
-                "y": curr_pt["y"] + n1["y"] * distance_px,
-            })
-            new_points.append({
-                "x": curr_pt["x"] + n2["x"] * distance_px,
-                "y": curr_pt["y"] + n2["y"] * distance_px,
-            })
+            new_points.append(
+                {
+                    "x": curr_pt["x"] + n1["x"] * distance_px,
+                    "y": curr_pt["y"] + n1["y"] * distance_px,
+                }
+            )
+            new_points.append(
+                {
+                    "x": curr_pt["x"] + n2["x"] * distance_px,
+                    "y": curr_pt["y"] + n2["y"] * distance_px,
+                }
+            )
 
     return {**geometry_data, "points": new_points}
 
@@ -393,6 +436,7 @@ def offset_geometry(
 # ---------------------------------------------------------------------------
 # Split  (lines / polylines → two measurements)
 # ---------------------------------------------------------------------------
+
 
 def split_geometry(
     geometry_type: str,
@@ -452,6 +496,7 @@ def split_geometry(
 # Join  (lines → single line or polyline)
 # ---------------------------------------------------------------------------
 
+
 def join_geometries(
     type_a: str,
     data_a: dict[str, Any],
@@ -463,6 +508,7 @@ def join_geometries(
 
     Returns (new_geometry_type, new_geometry_data) or None.
     """
+
     # Collect ordered point lists from each geometry
     def _to_points(gtype: str, gdata: dict) -> list[dict[str, float]]:
         if gtype == "line":
@@ -505,6 +551,7 @@ def join_geometries(
 # High-level async service that wraps DB operations
 # ---------------------------------------------------------------------------
 
+
 class GeometryAdjusterService:
     """Async service for adjusting measurement geometry with DB persistence."""
 
@@ -514,7 +561,7 @@ class GeometryAdjusterService:
         measurement_id: uuid.UUID,
         action: str,
         params: dict[str, Any],
-    ) -> Measurement:
+    ) -> tuple[Measurement, uuid.UUID | None]:
         """Apply a geometry adjustment to a measurement.
 
         Args:
@@ -524,7 +571,9 @@ class GeometryAdjusterService:
             params: Action-specific parameters
 
         Returns:
-            Updated Measurement (or the first part for split)
+            Tuple of (updated Measurement, created_measurement_id or None).
+            For split actions, created_measurement_id is the ID of the new
+            measurement. For all other actions it is None.
         """
         measurement = await session.get(Measurement, measurement_id)
         if not measurement:
@@ -645,9 +694,12 @@ class GeometryAdjusterService:
         await session.commit()
         await session.refresh(measurement)
 
-        return measurement
+        created_id = extra_measurement.id if extra_measurement else None
+        return measurement, created_id
 
-    async def _recalculate(self, session: AsyncSession, measurement: Measurement) -> None:
+    async def _recalculate(
+        self, session: AsyncSession, measurement: Measurement
+    ) -> None:
         """Recalculate quantity for a measurement after geometry change."""
         page = await session.get(Page, measurement.page_id)
         condition = await session.get(Condition, measurement.condition_id)
@@ -657,6 +709,7 @@ class GeometryAdjusterService:
 
         calculator = MeasurementCalculator(page.scale_value)
         from app.services.measurement_engine import get_measurement_engine
+
         engine = get_measurement_engine()
 
         calculation = engine._calculate_geometry(
@@ -665,7 +718,9 @@ class GeometryAdjusterService:
             measurement.geometry_data,
             condition.depth,
         )
-        measurement.quantity = engine._extract_quantity(calculation, condition.measurement_type)
+        measurement.quantity = engine._extract_quantity(
+            calculation, condition.measurement_type
+        )
         measurement.pixel_length = calculation.get("pixel_length")
         measurement.pixel_area = calculation.get("pixel_area")
         measurement.extra_metadata = {"calculation": calculation}
@@ -677,6 +732,7 @@ class GeometryAdjusterService:
     ) -> None:
         """Update condition's denormalized totals."""
         from sqlalchemy import func
+
         result = await session.execute(
             select(
                 func.sum(Measurement.quantity),

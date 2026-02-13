@@ -18,6 +18,7 @@ from app.models.condition import Condition
 from app.schemas.task import StartTaskResponse
 from app.services.task_tracker import TaskTracker
 from app.services.ai_predict_point import get_predict_point_service
+from app.utils.storage import get_storage_service
 from app.workers.takeoff_tasks import (
     generate_ai_takeoff_task,
     compare_providers_task,
@@ -45,7 +46,9 @@ class AutonomousTakeoffRequest(BaseModel):
     """Request for autonomous AI takeoff - AI determines elements."""
 
     provider: str | None = None  # Optional provider override
-    project_id: uuid.UUID | None = None  # Optional: auto-create conditions in this project
+    project_id: uuid.UUID | None = (
+        None  # Optional: auto-create conditions in this project
+    )
 
 
 class CompareProvidersRequest(BaseModel):
@@ -83,7 +86,9 @@ class PredictNextPointRequest(BaseModel):
     condition_id: uuid.UUID
     last_geometry_type: str
     last_geometry_data: dict[str, Any]
-    viewport_bounds: dict[str, Any] | None = None  # Reserved for future viewport cropping
+    viewport_bounds: dict[str, Any] | None = (
+        None  # Reserved for future viewport cropping
+    )
 
 
 class PredictNextPointResponse(BaseModel):
@@ -111,7 +116,7 @@ async def get_calibrated_page(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CalibratedPageData:
     """Dependency to fetch and validate a calibrated page.
-    
+
     Raises:
         HTTPException 404: If page not found
         HTTPException 400: If page not calibrated
@@ -142,7 +147,7 @@ async def get_calibrated_page(
 
 def validate_provider(provider: str | None) -> str | None:
     """Validate that provider is available if specified.
-    
+
     Raises:
         HTTPException 400: If provider not available
     """
@@ -220,7 +225,9 @@ async def generate_ai_takeoff(
     Available providers: anthropic, openai, google, xai
     """
     # Verify condition exists
-    result = await db.execute(select(Condition).where(Condition.id == request.condition_id))
+    result = await db.execute(
+        select(Condition).where(Condition.id == request.condition_id)
+    )
     condition = result.scalar_one_or_none()
 
     if not condition:
@@ -246,7 +253,11 @@ async def generate_ai_takeoff(
         task_type="ai_takeoff",
         task_name=f"AI takeoff for page {page_id}{provider_msg}",
         project_id=str(page_data.document.project_id),
-        metadata={"page_id": str(page_id), "condition_id": str(request.condition_id), "provider": provider},
+        metadata={
+            "page_id": str(page_id),
+            "condition_id": str(request.condition_id),
+            "provider": provider,
+        },
         celery_task=generate_ai_takeoff_task,
         args=[str(page_id), str(request.condition_id)],
         kwargs={"provider": provider},
@@ -315,7 +326,9 @@ async def compare_providers(
     Does not create measurements - just returns comparison data.
     """
     # Verify condition exists
-    result = await db.execute(select(Condition).where(Condition.id == request.condition_id))
+    result = await db.execute(
+        select(Condition).where(Condition.id == request.condition_id)
+    )
     condition = result.scalar_one_or_none()
 
     if not condition:
@@ -347,7 +360,11 @@ async def compare_providers(
         task_type="compare_providers",
         task_name=f"Provider comparison for page {page_id}",
         project_id=str(page_data.document.project_id),
-        metadata={"page_id": str(page_id), "condition_id": str(request.condition_id), "providers": providers},
+        metadata={
+            "page_id": str(page_id),
+            "condition_id": str(request.condition_id),
+            "providers": providers,
+        },
         celery_task=compare_providers_task,
         args=[str(page_id), str(request.condition_id)],
         kwargs={"providers": providers},
@@ -365,7 +382,9 @@ async def batch_ai_takeoff(
     All pages must belong to the same project as the condition and be calibrated.
     """
     # Verify condition exists
-    result = await db.execute(select(Condition).where(Condition.id == request.condition_id))
+    result = await db.execute(
+        select(Condition).where(Condition.id == request.condition_id)
+    )
     condition = result.scalar_one_or_none()
 
     if not condition:
@@ -403,8 +422,7 @@ async def batch_ai_takeoff(
 
     # Check all pages belong to the condition's project
     invalid_pages = [
-        str(page.id) for page, doc in rows
-        if doc.project_id != condition.project_id
+        str(page.id) for page, doc in rows if doc.project_id != condition.project_id
     ]
     if invalid_pages:
         raise HTTPException(
@@ -414,8 +432,7 @@ async def batch_ai_takeoff(
 
     # Check all pages are calibrated
     uncalibrated_pages = [
-        str(page.id) for page, doc in rows
-        if not page.scale_calibrated
+        str(page.id) for page, doc in rows if not page.scale_calibrated
     ]
     if uncalibrated_pages:
         raise HTTPException(
@@ -462,7 +479,9 @@ async def get_available_providers() -> AvailableProvidersResponse:
     )
 
 
-@router.post("/pages/{page_id}/predict-next-point", response_model=PredictNextPointResponse)
+@router.post(
+    "/pages/{page_id}/predict-next-point", response_model=PredictNextPointResponse
+)
 async def predict_next_point(
     page_id: uuid.UUID,
     request_body: PredictNextPointRequest,
@@ -476,22 +495,22 @@ async def predict_next_point(
     """
     start = time.monotonic()
     try:
-        # Read page image
-        import pathlib
-        image_path = pathlib.Path(page_data.page.image_path) if page_data.page.image_path else None
-        if not image_path or not image_path.exists():
+        # Read page image from MinIO storage
+        image_key = page_data.page.image_key
+        if not image_key:
             return PredictNextPointResponse(
                 prediction=None,
                 latency_ms=round((time.monotonic() - start) * 1000, 1),
             )
 
-        image_bytes = image_path.read_bytes()
+        storage = get_storage_service()
+        image_bytes = storage.download_file(image_key)
 
         service = get_predict_point_service()
         prediction = service.predict_next(
             image_bytes=image_bytes,
-            image_width=page_data.page.image_width or 1,
-            image_height=page_data.page.image_height or 1,
+            image_width=page_data.page.width or 1,
+            image_height=page_data.page.height or 1,
             last_geometry_type=request_body.last_geometry_type,
             last_geometry_data=request_body.last_geometry_data,
             provider=None,

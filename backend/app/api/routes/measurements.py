@@ -26,7 +26,9 @@ router = APIRouter()
 logger = structlog.get_logger()
 
 
-@router.get("/conditions/{condition_id}/measurements", response_model=MeasurementListResponse)
+@router.get(
+    "/conditions/{condition_id}/measurements", response_model=MeasurementListResponse
+)
 async def list_condition_measurements(
     condition_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -38,7 +40,7 @@ async def list_condition_measurements(
         .order_by(Measurement.created_at)
     )
     measurements = result.scalars().all()
-    
+
     return MeasurementListResponse(
         measurements=[MeasurementResponse.model_validate(m) for m in measurements],
         total=len(measurements),
@@ -57,7 +59,7 @@ async def list_page_measurements(
         .where(Measurement.page_id == page_id)
     )
     measurements = result.scalars().all()
-    
+
     return MeasurementListResponse(
         measurements=[MeasurementResponse.model_validate(m) for m in measurements],
         total=len(measurements),
@@ -76,7 +78,7 @@ async def create_measurement(
 ):
     """Create a new measurement."""
     engine = get_measurement_engine()
-    
+
     try:
         measurement = await engine.create_measurement(
             session=db,
@@ -104,13 +106,13 @@ async def get_measurement(
         select(Measurement).where(Measurement.id == measurement_id)
     )
     measurement = result.scalar_one_or_none()
-    
+
     if not measurement:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Measurement not found",
         )
-    
+
     return MeasurementResponse.model_validate(measurement)
 
 
@@ -122,7 +124,7 @@ async def update_measurement(
 ):
     """Update a measurement."""
     engine = get_measurement_engine()
-    
+
     try:
         measurement = await engine.update_measurement(
             session=db,
@@ -145,7 +147,7 @@ async def delete_measurement(
 ):
     """Delete a measurement."""
     engine = get_measurement_engine()
-    
+
     try:
         await engine.delete_measurement(db, measurement_id)
     except ValueError as e:
@@ -155,14 +157,16 @@ async def delete_measurement(
         )
 
 
-@router.post("/measurements/{measurement_id}/recalculate", response_model=MeasurementResponse)
+@router.post(
+    "/measurements/{measurement_id}/recalculate", response_model=MeasurementResponse
+)
 async def recalculate_measurement(
     measurement_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Recalculate a measurement (e.g., after scale change)."""
     engine = get_measurement_engine()
-    
+
     try:
         measurement = await engine.recalculate_measurement(db, measurement_id)
         return MeasurementResponse.model_validate(measurement)
@@ -179,12 +183,12 @@ async def _recalculate_measurements_batch(
     log_context: dict[str, str],
 ) -> dict:
     """Helper to recalculate a list of measurements and log failures.
-    
+
     Args:
         db: Database session
         measurement_ids: List of measurement UUIDs to recalculate
         log_context: Additional context for logging (e.g., page_id or condition_id)
-        
+
     Returns:
         Dict with status, recalculated_count, failed_count, and failed_ids
     """
@@ -262,26 +266,12 @@ async def adjust_measurement(
     adjuster = get_geometry_adjuster()
 
     try:
-        measurement = await adjuster.adjust_measurement(
+        measurement, created_id = await adjuster.adjust_measurement(
             session=db,
             measurement_id=measurement_id,
             action=request.action,
             params=request.params,
         )
-
-        # For split, check if a new measurement was created
-        created_id = None
-        if request.action == "split":
-            # The newly created measurement has a note referencing the source
-            result = await db.execute(
-                select(Measurement.id)
-                .where(Measurement.notes == f"Split from {measurement_id}")
-                .order_by(Measurement.created_at.desc())
-                .limit(1)
-            )
-            row = result.scalar_one_or_none()
-            if row:
-                created_id = str(row)
 
         return GeometryAdjustResponse(
             action=request.action,
@@ -290,7 +280,7 @@ async def adjust_measurement(
             new_geometry_data=measurement.geometry_data,
             new_quantity=measurement.quantity,
             new_unit=measurement.unit,
-            created_measurement_id=created_id,
+            created_measurement_id=str(created_id) if created_id else None,
         )
     except ValueError as e:
         raise HTTPException(

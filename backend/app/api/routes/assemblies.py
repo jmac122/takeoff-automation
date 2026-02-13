@@ -51,7 +51,7 @@ async def list_assembly_templates(
 
     from app.models.assembly import AssemblyTemplate
 
-    query = select(AssemblyTemplate).where(AssemblyTemplate.is_active == True)  # noqa: E712
+    query = select(AssemblyTemplate).where(AssemblyTemplate.is_active.is_(True))
 
     if scope:
         query = query.where(AssemblyTemplate.scope == scope)
@@ -435,9 +435,7 @@ async def validate_formula(request: FormulaValidateRequest):
         except ValueError as e:
             return FormulaValidateResponse(is_valid=False, error=str(e))
 
-    return FormulaValidateResponse(
-        is_valid=True, test_result=test_result
-    )
+    return FormulaValidateResponse(is_valid=True, test_result=test_result)
 
 
 @router.get("/formulas/presets")

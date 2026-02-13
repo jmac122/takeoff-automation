@@ -388,7 +388,9 @@ async def get_revision_chain(
     chain: list[Document] = [document]
     current = document
     visited = {document.id}
-    while current.supersedes_document_id and current.supersedes_document_id not in visited:
+    while (
+        current.supersedes_document_id and current.supersedes_document_id not in visited
+    ):
         result = await db.execute(
             select(Document).where(Document.id == current.supersedes_document_id)
         )
@@ -408,7 +410,7 @@ async def get_revision_chain(
                 Document.id.notin_(visited),
             )
         )
-        next_doc = result.scalar_one_or_none()
+        next_doc = result.scalars().first()
         if not next_doc:
             break
         visited.add(next_doc.id)
@@ -474,13 +476,17 @@ async def compare_pages(
 
     if old_page and old_page.image_key:
         try:
-            old_image_url = storage.get_presigned_url(old_page.image_key, expires_in=3600)
+            old_image_url = storage.get_presigned_url(
+                old_page.image_key, expires_in=3600
+            )
         except Exception:
             pass
 
     if new_page and new_page.image_key:
         try:
-            new_image_url = storage.get_presigned_url(new_page.image_key, expires_in=3600)
+            new_image_url = storage.get_presigned_url(
+                new_page.image_key, expires_in=3600
+            )
         except Exception:
             pass
 
