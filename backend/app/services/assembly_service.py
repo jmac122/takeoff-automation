@@ -409,9 +409,14 @@ class AssemblyService:
             qty=condition.total_quantity or 0.0,
             depth=condition.depth or 0.0,
             thickness=condition.thickness or 0.0,
-            # These fields don't exist on Condition yet, default to 0
+            count=condition.measurement_count or 0,
+            # TODO: Add the following fields to Condition model to support template formulas:
+            # - perimeter: Float (for perimeter-based calculations like sidewalks)
+            # - height: Float (for height-based volume calculations)
+            # - width: Float (for width-based area calculations)
+            # - length: Float (for length-based linear calculations)
+            # Currently these are placeholders set to 0 and will be used once model is extended.
             perimeter=0.0,
-            count=0,
             height=0.0,
             width=0.0,
             length=0.0,

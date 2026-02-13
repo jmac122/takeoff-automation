@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -243,20 +243,29 @@ class AutoCountService:
 
         When both sources detect the same element, keep the higher-confidence one.
         LLM matches that don't overlap with template matches are added as new.
+        Tags each match with source: "template", "llm", or "both".
         """
         merged = list(template_matches)
+        
+        # Tag all template matches with source
+        for match in merged:
+            match.source = "template"  # type: ignore
 
         for llm_match in llm_matches:
             is_duplicate = False
             for i, existing in enumerate(merged):
                 iou = self.template_matcher._compute_iou(llm_match, existing)
                 if iou > 0.30:
-                    # Overlapping — keep the higher confidence
+                    # Overlapping — mark as both sources, keep the higher confidence
                     if llm_match.confidence > existing.confidence:
+                        llm_match.source = "both"  # type: ignore
                         merged[i] = llm_match
+                    else:
+                        existing.source = "both"  # type: ignore
                     is_duplicate = True
                     break
             if not is_duplicate:
+                llm_match.source = "llm"  # type: ignore
                 merged.append(llm_match)
 
         return merged
@@ -268,6 +277,10 @@ class AutoCountService:
         llm_count: int,
     ) -> str:
         """Determine the source label for a merged match."""
+        # Check if match has source tag (from _merge_detections)
+        if hasattr(match, 'source') and match.source:
+            return match.source  # type: ignore
+        # Fallback to global counts (for non-hybrid mode)
         if template_count > 0 and llm_count > 0:
             return "both"
         elif template_count > 0:
@@ -378,10 +391,16 @@ class AutoCountService:
             count += 1
 
         if count > 0:
-            # Update condition total_quantity
+            # Update condition totals using SQL aggregate query
             condition = await db.get(Condition, session.condition_id)
             if condition is not None:
-                condition.total_quantity = (condition.total_quantity or 0) + count
+                result = await db.execute(
+                    select(func.sum(Measurement.quantity), func.count(Measurement.id))
+                    .where(Measurement.condition_id == condition.id, Measurement.is_rejected == False)
+                )
+                row = result.one()
+                condition.total_quantity = row[0] or 0.0
+                condition.measurement_count = row[1] or 0
 
         await db.commit()
 

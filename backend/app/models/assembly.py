@@ -129,7 +129,7 @@ class CostItem(Base, UUIDMixin, TimestampMixin):
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    extra_data: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
+    extra_data: Mapped[dict | None] = mapped_column("extra_data", JSONB, nullable=True)
 
 
 class Assembly(Base, UUIDMixin, TimestampMixin):
@@ -190,7 +190,7 @@ class Assembly(Base, UUIDMixin, TimestampMixin):
 
     # Extra
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    extra_data: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
+    extra_data: Mapped[dict | None] = mapped_column("extra_data", JSONB, nullable=True)
 
     # Relationships
     condition: Mapped["Condition"] = relationship(
@@ -260,7 +260,7 @@ class AssemblyComponent(Base, UUIDMixin, TimestampMixin):
 
     # Extra
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    extra_data: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
+    extra_data: Mapped[dict | None] = mapped_column("extra_data", JSONB, nullable=True)
 
     # Relationships
     assembly: Mapped["Assembly"] = relationship("Assembly", back_populates="components")

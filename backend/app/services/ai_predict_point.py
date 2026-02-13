@@ -150,7 +150,17 @@ class PredictNextPointService:
             # Normalise point format coming from the LLM
             if geometry_type == "point" and isinstance(geometry_data, dict):
                 if "x" not in geometry_data:
-                    geometry_data = {"x": geometry_data.get("x", 0), "y": geometry_data.get("y", 0)}
+                    # Try alternative coordinate formats from LLM
+                    if "point" in geometry_data and isinstance(geometry_data["point"], dict):
+                        geometry_data = {"x": geometry_data["point"].get("x", 0), "y": geometry_data["point"].get("y", 0)}
+                    elif isinstance(geometry_data, list) and len(geometry_data) >= 2:
+                        geometry_data = {"x": geometry_data[0], "y": geometry_data[1]}
+                    else:
+                        logger.warning("Unrecognized point format from LLM", data=geometry_data)
+                        return None
+            elif geometry_type == "point" and isinstance(geometry_data, list) and len(geometry_data) >= 2:
+                # Handle list format: [x, y]
+                geometry_data = {"x": geometry_data[0], "y": geometry_data[1]}
             elif geometry_type in ("line", "polyline", "polygon"):
                 if "points" not in geometry_data and isinstance(geometry_data, list):
                     geometry_data = {"points": geometry_data}

@@ -84,7 +84,7 @@ def upgrade() -> None:
         sa.Column("region", sa.String(100), nullable=True),
         sa.Column("is_active", sa.Boolean, server_default="true"),
         sa.Column("notes", sa.Text, nullable=True),
-        sa.Column("metadata", postgresql.JSONB, nullable=True),
+        sa.Column("extra_data", postgresql.JSONB, nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -138,7 +138,7 @@ def upgrade() -> None:
         sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("locked_by", sa.String(255), nullable=True),
         sa.Column("notes", sa.Text, nullable=True),
-        sa.Column("metadata", postgresql.JSONB, nullable=True),
+        sa.Column("extra_data", postgresql.JSONB, nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -188,7 +188,7 @@ def upgrade() -> None:
         sa.Column("is_included", sa.Boolean, server_default="true"),
         sa.Column("is_optional", sa.Boolean, server_default="false"),
         sa.Column("notes", sa.Text, nullable=True),
-        sa.Column("metadata", postgresql.JSONB, nullable=True),
+        sa.Column("extra_data", postgresql.JSONB, nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
