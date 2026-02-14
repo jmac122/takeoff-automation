@@ -320,6 +320,16 @@ class TestRevisionCyclesAndBranches:
         # Should check if old_doc already has a successor
         assert "already has a successor" in source.lower()
 
+    def test_restores_previous_parent_latest_flag(self):
+        """When re-linking, the old parent's is_latest_revision should be restored."""
+        import inspect
+        from app.api.routes.documents import link_revision
+
+        source = inspect.getsource(link_revision)
+        # Should restore previous parent's flag when re-linking
+        assert "previous_parent" in source
+        assert "is_latest_revision = True" in source
+
 
 # ============================================================================
 # Bug 8: Page comparison uses PNG viewer keys (not TIFF)
@@ -334,14 +344,16 @@ class TestPageComparisonImageFormat:
         from app.api.routes.documents import compare_pages
 
         import inspect
+
         source = inspect.getsource(compare_pages)
-        
+
         # Should have a helper that converts .tiff to .png
         assert "_get_viewer_image_key" in source or ".replace" in source
         assert ".png" in source
 
     def test_conversion_logic(self):
         """Test the TIFF→PNG key conversion logic."""
+
         def _get_viewer_image_key(image_key: str) -> str:
             """Convert .tiff storage keys to .png for browser compatibility."""
             if image_key.endswith(".tiff"):

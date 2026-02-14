@@ -386,6 +386,27 @@ async def link_revision(
             detail=f"Document already has a successor: {existing_successor.original_filename}",
         )
 
+    # If document was previously linked to a different parent, restore
+    # that old parent's is_latest_revision flag (it no longer has a successor)
+    previous_parent_id = document.supersedes_document_id
+    if previous_parent_id and previous_parent_id != request.supersedes_document_id:
+        result = await db.execute(
+            select(Document).where(Document.id == previous_parent_id)
+        )
+        previous_parent = result.scalar_one_or_none()
+        if previous_parent:
+            # Check if the previous parent has any OTHER successors
+            result = await db.execute(
+                select(Document).where(
+                    Document.supersedes_document_id == previous_parent_id,
+                    Document.id != document_id,
+                )
+            )
+            other_successor = result.scalar_one_or_none()
+            if not other_successor:
+                # No other successors, restore is_latest_revision
+                previous_parent.is_latest_revision = True
+
     # Update current document
     document.supersedes_document_id = request.supersedes_document_id
     document.revision_number = request.revision_number
@@ -393,7 +414,7 @@ async def link_revision(
     document.revision_label = request.revision_label
     document.is_latest_revision = True
 
-    # Mark old document as no longer latest
+    # Mark new parent as no longer latest
     old_doc.is_latest_revision = False
 
     await db.commit()
