@@ -42,11 +42,15 @@ frontend/src/
 │   ├── ui/                 # shadcn/ui primitives (50+)
 │   ├── viewer/             # Takeoff viewer and canvas
 │   └── workspace/          # Workspace layout orchestration
-│       ├── TakeoffWorkspace.tsx   # Main 3-panel layout
-│       ├── TopToolbar.tsx
+│       ├── TakeoffWorkspace.tsx   # Main 3-panel layout + scale/calibration/title block orchestration
+│       ├── TopToolbar.tsx         # Drawing tools, zoom, scale, title block, grid, AI, export, review
 │       ├── BottomStatusBar.tsx
-│       ├── CenterCanvas.tsx
-│       └── RightPanel.tsx
+│       ├── CenterCanvas.tsx       # Konva Stage with all overlay layers + measurement interaction
+│       ├── RightPanel.tsx
+│       ├── MeasurementContextMenu.tsx  # Right-click menu (duplicate, hide, z-order, delete)
+│       ├── ExportDropdown.tsx     # Export format selector (Excel, CSV, PDF, OST)
+│       ├── QuickAdjustToolbar.tsx # Floating geometry adjustment tools
+│       └── GridOverlay.tsx        # SVG grid overlay
 │
 ├── contexts/               # React contexts (FocusContext)
 ├── hooks/                  # Custom hooks
@@ -54,14 +58,22 @@ frontend/src/
 │   ├── useKeyboardShortcuts.ts
 │   ├── useMeasurements.ts
 │   ├── usePageImage.ts
-│   ├── useScaleCalibration.ts
-│   ├── useScaleDetection.ts
-│   ├── useCanvasControls.ts
-│   ├── useCanvasEvents.ts
-│   ├── useDrawingState.ts
+│   ├── useScaleCalibration.ts  # Scale calibration line drawing workflow
+│   ├── useScaleDetection.ts    # AI scale detection with polling
+│   ├── useUndoRedo.ts          # Undo/redo action stack (lifted to TakeoffWorkspace)
+│   ├── useWorkspaceCanvasControls.ts  # Zoom/pan tied to workspaceStore viewport
+│   ├── useWorkspaceCanvasEvents.ts    # Stage click/drag/pan event routing
+│   ├── useWorkspaceDrawingState.ts    # Drawing state bridge to workspaceStore
+│   ├── useCanvasControls.ts    # (legacy, used by TakeoffViewer)
+│   ├── useCanvasEvents.ts      # (legacy, used by TakeoffViewer)
+│   ├── useDrawingState.ts      # (legacy, used by TakeoffViewer)
+│   ├── useAutoTab.ts           # AI AutoTab prediction + accept/dismiss
+│   ├── useAiAssist.ts          # Batch AI task management
+│   ├── useExport.ts            # Export polling + auto-download
+│   ├── useQuickAdjust.ts       # Geometry adjustment mutation + keyboard
+│   ├── useReviewActions.ts     # Review approve/reject/skip
 │   ├── useTaskPolling.ts
-│   ├── useNotifications.ts
-│   └── useUndoRedo.ts
+│   └── useNotifications.ts
 │
 ├── lib/                    # Utility functions and constants
 │   └── constants.ts        # Panel sizes, zoom limits, feature flags
@@ -190,6 +202,16 @@ Custom hooks in `/hooks/useConditions.ts` wrap all condition operations with pro
 ```
 TakeoffWorkspace
 ├── TopToolbar
+│   ├── Drawing tools (Select, Line, Polyline, Polygon, Rectangle, Circle, Point, Measure)
+│   ├── Undo / Redo (wired to useUndoRedo)
+│   ├── Zoom controls
+│   ├── Scale section (Set Scale, Auto Detect, Show Location)
+│   ├── Title Block section (toggle mode, Show Region)
+│   ├── Grid section (snap toggle, grid visibility)
+│   ├── AI Assist + AI Confidence overlay
+│   ├── Review mode toggle
+│   ├── ExportDropdown
+│   └── Panel collapse toggles
 ├── Panel Group (horizontal, resizable)
 │   ├── Left Panel (15-35%, collapsible)
 │   │   └── SheetTree
@@ -199,14 +221,20 @@ TakeoffWorkspace
 │   ├── Separator
 │   ├── Center Panel (min 30%)
 │   │   └── CenterCanvas (Konva)
+│   │       ├── Konva Layers: image, measurements, preview, calibration, title block, scale, ghost
+│   │       ├── HTML overlays: scale warning, detection banner, calibration/title block banners
+│   │       ├── MeasurementsPanel (floating, bottom-right)
+│   │       └── MeasurementContextMenu (duplicate, hide, z-order, delete)
 │   ├── Separator
 │   └── Right Panel (18-40%, collapsible)
-│       └── RightPanel
+│       └── RightPanel (tabbed: Conditions, Cost, Revisions)
 │           └── ConditionPanel
 │               ├── QuickCreateBar (template dropdown)
 │               ├── ConditionList (scrollable, selectable)
 │               └── PropertiesInspector (active condition details)
-└── BottomStatusBar
+├── BottomStatusBar
+├── ScaleCalibrationDialog (modal, after calibration line drawn)
+└── Title block save banner (fixed overlay)
 ```
 
 ### ConditionPanel Component Hierarchy
@@ -253,10 +281,18 @@ Features:
 | Key | Context | Action |
 |---|---|---|
 | `1`-`9` | Condition panel | Select condition by position |
-| `V` | Active condition | Toggle visibility |
-| `Ctrl+D` | Active condition | Duplicate condition |
-| `Delete` | Active condition | Delete (with confirmation) |
-| `Escape` | Global | Reset drawing state, clear selection |
+| `V` | Canvas focused | Select tool |
+| `L` | Canvas focused | Line tool |
+| `P` | Canvas focused | Polyline tool |
+| `A` | Canvas focused | Polygon (area) tool |
+| `R` | Canvas focused | Rectangle tool |
+| `C` | Canvas focused | Circle tool |
+| `M` | Canvas focused | Measure tool (no condition required) |
+| `G` | Canvas focused | Toggle snap-to-grid |
+| `Ctrl+Z` | Global | Undo last action |
+| `Ctrl+Shift+Z` | Global | Redo last action |
+| `Delete`/`Backspace` | Canvas focused | Delete selected measurement(s) |
+| `Escape` | Global | Reset drawing state, clear selection, cancel calibration/title block mode |
 
 ## Routing
 

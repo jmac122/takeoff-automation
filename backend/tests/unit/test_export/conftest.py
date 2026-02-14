@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 
-from app.services.export.base import ExportData, ConditionData, MeasurementData
+from app.services.export.base import ExportData, ConditionData, MeasurementData, AssemblyCostData
 
 
 @pytest.fixture
@@ -46,6 +46,19 @@ def sample_project_data(sample_project_id, sample_page_id):
                 building="Main Building",
                 area="Ground Floor",
                 elevation="0'-0\"",
+                assembly_cost=AssemblyCostData(
+                    material_cost=4500.00,
+                    labor_cost=3000.00,
+                    equipment_cost=500.00,
+                    subcontract_cost=0.00,
+                    other_cost=200.00,
+                    total_cost=8200.00,
+                    unit_cost=5.47,
+                    total_labor_hours=40.0,
+                    overhead_percent=10.0,
+                    profit_percent=8.0,
+                    total_with_markup=9676.00,
+                ),
                 measurements=[
                     MeasurementData(
                         id=uuid.uuid4(),
@@ -204,3 +217,9 @@ def empty_project_data(sample_project_id):
         client_name=None,
         conditions=[],
     )
+
+
+@pytest.fixture
+def costed_project_data(sample_project_data):
+    """Project data where all conditions with measurements also have assembly costs."""
+    return sample_project_data

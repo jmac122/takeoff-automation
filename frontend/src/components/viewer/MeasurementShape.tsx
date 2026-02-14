@@ -4,6 +4,7 @@ import type Konva from 'konva';
 
 import type { Condition, JsonObject, Measurement } from '@/types';
 import { offsetGeometryData } from '@/utils/measurementUtils';
+import { getReviewColor } from '@/components/workspace/CenterCanvas';
 import { ShapeTransformer } from './ShapeTransformer';
 
 type Point = { x: number; y: number };
@@ -23,6 +24,7 @@ interface MeasurementShapeProps {
     onSelect: () => void;
     onUpdate: (geometryData: JsonObject, previousGeometryData?: JsonObject) => void;
     onContextMenu?: (event: Konva.KonvaEventObject<PointerEvent | MouseEvent>) => void;
+    aiConfidenceOverlay?: boolean;
 }
 
 export function MeasurementShape({
@@ -34,6 +36,7 @@ export function MeasurementShape({
     onSelect,
     onUpdate,
     onContextMenu,
+    aiConfidenceOverlay,
 }: MeasurementShapeProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [localGeometry, setLocalGeometry] = useState<JsonObject>(
@@ -41,7 +44,7 @@ export function MeasurementShape({
     );
     const geometryBeforeDragRef = useRef<JsonObject | null>(null);
     const geometryBeforeTransformRef = useRef<JsonObject | null>(null);
-    const invalidLoggedRef = useRef<Set<string>>(new Set());
+
     const rectRef = useRef<Konva.Rect>(null);
     const circleRef = useRef<Konva.Circle>(null);
     const cursorRef = useRef<string | null>(null);
@@ -69,11 +72,25 @@ export function MeasurementShape({
         cursorRef.current = null;
     }, []);
 
+    // Draft measurement styling: AI-generated but not yet verified
+    const isDraft = measurement.is_ai_generated && !measurement.is_verified;
+
+    // Determine effective color: confidence overlay overrides condition color
+    const effectiveColor =
+        aiConfidenceOverlay && measurement.is_ai_generated
+            ? getReviewColor(measurement.ai_confidence)
+            : condition.color;
+
     const strokeWidth = (condition.line_width || 2) / scale;
-    const fillOpacity = condition.fill_opacity || 0.3;
-    const dash = isSelected ? [6 / scale, 4 / scale] : undefined;
+    const fillOpacity = isDraft ? 0.15 : (condition.fill_opacity || 0.3);
+    const dash = isDraft
+        ? [6 / scale, 4 / scale]
+        : isSelected
+            ? [6 / scale, 4 / scale]
+            : undefined;
     const baseStrokeWidth = isSelected ? strokeWidth * 1.5 : strokeWidth;
     const displayStrokeWidth = isHovered ? baseStrokeWidth * 1.2 : baseStrokeWidth;
+    const groupOpacity = isDraft ? 0.6 : 1;
 
     const handleMouseEnter = useCallback(() => {
         setIsHovered(true);
@@ -199,6 +216,7 @@ export function MeasurementShape({
         draggable: isSelected && isEditing,
         onDragStart: handleGroupDragStart,
         onDragEnd: handleGroupDragEnd,
+        opacity: groupOpacity,
     };
 
     const labelText = useMemo(
@@ -264,12 +282,6 @@ export function MeasurementShape({
     }, [localGeometry, measurement.geometry_type]);
 
     if (!isValidGeometry) {
-        if (!invalidLoggedRef.current.has(measurement.id)) {
-            invalidLoggedRef.current.add(measurement.id);
-            // #region agent log
-            fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run5',hypothesisId:'H1',location:'MeasurementShape.tsx:88',message:'invalid measurement geometry',data:{measurementId:measurement.id,geometryType:measurement.geometry_type,geometryData:measurement.geometry_data},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
-        }
         return null;
     }
 
@@ -286,7 +298,7 @@ export function MeasurementShape({
                 y={point.y}
                 radius={5 / scale}
                 fill="#fff"
-                stroke={condition.color}
+                stroke={effectiveColor}
                 strokeWidth={2 / scale}
                 draggable
                 onDragStart={handleVertexDragStart}
@@ -305,7 +317,7 @@ export function MeasurementShape({
             />
         ));
     }, [
-        condition.color,
+        effectiveColor,
         clearCursor,
         handleVertexDragEnd,
         handleVertexDragMove,
@@ -327,7 +339,7 @@ export function MeasurementShape({
                 <Group {...commonGroupProps}>
                     <Line
                         points={[data.start.x, data.start.y, data.end.x, data.end.y]}
-                        stroke={condition.color}
+                        stroke={effectiveColor}
                         strokeWidth={displayStrokeWidth}
                         dash={dash}
                         hitStrokeWidth={20}
@@ -337,7 +349,7 @@ export function MeasurementShape({
                         y={midY - 10 / scale}
                         text={labelText}
                         fontSize={12 / scale}
-                        fill={condition.color}
+                        fill={effectiveColor}
                         offsetX={20}
                     />
                 </Group>
@@ -351,7 +363,7 @@ export function MeasurementShape({
                 <Group {...commonGroupProps}>
                     <Line
                         points={flatPoints}
-                        stroke={condition.color}
+                        stroke={effectiveColor}
                         strokeWidth={displayStrokeWidth}
                         dash={dash}
                         hitStrokeWidth={20}
@@ -361,7 +373,7 @@ export function MeasurementShape({
                         y={first.y - 15 / scale}
                         text={labelText}
                         fontSize={12 / scale}
-                        fill={condition.color}
+                        fill={effectiveColor}
                     />
                     {vertexHandles}
                 </Group>
@@ -376,9 +388,9 @@ export function MeasurementShape({
                 <Group {...commonGroupProps}>
                     <Line
                         points={flatPoints}
-                        stroke={condition.color}
+                        stroke={effectiveColor}
                         strokeWidth={displayStrokeWidth}
-                        fill={condition.color}
+                        fill={effectiveColor}
                         opacity={fillOpacity}
                         closed
                         dash={dash}
@@ -389,7 +401,7 @@ export function MeasurementShape({
                         y={centroidY}
                         text={labelText}
                         fontSize={14 / scale}
-                        fill={condition.color}
+                        fill={effectiveColor}
                         align="center"
                         offsetX={30}
                         offsetY={7}
@@ -408,9 +420,9 @@ export function MeasurementShape({
                         y={data.y}
                         width={data.width}
                         height={data.height}
-                        stroke={condition.color}
+                        stroke={effectiveColor}
                         strokeWidth={displayStrokeWidth}
-                        fill={condition.color}
+                        fill={effectiveColor}
                         opacity={fillOpacity}
                         dash={dash}
                         onTransformStart={handleRectTransformStart}
@@ -421,7 +433,7 @@ export function MeasurementShape({
                         y={data.y + data.height / 2}
                         text={labelText}
                         fontSize={14 / scale}
-                        fill={condition.color}
+                        fill={effectiveColor}
                         align="center"
                         offsetX={30}
                         offsetY={7}
@@ -437,7 +449,7 @@ export function MeasurementShape({
                             y={data.y}
                             width={data.width}
                             height={data.height}
-                            stroke={condition.color}
+                            stroke={effectiveColor}
                             strokeWidth={1 / scale}
                             dash={[4 / scale, 4 / scale]}
                             listening={false}
@@ -455,9 +467,9 @@ export function MeasurementShape({
                         x={data.center.x}
                         y={data.center.y}
                         radius={data.radius}
-                        stroke={condition.color}
+                        stroke={effectiveColor}
                         strokeWidth={displayStrokeWidth}
-                        fill={condition.color}
+                        fill={effectiveColor}
                         opacity={fillOpacity}
                         dash={dash}
                         onTransformStart={handleCircleTransformStart}
@@ -468,7 +480,7 @@ export function MeasurementShape({
                         y={data.center.y}
                         text={labelText}
                         fontSize={14 / scale}
-                        fill={condition.color}
+                        fill={effectiveColor}
                         align="center"
                         offsetX={30}
                         offsetY={7}
@@ -483,7 +495,7 @@ export function MeasurementShape({
                             x={data.center.x}
                             y={data.center.y}
                             radius={data.radius}
-                            stroke={condition.color}
+                            stroke={effectiveColor}
                             strokeWidth={1 / scale}
                             dash={[4 / scale, 4 / scale]}
                             listening={false}
@@ -499,19 +511,19 @@ export function MeasurementShape({
                 <Group {...commonGroupProps}>
                     <Line
                         points={[data.x - markerSize, data.y - markerSize, data.x + markerSize, data.y + markerSize]}
-                        stroke={condition.color}
+                        stroke={effectiveColor}
                         strokeWidth={2 / scale}
                     />
                     <Line
                         points={[data.x + markerSize, data.y - markerSize, data.x - markerSize, data.y + markerSize]}
-                        stroke={condition.color}
+                        stroke={effectiveColor}
                         strokeWidth={2 / scale}
                     />
                     <Circle
                         x={data.x}
                         y={data.y}
                         radius={markerSize * 1.5}
-                        stroke={condition.color}
+                        stroke={effectiveColor}
                         strokeWidth={1 / scale}
                     />
                 </Group>

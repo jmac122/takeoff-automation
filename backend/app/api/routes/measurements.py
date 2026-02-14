@@ -18,13 +18,17 @@ from app.schemas.measurement import (
     MeasurementResponse,
     MeasurementListResponse,
 )
+from app.schemas.geometry_adjust import GeometryAdjustRequest, GeometryAdjustResponse
 from app.services.measurement_engine import get_measurement_engine
+from app.services.geometry_adjuster import get_geometry_adjuster
 
 router = APIRouter()
 logger = structlog.get_logger()
 
 
-@router.get("/conditions/{condition_id}/measurements", response_model=MeasurementListResponse)
+@router.get(
+    "/conditions/{condition_id}/measurements", response_model=MeasurementListResponse
+)
 async def list_condition_measurements(
     condition_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -36,7 +40,7 @@ async def list_condition_measurements(
         .order_by(Measurement.created_at)
     )
     measurements = result.scalars().all()
-    
+
     return MeasurementListResponse(
         measurements=[MeasurementResponse.model_validate(m) for m in measurements],
         total=len(measurements),
@@ -55,7 +59,7 @@ async def list_page_measurements(
         .where(Measurement.page_id == page_id)
     )
     measurements = result.scalars().all()
-    
+
     return MeasurementListResponse(
         measurements=[MeasurementResponse.model_validate(m) for m in measurements],
         total=len(measurements),
@@ -74,7 +78,7 @@ async def create_measurement(
 ):
     """Create a new measurement."""
     engine = get_measurement_engine()
-    
+
     try:
         measurement = await engine.create_measurement(
             session=db,
@@ -102,13 +106,13 @@ async def get_measurement(
         select(Measurement).where(Measurement.id == measurement_id)
     )
     measurement = result.scalar_one_or_none()
-    
+
     if not measurement:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Measurement not found",
         )
-    
+
     return MeasurementResponse.model_validate(measurement)
 
 
@@ -120,7 +124,7 @@ async def update_measurement(
 ):
     """Update a measurement."""
     engine = get_measurement_engine()
-    
+
     try:
         measurement = await engine.update_measurement(
             session=db,
@@ -143,7 +147,7 @@ async def delete_measurement(
 ):
     """Delete a measurement."""
     engine = get_measurement_engine()
-    
+
     try:
         await engine.delete_measurement(db, measurement_id)
     except ValueError as e:
@@ -153,14 +157,16 @@ async def delete_measurement(
         )
 
 
-@router.post("/measurements/{measurement_id}/recalculate", response_model=MeasurementResponse)
+@router.post(
+    "/measurements/{measurement_id}/recalculate", response_model=MeasurementResponse
+)
 async def recalculate_measurement(
     measurement_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Recalculate a measurement (e.g., after scale change)."""
     engine = get_measurement_engine()
-    
+
     try:
         measurement = await engine.recalculate_measurement(db, measurement_id)
         return MeasurementResponse.model_validate(measurement)
@@ -177,12 +183,12 @@ async def _recalculate_measurements_batch(
     log_context: dict[str, str],
 ) -> dict:
     """Helper to recalculate a list of measurements and log failures.
-    
+
     Args:
         db: Database session
         measurement_ids: List of measurement UUIDs to recalculate
         log_context: Additional context for logging (e.g., page_id or condition_id)
-        
+
     Returns:
         Dict with status, recalculated_count, failed_count, and failed_ids
     """
@@ -242,3 +248,42 @@ async def recalculate_condition_measurements(
     return await _recalculate_measurements_batch(
         db, measurement_ids, {"condition_id": str(condition_id)}
     )
+
+
+@router.put(
+    "/measurements/{measurement_id}/adjust",
+    response_model=GeometryAdjustResponse,
+)
+async def adjust_measurement(
+    measurement_id: uuid.UUID,
+    request: GeometryAdjustRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Apply a quick-adjust geometry operation to a measurement.
+
+    Supported actions: nudge, snap_to_grid, extend, trim, offset, split, join.
+    """
+    adjuster = get_geometry_adjuster()
+
+    try:
+        measurement, created_id = await adjuster.adjust_measurement(
+            session=db,
+            measurement_id=measurement_id,
+            action=request.action,
+            params=request.params,
+        )
+
+        return GeometryAdjustResponse(
+            action=request.action,
+            measurement_id=str(measurement.id),
+            new_geometry_type=measurement.geometry_type,
+            new_geometry_data=measurement.geometry_data,
+            new_quantity=measurement.quantity,
+            new_unit=measurement.unit,
+            created_measurement_id=str(created_id) if created_id else None,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )

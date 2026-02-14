@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker, Session, selectinload, joinedload
 
 from app.config import get_settings
 from app.models.export_job import ExportJob
-from app.services.export.base import ExportData, ConditionData, MeasurementData
+from app.services.export.base import ExportData, ConditionData, MeasurementData, AssemblyCostData
 from app.services.export.excel_exporter import ExcelExporter
 from app.services.export.ost_exporter import OSTExporter
 from app.services.export.csv_exporter import CSVExporter
@@ -52,6 +52,7 @@ def _fetch_export_data_sync(db: Session, project_id: uuid.UUID, options: dict | 
     from app.models.condition import Condition
     from app.models.measurement import Measurement
     from app.models.page import Page
+    from app.models.assembly import Assembly
 
     project = db.query(Project).filter(Project.id == project_id).one_or_none()
     if not project:
@@ -61,10 +62,17 @@ def _fetch_export_data_sync(db: Session, project_id: uuid.UUID, options: dict | 
     if options and not options.get("include_unverified", True):
         include_unverified = False
 
+    include_costs = True
+    if options and not options.get("include_costs", True):
+        include_costs = False
+
     conditions = (
         db.query(Condition)
         .filter(Condition.project_id == project_id)
-        .options(selectinload(Condition.measurements).joinedload(Measurement.page))
+        .options(
+            selectinload(Condition.measurements).joinedload(Measurement.page),
+            joinedload(Condition.assembly),
+        )
         .order_by(Condition.sort_order, Condition.name)
         .all()
     )
@@ -106,6 +114,24 @@ def _fetch_export_data_sync(db: Session, project_id: uuid.UUID, options: dict | 
             total_quantity = sum(m.quantity for m in measurement_data_list)
             measurement_count = len(measurement_data_list)
 
+        # Build assembly cost data if available
+        assembly_cost = None
+        if include_costs and cond.assembly:
+            asm = cond.assembly
+            assembly_cost = AssemblyCostData(
+                material_cost=float(asm.material_cost),
+                labor_cost=float(asm.labor_cost),
+                equipment_cost=float(asm.equipment_cost),
+                subcontract_cost=float(asm.subcontract_cost),
+                other_cost=float(asm.other_cost),
+                total_cost=float(asm.total_cost),
+                unit_cost=float(asm.unit_cost),
+                total_labor_hours=asm.total_labor_hours,
+                overhead_percent=asm.overhead_percent,
+                profit_percent=asm.profit_percent,
+                total_with_markup=float(asm.total_with_markup),
+            )
+
         condition_data_list.append(
             ConditionData(
                 id=cond.id,
@@ -123,6 +149,7 @@ def _fetch_export_data_sync(db: Session, project_id: uuid.UUID, options: dict | 
                 building=cond.building,
                 area=cond.area,
                 elevation=cond.elevation,
+                assembly_cost=assembly_cost,
                 measurements=measurement_data_list,
             )
         )

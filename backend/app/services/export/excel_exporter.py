@@ -39,6 +39,7 @@ class ExcelExporter(BaseExporter):
         self._build_summary_sheet(wb, data)
         self._build_detail_sheets(wb, data)
         self._build_page_sheets(wb, data)
+        self._build_cost_sheet(wb, data)
 
         buf = BytesIO()
         wb.save(buf)
@@ -80,7 +81,10 @@ class ExcelExporter(BaseExporter):
             ws.cell(row=2, column=1, value=f"Client: {sanitize_field(data.client_name)}")
 
         # Summary table
+        has_costs = any(c.assembly_cost for c in data.conditions)
         headers = ["Condition", "Type", "Unit", "Quantity", "Measurements", "Category", "Scope"]
+        if has_costs:
+            headers += ["Unit Cost", "Material", "Labor", "Total Cost", "Markup Total"]
         start_row = 4
         self._apply_header(ws, start_row, headers)
 
@@ -93,6 +97,19 @@ class ExcelExporter(BaseExporter):
             ws.cell(row=row, column=5, value=cond.measurement_count)
             ws.cell(row=row, column=6, value=sanitize_field(cond.category or ""))
             ws.cell(row=row, column=7, value=sanitize_field(cond.scope))
+            if has_costs and cond.assembly_cost:
+                ac = cond.assembly_cost
+                ws.cell(row=row, column=8, value=ac.unit_cost)
+                ws.cell(row=row, column=9, value=ac.material_cost)
+                ws.cell(row=row, column=10, value=ac.labor_cost)
+                ws.cell(row=row, column=11, value=ac.total_cost)
+                ws.cell(row=row, column=12, value=ac.total_with_markup)
+
+        # Project cost total row
+        if has_costs:
+            total_row = start_row + 1 + len(data.conditions)
+            ws.cell(row=total_row, column=1, value="PROJECT TOTAL").font = Font(bold=True)
+            ws.cell(row=total_row, column=12, value=data.total_project_cost).font = Font(bold=True)
 
         # Auto-size columns
         for col_idx in range(1, len(headers) + 1):
@@ -141,6 +158,54 @@ class ExcelExporter(BaseExporter):
 
             for col_idx in range(1, len(headers) + 1):
                 ws.column_dimensions[get_column_letter(col_idx)].width = 16
+
+    # ------------------------------------------------------------------
+    # Cost summary sheet
+    # ------------------------------------------------------------------
+
+    def _build_cost_sheet(self, wb: Workbook, data: ExportData) -> None:
+        costed = [c for c in data.conditions if c.assembly_cost]
+        if not costed:
+            return
+
+        ws = wb.create_sheet(title="Cost Summary")
+        ws.cell(row=1, column=1, value="Cost Summary").font = Font(bold=True, size=14)
+        ws.cell(row=2, column=1, value=f"Project: {sanitize_field(data.project_name)}")
+
+        headers = [
+            "Condition", "Qty", "Unit", "Unit Cost",
+            "Material", "Labor", "Equipment", "Subcontract", "Other",
+            "Total Cost", "OH %", "Profit %", "Total w/ Markup",
+        ]
+        self._apply_header(ws, 4, headers)
+
+        for idx, cond in enumerate(costed):
+            row = 5 + idx
+            ac = cond.assembly_cost
+            ws.cell(row=row, column=1, value=sanitize_field(cond.name))
+            ws.cell(row=row, column=2, value=cond.total_quantity)
+            ws.cell(row=row, column=3, value=format_unit(cond.unit))
+            ws.cell(row=row, column=4, value=ac.unit_cost)
+            ws.cell(row=row, column=5, value=ac.material_cost)
+            ws.cell(row=row, column=6, value=ac.labor_cost)
+            ws.cell(row=row, column=7, value=ac.equipment_cost)
+            ws.cell(row=row, column=8, value=ac.subcontract_cost)
+            ws.cell(row=row, column=9, value=ac.other_cost)
+            ws.cell(row=row, column=10, value=ac.total_cost)
+            ws.cell(row=row, column=11, value=ac.overhead_percent)
+            ws.cell(row=row, column=12, value=ac.profit_percent)
+            ws.cell(row=row, column=13, value=ac.total_with_markup)
+
+        total_row = 5 + len(costed)
+        ws.cell(row=total_row, column=1, value="TOTAL").font = Font(bold=True)
+        for col, attr in [(5, "material_cost"), (6, "labor_cost"), (7, "equipment_cost"),
+                          (8, "subcontract_cost"), (9, "other_cost"), (10, "total_cost"),
+                          (13, "total_with_markup")]:
+            ws.cell(row=total_row, column=col,
+                    value=sum(getattr(c.assembly_cost, attr) for c in costed)).font = Font(bold=True)
+
+        for col_idx in range(1, len(headers) + 1):
+            ws.column_dimensions[get_column_letter(col_idx)].width = 16
 
     # ------------------------------------------------------------------
     # Per-page sheets

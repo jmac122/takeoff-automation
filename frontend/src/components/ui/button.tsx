@@ -33,10 +33,6 @@ const buttonVariants = cva(
     }
 )
 
-// #region agent log
-fetch('http://127.0.0.1:7244/ingest/c2908297-06df-40fb-a71a-4f158024ffa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'H1',location:'button.tsx:36',message:'buttonVariants defined',data:{hasVariants:!!buttonVariants},timestamp:Date.now()})}).catch(()=>{});
-// #endregion
-
 export interface ButtonProps
     extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {

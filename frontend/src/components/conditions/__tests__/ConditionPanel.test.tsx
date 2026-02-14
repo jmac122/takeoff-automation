@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Mock lucide-react icons used by condition components
@@ -136,7 +136,7 @@ describe('ConditionPanel', () => {
       data: { conditions: [], total: 0 },
       isLoading: false,
       error: null,
-    } as ReturnType<typeof useConditions>);
+    } as unknown as ReturnType<typeof useConditions>);
 
     render(<ConditionPanel projectId="proj-1" />, { wrapper: createWrapper() });
     expect(screen.getByTestId('condition-list-empty')).toBeDefined();

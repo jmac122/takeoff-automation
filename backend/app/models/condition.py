@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from app.models.assembly import Assembly
     from app.models.project import Project
     from app.models.measurement import Measurement
 
@@ -76,5 +77,11 @@ class Condition(Base, UUIDMixin, TimestampMixin):
     measurements: Mapped[list["Measurement"]] = relationship(
         "Measurement",
         back_populates="condition",
+        cascade="all, delete-orphan",
+    )
+    assembly: Mapped["Assembly | None"] = relationship(
+        "Assembly",
+        back_populates="condition",
+        uselist=False,
         cascade="all, delete-orphan",
     )

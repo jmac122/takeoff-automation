@@ -29,7 +29,7 @@ interface PageCardProps {
 
 export function PageCard({
     page,
-    documentId,
+    projectId,
     isSelectMode = false,
     isSelected = false,
     onToggleSelect
@@ -143,7 +143,7 @@ export function PageCard({
                 {!isSelectMode && (
                     <div className="space-y-2">
                         {/* Open Takeoff Button */}
-                        <Link to={`/documents/${documentId}/pages/${page.id}`}>
+                        <Link to={`/projects/${projectId}/workspace`}>
                             <Button
                                 variant="outline"
                                 size="sm"

@@ -9,7 +9,7 @@ The workspace layout is a three-panel resizable interface designed for construct
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          Top Toolbar                                │
-│  [Tools] [Undo/Redo] [Zoom Controls] [AI Assist] [Panel Toggles]   │
+│  [Tools] [Undo/Redo] [Zoom] [Scale] [TitleBlock] [AI] [Export] [Panels] │
 ├───────────────┬─────────────────────────────┬───────────────────────┤
 │               │                             │                       │
 │  Sheet Tree   │      Center Canvas          │   Condition Panel     │
@@ -18,7 +18,11 @@ The workspace layout is a three-panel resizable interface designed for construct
 │  - Search     │  - Sheet image display      │   - Quick Create      │
 │  - Groups     │  - Drawing tools            │   - Condition List    │
 │  - Sheets     │  - Measurement overlay      │   - Properties        │
-│  - Thumbnails │  - Zoom/pan                 │                       │
+│  - Thumbnails │  - Zoom/pan                 │   - Cost Tab          │
+│               │  - Scale overlays           │   - Revisions Tab     │
+│               │  - Calibration overlay      │                       │
+│               │  - Title block overlay      │                       │
+│               │  - Measurements panel       │                       │
 │               │                             │                       │
 │  15-35%       │      min 30%                │   18-40%              │
 │  default: 20% │                             │   default: 25%        │
@@ -43,6 +47,47 @@ The workspace layout is a three-panel resizable interface designed for construct
 - **Image loading**: Preloads images with stale-flag pattern to prevent race conditions
 - **Zoom/Pan**: Stored in `viewport` state, clamped to `MIN_ZOOM..MAX_ZOOM`
 
+### Toolbar Sections
+
+The `TopToolbar` organizes controls into logical groups:
+
+| Section | Controls |
+|---------|----------|
+| Drawing Tools | Select, Line, Polyline, Polygon, Rectangle, Circle, Point, Measure |
+| Undo/Redo | Undo (Ctrl+Z), Redo (Ctrl+Shift+Z) — wired to canvas action stack |
+| Zoom | Zoom In, Zoom Out, Zoom percentage display |
+| Scale | Set Scale (manual calibration), Auto Detect (AI), Show Location (MapPin toggle) |
+| Title Block | Toggle title block drawing mode, Show/hide existing region |
+| Grid | Toggle snap-to-grid, Toggle grid visibility, Grid size |
+| AI Assist | Batch AI takeoff, AI confidence overlay toggle |
+| Review | Review mode toggle, confidence filter |
+| Export | Export dropdown (Excel, CSV, PDF, OST) |
+| Panels | Toggle left panel, Toggle right panel |
+
+### Context Menu (Right-Click on Measurement)
+
+| Action | Description |
+|--------|-------------|
+| Duplicate | Creates a copy offset by 12px |
+| Show/Hide | Toggles local visibility of the measurement |
+| Bring to Front | Moves measurement to top of z-order |
+| Send to Back | Moves measurement to bottom of z-order |
+| Delete | Removes measurement (with undo support) |
+
+### Canvas Overlays
+
+| Overlay | Trigger | Description |
+|---------|---------|-------------|
+| Scale Warning Banner | Sheet not calibrated | Amber bar at top of canvas warning about missing scale |
+| Scale Detection Banner | After auto-detect | Green bar showing detected scale with dismiss button |
+| Calibration Overlay | "Set Scale" clicked | Dashed amber line while user draws calibration line |
+| Title Block Overlay | Title block mode active | Blue dashed rectangle for drawing title block region |
+| Title Block Region | "Show Region" toggled | Green filled rectangle showing saved title block |
+| Scale Location | "Show Location" toggled | Green highlight on detected scale bbox |
+| Measurements Panel | Measurements exist | Bottom-right floating panel listing measurements per sheet |
+| Calibration Mode Banner | Calibrating | Blue banner at top: "CALIBRATION MODE — Draw a line..." |
+| Title Block Mode Banner | Drawing title block | Purple banner at top: "TITLE BLOCK MODE — Click and drag..." |
+
 ### Right Panel (Conditions)
 - **Default width**: 25%
 - **Min/Max**: 18% - 40%
@@ -65,6 +110,7 @@ The workspace is gated behind `ENABLE_NEW_WORKSPACE` in `/lib/constants.ts`. Whe
 2. React Query fetches:
    a. Project data: GET /projects/{id}
    b. Sheet tree:   GET /projects/{id}/sheets
+   c. Page data:    GET /pages/{activeSheetId} (scale_calibration_data, title_block_region)
 3. SheetTree renders grouped sheets from SheetsResponse
 4. User clicks sheet → setActiveSheet(sheetId)
 5. TakeoffWorkspace finds active sheet in sheetsData
@@ -87,21 +133,36 @@ The workspace is gated behind `ENABLE_NEW_WORKSPACE` in `/lib/constants.ts`. Whe
 
 | Key | Action |
 |---|---|
-| `Escape` | Reset drawing state, clear selection |
+| `Escape` | Reset drawing state, clear selection, cancel calibration/title block mode |
 | `1`-`9` | Select condition by position (from ConditionPanel) |
+| `V` | Select tool |
+| `L` | Line tool |
+| `P` | Polyline tool |
+| `A` | Polygon (area) tool |
+| `R` | Rectangle tool |
+| `C` | Circle tool |
+| `M` | Measure tool (no condition required) |
+| `Ctrl+Z` | Undo last action |
+| `Ctrl+Shift+Z` | Redo last action |
+| `Delete`/`Backspace` | Delete selected measurement(s) |
+| `G` | Toggle snap-to-grid |
 
 ## Key Files
 
 | File | Purpose |
 |---|---|
-| `frontend/src/components/workspace/TakeoffWorkspace.tsx` | Main layout orchestrator |
-| `frontend/src/components/workspace/TopToolbar.tsx` | Drawing tools, zoom, toggles |
-| `frontend/src/components/workspace/BottomStatusBar.tsx` | Status information |
-| `frontend/src/components/workspace/CenterCanvas.tsx` | Canvas rendering |
-| `frontend/src/components/workspace/RightPanel.tsx` | Condition panel wrapper |
-| `frontend/src/stores/workspaceStore.ts` | All workspace UI state |
-| `frontend/src/lib/constants.ts` | Panel size limits, feature flags |
-| `frontend/src/contexts/FocusContext.tsx` | Focus region tracking |
+| `frontend/src/components/workspace/TakeoffWorkspace.tsx` | Main layout orchestrator, scale/calibration/title block state |
+| `frontend/src/components/workspace/TopToolbar.tsx` | Drawing tools, zoom, scale, title block, grid, AI, export, review |
+| `frontend/src/components/workspace/BottomStatusBar.tsx` | Status information, review stats |
+| `frontend/src/components/workspace/CenterCanvas.tsx` | Konva canvas with all overlay layers and measurement interaction |
+| `frontend/src/components/workspace/RightPanel.tsx` | Condition panel, cost tab, revisions tab |
+| `frontend/src/components/workspace/MeasurementContextMenu.tsx` | Right-click context menu for measurements |
+| `frontend/src/stores/workspaceStore.ts` | All workspace UI state (Zustand) |
+| `frontend/src/lib/constants.ts` | Panel size limits, zoom bounds, feature flags, timeouts |
+| `frontend/src/contexts/FocusContext.tsx` | Focus region tracking for keyboard shortcuts |
+| `frontend/src/hooks/useScaleCalibration.ts` | Scale calibration line drawing workflow |
+| `frontend/src/hooks/useScaleDetection.ts` | Auto scale detection with polling |
+| `frontend/src/hooks/useUndoRedo.ts` | Undo/redo action stack |
 
 ## Backend Support
 

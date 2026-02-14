@@ -31,6 +31,7 @@ describe('WorkspaceStore', () => {
       autoTabEnabled: false,
       pendingPrediction: false,
       toolRejectionMessage: null,
+      sheetViewports: {},
     });
   });
 
@@ -51,6 +52,22 @@ describe('WorkspaceStore', () => {
     const { setActiveSheet } = useWorkspaceStore.getState();
     setActiveSheet('sheet-123');
     expect(useWorkspaceStore.getState().activeSheetId).toBe('sheet-123');
+  });
+
+  it('setActiveSheet saves viewport state for previous sheet (CM-037)', () => {
+    // Set up: active sheet with a viewport
+    useWorkspaceStore.setState({
+      activeSheetId: 'sheet-A',
+      viewport: { zoom: 2.5, panX: 100, panY: 200 },
+    });
+
+    // Switch to sheet-B
+    useWorkspaceStore.getState().setActiveSheet('sheet-B');
+
+    // Verify sheet-A's viewport was saved
+    const state = useWorkspaceStore.getState();
+    expect(state.activeSheetId).toBe('sheet-B');
+    expect(state.sheetViewports['sheet-A']).toEqual({ zoom: 2.5, panX: 100, panY: 200 });
   });
 
   it('setActiveTool prevents tool activation without active condition', () => {

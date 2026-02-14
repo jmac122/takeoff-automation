@@ -111,7 +111,9 @@ const safeScale = scale > 0 && Number.isFinite(scale) ? scale : 1;
 
 ---
 
-### Issue 4: TakeoffViewer Page Loads Black After Drawing Measurements
+### Issue 4: TakeoffViewer Page Loads Black After Drawing Measurements (Legacy Viewer)
+
+> **Note:** This issue applies to the deprecated `TakeoffViewer` route. The fix in `MeasurementShape.tsx` also protects the new `TakeoffWorkspace` canvas.
 
 **Symptoms:**
 - Specific pages render a black canvas after saving shapes

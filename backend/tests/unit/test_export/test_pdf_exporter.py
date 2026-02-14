@@ -80,3 +80,16 @@ class TestPDFExporter:
         result = exporter.generate(sample_project_data)
         text = _extract_pdf_text(result)
         assert "area" in text.lower() or "SF" in text
+
+    def test_cost_columns_in_summary_when_present(self, exporter, sample_project_data):
+        """PDF summary includes cost columns when assembly costs exist."""
+        result = exporter.generate(sample_project_data)
+        text = _extract_pdf_text(result)
+        assert "Unit Cost" in text
+        assert "$5.47" in text
+
+    def test_project_total_with_markup(self, exporter, sample_project_data):
+        """PDF includes the project total with markup."""
+        result = exporter.generate(sample_project_data)
+        text = _extract_pdf_text(result)
+        assert "markup" in text.lower() or "9,676" in text

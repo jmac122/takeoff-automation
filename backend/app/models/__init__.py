@@ -7,9 +7,12 @@ from app.models.condition import Condition
 from app.models.document import Document
 from app.models.page import Page
 from app.models.measurement import Measurement
+from app.models.measurement_history import MeasurementHistory
 from app.models.classification_history import ClassificationHistory
 from app.models.task import TaskRecord
 from app.models.export_job import ExportJob
+from app.models.assembly import Assembly, AssemblyComponent, AssemblyTemplate, CostItem
+from app.models.auto_count import AutoCountSession, AutoCountDetection
 
 __all__ = [
     "Base",
@@ -20,7 +23,14 @@ __all__ = [
     "Document",
     "Page",
     "Measurement",
+    "MeasurementHistory",
     "ClassificationHistory",
     "TaskRecord",
     "ExportJob",
+    "Assembly",
+    "AssemblyComponent",
+    "AssemblyTemplate",
+    "CostItem",
+    "AutoCountSession",
+    "AutoCountDetection",
 ]

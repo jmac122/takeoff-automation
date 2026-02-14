@@ -41,6 +41,12 @@ class MeasurementResponse(BaseModel):
     ai_confidence: float | None = None
     is_modified: bool
     is_verified: bool
+    is_rejected: bool = False
+    rejection_reason: str | None = None
+    review_notes: str | None = None
+    reviewed_at: datetime | None = None
+    original_geometry: dict[str, Any] | None = None
+    original_quantity: float | None = None
     notes: str | None = None
     created_at: datetime
     updated_at: datetime

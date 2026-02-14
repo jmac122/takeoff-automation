@@ -35,7 +35,7 @@ export interface MeasurementResult {
     };
 }
 
-type GeometryType = MeasurementResult['tool'];
+export type GeometryType = MeasurementResult['tool'];
 
 const hasNumber = (value: unknown): value is number => typeof value === 'number';
 

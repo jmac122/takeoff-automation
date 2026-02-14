@@ -1,5 +1,7 @@
  # Page Load Black Screen (Takeoff Viewer)
- 
+
+> **Historical Context (January 2026):** This document describes an issue in the legacy `TakeoffViewer` route (`/documents/:id/pages/:id`), which is now deprecated. The fix (geometry validation in `MeasurementShape.tsx`) is still active and also protects the new `TakeoffWorkspace` canvas.
+
  ## Summary
  Some pages in the Takeoff Viewer can render as a black screen after drawing and saving measurements. The page image loads, but Konva throws a draw error due to invalid measurement geometry.
  

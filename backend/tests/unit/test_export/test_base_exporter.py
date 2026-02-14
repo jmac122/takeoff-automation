@@ -8,6 +8,7 @@ from app.services.export.base import (
     ExportData,
     ConditionData,
     MeasurementData,
+    AssemblyCostData,
     format_unit,
     BaseExporter,
 )
@@ -137,3 +138,74 @@ class TestConditionData:
         )
         assert len(c.measurements) == 0
         assert c.total_quantity == 0.0
+
+    def test_condition_data_with_assembly_cost(self):
+        """ConditionData can include assembly cost data."""
+        ac = AssemblyCostData(
+            material_cost=1000.0,
+            labor_cost=500.0,
+            equipment_cost=200.0,
+            subcontract_cost=0.0,
+            other_cost=50.0,
+            total_cost=1750.0,
+            unit_cost=3.50,
+            total_labor_hours=20.0,
+            overhead_percent=10.0,
+            profit_percent=8.0,
+            total_with_markup=2065.0,
+        )
+        c = ConditionData(
+            id=uuid.uuid4(),
+            name="Costed",
+            description=None,
+            scope="concrete",
+            category=None,
+            measurement_type="area",
+            color="#000",
+            unit="SF",
+            depth=None,
+            thickness=None,
+            total_quantity=500.0,
+            measurement_count=2,
+            building=None,
+            area=None,
+            elevation=None,
+            assembly_cost=ac,
+        )
+        assert c.assembly_cost is not None
+        assert c.assembly_cost.material_cost == 1000.0
+        assert c.assembly_cost.total_with_markup == 2065.0
+
+    def test_condition_data_assembly_cost_defaults_none(self):
+        """ConditionData assembly_cost defaults to None."""
+        c = ConditionData(
+            id=uuid.uuid4(),
+            name="NoAssembly",
+            description=None,
+            scope="concrete",
+            category=None,
+            measurement_type="area",
+            color="#000",
+            unit="SF",
+            depth=None,
+            thickness=None,
+            total_quantity=0.0,
+            measurement_count=0,
+            building=None,
+            area=None,
+            elevation=None,
+        )
+        assert c.assembly_cost is None
+
+
+class TestExportDataCosts:
+
+    def test_total_project_cost(self, sample_project_data):
+        """total_project_cost sums total_with_markup across costed conditions."""
+        total = sample_project_data.total_project_cost
+        # Only Floor Slab has assembly_cost (9676.00)
+        assert total == 9676.00
+
+    def test_total_project_cost_no_assemblies(self, empty_project_data):
+        """total_project_cost is 0 when no conditions exist."""
+        assert empty_project_data.total_project_cost == 0.0

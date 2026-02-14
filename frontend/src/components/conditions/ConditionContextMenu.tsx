@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Copy, Pencil, Trash2, ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-react';
+import { Copy, Pencil, Trash2, ArrowUp, ArrowDown, Eye, EyeOff, Calculator } from 'lucide-react';
 import type { Condition } from '@/types';
 
 interface ConditionContextMenuProps {
@@ -14,6 +14,7 @@ interface ConditionContextMenuProps {
   onMoveUp: (condition: Condition) => void;
   onMoveDown: (condition: Condition) => void;
   onToggleVisibility: (condition: Condition) => void;
+  onCreateAssembly?: (condition: Condition) => void;
 }
 
 interface MenuItem {
@@ -37,6 +38,7 @@ export function ConditionContextMenu({
   onMoveUp,
   onMoveDown,
   onToggleVisibility,
+  onCreateAssembly,
 }: ConditionContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -69,6 +71,15 @@ export function ConditionContextMenu({
       shortcut: 'Ctrl+D',
       onClick: () => { onDuplicate(condition); onClose(); },
     },
+    ...(onCreateAssembly
+      ? [
+          {
+            label: 'Create Assembly',
+            icon: <Calculator className="h-3.5 w-3.5" />,
+            onClick: () => { onCreateAssembly(condition); onClose(); },
+          },
+        ]
+      : []),
     {
       label: condition.is_visible ? 'Hide' : 'Show',
       icon: condition.is_visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />,

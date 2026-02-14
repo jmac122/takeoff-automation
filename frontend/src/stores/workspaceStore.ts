@@ -22,6 +22,7 @@ export type DrawingTool =
   | 'polygon'
   | 'rectangle'
   | 'circle'
+  | 'point'     // Single-click count marker
   | 'measure'  // "M" key — no condition required
   | null;
 
@@ -57,6 +58,9 @@ interface WorkspaceState {
   selectedSheetIds: string[];
   highlightedSheetId: string | null;
 
+  // Per-sheet viewport persistence (CM-036)
+  sheetViewports: Record<string, ViewportState>;
+
   // Conditions & Drawing
   activeConditionId: string | null;
   activeTool: DrawingTool;
@@ -86,9 +90,27 @@ interface WorkspaceState {
   // AI Assist
   autoTabEnabled: boolean;
   pendingPrediction: boolean;
+  ghostPrediction: {
+    geometry_type: string;
+    geometry_data: Record<string, unknown>;
+    confidence: number;
+  } | null;
+  aiConfidenceOverlay: boolean;
+  batchAiTaskId: string | null;
 
   // Transient feedback (cleared on next successful action)
   toolRejectionMessage: string | null;
+
+  // Review mode
+  reviewMode: boolean;
+  reviewCurrentId: string | null;
+  reviewConfidenceFilter: number;
+  reviewAutoAdvance: boolean;
+
+  // Quick Adjust / Grid
+  snapToGrid: boolean;
+  gridSize: number;     // pixels
+  showGrid: boolean;
 }
 
 interface WorkspaceActions {
@@ -130,9 +152,26 @@ interface WorkspaceActions {
   // AI
   setAutoTabEnabled: (enabled: boolean) => void;
   setPendingPrediction: (pending: boolean) => void;
+  setGhostPrediction: (prediction: WorkspaceState['ghostPrediction']) => void;
+  clearGhostPrediction: () => void;
+  toggleAiConfidenceOverlay: () => void;
+  setBatchAiTaskId: (taskId: string | null) => void;
+  clearBatchAiTaskId: () => void;
 
   // Feedback
   clearToolRejection: () => void;
+
+  // Review mode
+  toggleReviewMode: () => void;
+  setReviewMode: (active: boolean) => void;
+  setReviewCurrentId: (id: string | null) => void;
+  setReviewConfidenceFilter: (threshold: number) => void;
+  advanceReview: (nextId: string | null) => void;
+
+  // Quick Adjust / Grid
+  toggleSnapToGrid: () => void;
+  setGridSize: (size: number) => void;
+  toggleShowGrid: () => void;
 
   // Reset
   resetDrawingState: () => void;
@@ -158,6 +197,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   activeSheetId: null,
   selectedSheetIds: [],
   highlightedSheetId: null,
+  sheetViewports: {},
 
   activeConditionId: null,
   activeTool: 'select',
@@ -181,13 +221,31 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   autoTabEnabled: false,
   pendingPrediction: false,
+  ghostPrediction: null,
+  aiConfidenceOverlay: false,
+  batchAiTaskId: null,
 
   toolRejectionMessage: null,
 
+  reviewMode: false,
+  reviewCurrentId: null,
+  reviewConfidenceFilter: 0.0,
+  reviewAutoAdvance: true,
+
+  snapToGrid: false,
+  gridSize: 10,
+  showGrid: false,
+
   // --- Actions ---
 
-  setActiveSheet: (sheetId) =>
-    set({ activeSheetId: sheetId }),
+  // CM-037: Save viewport state when switching sheets
+  setActiveSheet: (sheetId) => {
+    const { activeSheetId, viewport, sheetViewports } = get();
+    const nextViewports = activeSheetId
+      ? { ...sheetViewports, [activeSheetId]: { ...viewport } }
+      : sheetViewports;
+    set({ activeSheetId: sheetId, sheetViewports: nextViewports });
+  },
 
   setSelectedSheets: (sheetIds) =>
     set({ selectedSheetIds: sheetIds }),
@@ -288,8 +346,62 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   setPendingPrediction: (pending) =>
     set({ pendingPrediction: pending }),
 
+  setGhostPrediction: (prediction) =>
+    set({ ghostPrediction: prediction }),
+
+  clearGhostPrediction: () =>
+    set({ ghostPrediction: null }),
+
+  toggleAiConfidenceOverlay: () =>
+    set((s) => ({ aiConfidenceOverlay: !s.aiConfidenceOverlay })),
+
+  setBatchAiTaskId: (taskId) =>
+    set({ batchAiTaskId: taskId }),
+
+  clearBatchAiTaskId: () =>
+    set({ batchAiTaskId: null }),
+
   clearToolRejection: () =>
     set({ toolRejectionMessage: null }),
+
+  toggleReviewMode: () => {
+    const state = get();
+    const newMode = !state.reviewMode;
+    set({
+      reviewMode: newMode,
+      reviewCurrentId: newMode ? state.reviewCurrentId : null,
+      activeTool: newMode ? 'select' : state.activeTool,
+    });
+  },
+
+  setReviewMode: (active) => {
+    set({
+      reviewMode: active,
+      reviewCurrentId: active ? get().reviewCurrentId : null,
+      activeTool: active ? 'select' : get().activeTool,
+    });
+  },
+
+  setReviewCurrentId: (id) =>
+    set({ reviewCurrentId: id }),
+
+  setReviewConfidenceFilter: (threshold) =>
+    set({ reviewConfidenceFilter: clamp(threshold, 0, 1) }),
+
+  advanceReview: (nextId) =>
+    set({
+      reviewCurrentId: nextId,
+      selectedMeasurementIds: nextId ? [nextId] : [],
+    }),
+
+  toggleSnapToGrid: () =>
+    set((s) => ({ snapToGrid: !s.snapToGrid })),
+
+  setGridSize: (size) =>
+    set({ gridSize: Math.max(1, size) }),
+
+  toggleShowGrid: () =>
+    set((s) => ({ showGrid: !s.showGrid })),
 
   resetDrawingState: () =>
     set({
@@ -304,6 +416,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       currentPoints: [],
       activeTool: 'select',
       selectedMeasurementIds: [],
+      reviewMode: false,
+      reviewCurrentId: null,
+      ghostPrediction: null,
     }),
 }));
 
@@ -324,3 +439,13 @@ export const selectSheetSearchQuery = (s: WorkspaceStore) => s.sheetSearchQuery;
 export const selectExpandedGroups = (s: WorkspaceStore) => s.expandedGroups;
 export const selectHighlightedSheetId = (s: WorkspaceStore) => s.highlightedSheetId;
 export const selectToolRejectionMessage = (s: WorkspaceStore) => s.toolRejectionMessage;
+export const selectReviewMode = (s: WorkspaceStore) => s.reviewMode;
+export const selectReviewCurrentId = (s: WorkspaceStore) => s.reviewCurrentId;
+export const selectReviewConfidenceFilter = (s: WorkspaceStore) => s.reviewConfidenceFilter;
+export const selectReviewAutoAdvance = (s: WorkspaceStore) => s.reviewAutoAdvance;
+export const selectSnapToGrid = (s: WorkspaceStore) => s.snapToGrid;
+export const selectGridSize = (s: WorkspaceStore) => s.gridSize;
+export const selectShowGrid = (s: WorkspaceStore) => s.showGrid;
+export const selectGhostPrediction = (s: WorkspaceStore) => s.ghostPrediction;
+export const selectAiConfidenceOverlay = (s: WorkspaceStore) => s.aiConfidenceOverlay;
+export const selectBatchAiTaskId = (s: WorkspaceStore) => s.batchAiTaskId;

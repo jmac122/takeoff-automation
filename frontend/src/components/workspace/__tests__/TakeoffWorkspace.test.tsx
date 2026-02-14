@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { NotificationProvider } from '@/contexts/NotificationContext';
 
 // Mock constants
 vi.mock('@/lib/constants', async (importOriginal) => {
@@ -12,49 +13,132 @@ vi.mock('@/lib/constants', async (importOriginal) => {
   };
 });
 
-// Mock lucide-react with all icons used by workspace components
+// Mock lucide-react with all icons used across workspace components
 vi.mock('lucide-react', () => {
   const stub = (name: string) => {
-    const C = ({ className }: { className?: string }) => (
-      <span data-testid={`icon-${name.toLowerCase()}`} className={className} />
+    const C = ({ className, size }: { className?: string; size?: number }) => (
+      <span data-testid={`icon-${name.toLowerCase()}`} className={className} data-size={size} />
     );
     C.displayName = name;
     return C;
   };
   return {
-    Loader2: stub('loader2'),
-    MousePointer2: stub('mousepointer2'),
-    Minus: stub('minus'),
-    Hexagon: stub('hexagon'),
-    Square: stub('square'),
-    Circle: stub('circle'),
-    Ruler: stub('ruler'),
-    Undo2: stub('undo2'),
-    Redo2: stub('redo2'),
-    ZoomIn: stub('zoomin'),
-    ZoomOut: stub('zoomout'),
-    Search: stub('search'),
-    Sparkles: stub('sparkles'),
-    PanelLeftClose: stub('panelleftclose'),
-    PanelLeftOpen: stub('panelleftopen'),
-    PanelRightClose: stub('panelrightclose'),
-    PanelRightOpen: stub('panelrightopen'),
-    ChevronDown: stub('chevrondown'),
-    ChevronRight: stub('chevronright'),
-    FileText: stub('filetext'),
-    Grid3x3: stub('grid3x3'),
-    List: stub('list'),
-    MoreHorizontal: stub('morehorizontal'),
-    Plus: stub('plus'),
-    Eye: stub('eye'),
-    EyeOff: stub('eyeoff'),
-    Pencil: stub('pencil'),
-    Trash2: stub('trash2'),
-    Copy: stub('copy'),
-    ArrowUp: stub('arrowup'),
-    ArrowDown: stub('arrowdown'),
+    // TopToolbar
+    MousePointer2: stub('MousePointer2'), Minus: stub('Minus'), Hexagon: stub('Hexagon'),
+    Square: stub('Square'), Circle: stub('Circle'), Ruler: stub('Ruler'),
+    Undo2: stub('Undo2'), Redo2: stub('Redo2'), ZoomIn: stub('ZoomIn'), ZoomOut: stub('ZoomOut'),
+    Search: stub('Search'), Sparkles: stub('Sparkles'), ScanSearch: stub('ScanSearch'),
+    Grid3X3: stub('Grid3X3'), ClipboardCheck: stub('ClipboardCheck'), Zap: stub('Zap'),
+    Loader2: stub('Loader2'), Palette: stub('Palette'),
+    PanelLeftClose: stub('PanelLeftClose'), PanelLeftOpen: stub('PanelLeftOpen'),
+    PanelRightClose: stub('PanelRightClose'), PanelRightOpen: stub('PanelRightOpen'),
+    // ExportDropdown
+    FileSpreadsheet: stub('FileSpreadsheet'), FileText: stub('FileText'),
+    FileCode: stub('FileCode'), FileType: stub('FileType'), Download: stub('Download'),
+    // ConditionPanel / RightPanel
+    ChevronDown: stub('ChevronDown'), ChevronRight: stub('ChevronRight'),
+    Grid3x3: stub('Grid3x3'), List: stub('List'), MoreHorizontal: stub('MoreHorizontal'),
+    Plus: stub('Plus'), Eye: stub('Eye'), EyeOff: stub('EyeOff'),
+    Pencil: stub('Pencil'), Trash2: stub('Trash2'), Copy: stub('Copy'),
+    ArrowUp: stub('ArrowUp'), ArrowDown: stub('ArrowDown'),
+    // AssemblyPanel
+    Calculator: stub('Calculator'), Lock: stub('Lock'), Unlock: stub('Unlock'),
+    Package: stub('Package'), HardHat: stub('HardHat'), Truck: stub('Truck'),
+    Wrench: stub('Wrench'), DollarSign: stub('DollarSign'),
+    // RevisionChainPanel
+    GitBranch: stub('GitBranch'), Layers: stub('Layers'),
+    // PlanOverlayView
+    X: stub('X'), ChevronLeft: stub('ChevronLeft'),
+    // ReviewMeasurementPanel
+    Check: stub('Check'), AlertCircle: stub('AlertCircle'), History: stub('History'),
+    ExternalLink: stub('ExternalLink'), ArrowRight: stub('ArrowRight'),
+    // TopToolbar scale/title block
+    MapPin: stub('MapPin'), Crop: stub('Crop'),
+    // BottomStatusBar
+    Info: stub('Info'),
+    // LinkRevisionDialog
+    Link: stub('Link'), Calendar: stub('Calendar'),
   };
 });
+
+// Mock Konva and all components that use it (native canvas unavailable in test env)
+vi.mock('konva/lib/index-node', () => ({}));
+vi.mock('react-konva', () => ({}));
+vi.mock('../CenterCanvas', () => ({
+  CenterCanvas: ({ projectId }: { projectId: string }) => (
+    <div data-testid="center-canvas" data-project-id={projectId} />
+  ),
+  getReviewColor: () => '#ef4444',
+  filterMeasurementsForCanvas: (m: unknown[]) => m,
+}));
+vi.mock('@/components/viewer/GhostPointLayer', () => ({
+  GhostPointLayer: () => null,
+}));
+vi.mock('@/components/viewer/MeasurementShape', () => ({
+  MeasurementShape: () => null,
+}));
+
+vi.mock('@/components/document/PlanOverlayView', () => ({
+  PlanOverlayView: () => <div data-testid="plan-overlay-view" />,
+}));
+
+vi.mock('@/components/document/RevisionChainPanel', () => ({
+  RevisionChainPanel: () => <div data-testid="revision-chain-panel" />,
+}));
+
+vi.mock('@/components/document/LinkRevisionDialog', () => ({
+  LinkRevisionDialog: () => <div data-testid="link-revision-dialog" />,
+}));
+
+// Mock useAiAssist to avoid deep Konva imports
+vi.mock('@/hooks/useAiAssist', () => ({
+  useAiAssist: () => ({ runBatchAi: vi.fn(), isRunning: false }),
+}));
+
+// Mock scale/undo hooks used by TakeoffWorkspace
+vi.mock('@/hooks/useScaleCalibration', () => ({
+  useScaleCalibration: () => ({
+    state: { isCalibrating: false, calibrationLine: null, pixelDistance: null, isDrawing: false, startPoint: null },
+    startCalibration: vi.fn(),
+    cancelCalibration: vi.fn(),
+    startDrawing: vi.fn(),
+    updateDrawing: vi.fn(),
+    finishDrawing: vi.fn(),
+    clearLine: vi.fn(),
+    submitCalibration: vi.fn(),
+  }),
+}));
+
+vi.mock('@/hooks/useScaleDetection', () => ({
+  useScaleDetection: () => ({
+    isDetecting: false,
+    detectionResult: null,
+    scaleHighlightBox: null,
+    detectScale: vi.fn(),
+    dismissResult: vi.fn(),
+  }),
+}));
+
+vi.mock('@/hooks/useUndoRedo', () => ({
+  useUndoRedo: () => ({
+    push: vi.fn(),
+    undo: vi.fn(),
+    redo: vi.fn(),
+    clear: vi.fn(),
+    canUndo: false,
+    canRedo: false,
+  }),
+}));
+
+// Mock ScaleCalibrationDialog
+vi.mock('@/components/viewer/ScaleCalibrationDialog', () => ({
+  ScaleCalibrationDialog: () => null,
+}));
+
+// Mock useReviewKeyboardShortcuts (depends on FocusProvider context)
+vi.mock('@/hooks/useReviewKeyboardShortcuts', () => ({
+  useReviewKeyboardShortcuts: () => {},
+}));
 
 // Mock react-resizable-panels
 vi.mock('react-resizable-panels', () => ({
@@ -125,18 +209,20 @@ function renderWorkspace(projectId: string = 'proj-123') {
   const queryClient = createQueryClient();
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/projects/${projectId}/workspace`]}>
-        <Routes>
-          <Route
-            path="/projects/:id/workspace"
-            element={<TakeoffWorkspace />}
-          />
-          <Route
-            path="/projects/:id"
-            element={<div data-testid="old-project-page">Old project page</div>}
-          />
-        </Routes>
-      </MemoryRouter>
+      <NotificationProvider>
+        <MemoryRouter initialEntries={[`/projects/${projectId}/workspace`]}>
+          <Routes>
+            <Route
+              path="/projects/:id/workspace"
+              element={<TakeoffWorkspace />}
+            />
+            <Route
+              path="/projects/:id"
+              element={<div data-testid="old-project-page">Old project page</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </NotificationProvider>
     </QueryClientProvider>,
   );
 }

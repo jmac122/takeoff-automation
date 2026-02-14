@@ -41,11 +41,67 @@ export interface Measurement {
   pixel_area?: number | null;
   is_ai_generated: boolean;
   ai_confidence?: number | null;
+  ai_model?: string | null;
   is_modified: boolean;
   is_verified: boolean;
+  is_rejected: boolean;
+  rejection_reason?: string | null;
+  review_notes?: string | null;
+  reviewed_at?: string | null;
+  original_geometry?: JsonObject | null;
+  original_quantity?: number | null;
   notes?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Review Types
+export interface ReviewActionResponse {
+  status: string;
+  measurement_id: string;
+  new_quantity?: number | null;
+}
+
+export interface AutoAcceptResponse {
+  auto_accepted_count: number;
+  threshold: number;
+}
+
+export interface ConfidenceDistribution {
+  high: number;
+  medium: number;
+  low: number;
+}
+
+export interface ReviewStatistics {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  modified: number;
+  ai_generated_count: number;
+  ai_accuracy_percent: number;
+  confidence_distribution: ConfidenceDistribution;
+}
+
+export interface NextUnreviewedResponse {
+  measurement: Measurement | null;
+  remaining_count: number;
+}
+
+export interface MeasurementHistoryEntry {
+  id: string;
+  measurement_id: string;
+  action: string;
+  actor: string;
+  actor_type: string;
+  previous_status?: string | null;
+  new_status?: string | null;
+  previous_quantity?: number | null;
+  new_quantity?: number | null;
+  change_description?: string | null;
+  notes?: string | null;
+  created_at: string;
 }
 
 // Condition Types
@@ -234,6 +290,13 @@ export interface Document {
   updated_at: string;
   pages?: PageSummary[];
   title_block_region?: TitleBlockRegion | null;
+
+  // Revision tracking
+  revision_number?: string | null;
+  revision_date?: string | null;
+  revision_label?: string | null;
+  supersedes_document_id?: string | null;
+  is_latest_revision?: boolean;
 }
 
 export interface TitleBlockRegion {
@@ -242,4 +305,190 @@ export interface TitleBlockRegion {
   width: number;
   height: number;
   source_page_id?: string | null;
+}
+
+// Assembly Types
+export interface Assembly {
+  id: string;
+  condition_id: string;
+  template_id?: string | null;
+  name: string;
+  description?: string | null;
+  csi_code?: string | null;
+  csi_description?: string | null;
+  default_waste_percent: number;
+  productivity_rate?: number | null;
+  productivity_unit?: string | null;
+  crew_size?: number | null;
+  material_cost: number;
+  labor_cost: number;
+  equipment_cost: number;
+  subcontract_cost: number;
+  other_cost: number;
+  total_cost: number;
+  unit_cost: number;
+  total_labor_hours: number;
+  overhead_percent: number;
+  profit_percent: number;
+  total_with_markup: number;
+  is_locked: boolean;
+  locked_at?: string | null;
+  locked_by?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssemblyComponent {
+  id: string;
+  assembly_id: string;
+  cost_item_id?: string | null;
+  name: string;
+  description?: string | null;
+  component_type: 'material' | 'labor' | 'equipment' | 'subcontract' | 'other';
+  sort_order: number;
+  quantity_formula: string;
+  calculated_quantity: number;
+  unit: string;
+  unit_cost: number;
+  waste_percent: number;
+  quantity_with_waste: number;
+  extended_cost: number;
+  labor_hours?: number | null;
+  labor_rate?: number | null;
+  crew_size?: number | null;
+  duration_hours?: number | null;
+  hourly_rate?: number | null;
+  daily_rate?: number | null;
+  is_included: boolean;
+  is_optional: boolean;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssemblyDetail extends Assembly {
+  components: AssemblyComponent[];
+}
+
+export interface AssemblyTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  scope: string;
+  category?: string | null;
+  subcategory?: string | null;
+  csi_code?: string | null;
+  csi_description?: string | null;
+  measurement_type: string;
+  expected_unit: string;
+  default_waste_percent: number;
+  productivity_rate?: number | null;
+  productivity_unit?: string | null;
+  crew_size?: number | null;
+  is_system: boolean;
+  is_active: boolean;
+  version: number;
+  component_definitions: Record<string, unknown>[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectCostSummary {
+  project_id: string;
+  total_conditions: number;
+  conditions_with_assemblies: number;
+  material_cost: number;
+  labor_cost: number;
+  equipment_cost: number;
+  subcontract_cost: number;
+  other_cost: number;
+  total_cost: number;
+  total_with_markup: number;
+}
+
+export interface FormulaValidateResponse {
+  is_valid: boolean;
+  error?: string | null;
+  test_result?: number | null;
+}
+
+// Auto Count Types
+export interface BBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface AutoCountDetection {
+  id: string;
+  session_id: string;
+  measurement_id?: string | null;
+  bbox: BBox;
+  center_x: number;
+  center_y: number;
+  confidence: number;
+  detection_source: 'template' | 'llm' | 'both';
+  status: 'pending' | 'confirmed' | 'rejected';
+  is_auto_confirmed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutoCountSession {
+  id: string;
+  page_id: string;
+  condition_id: string;
+  template_bbox: BBox;
+  confidence_threshold: number;
+  scale_tolerance: number;
+  rotation_tolerance: number;
+  detection_method: 'template' | 'llm' | 'hybrid';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  total_detections: number;
+  confirmed_count: number;
+  rejected_count: number;
+  error_message?: string | null;
+  processing_time_ms?: number | null;
+  template_match_count: number;
+  llm_match_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutoCountSessionDetail extends AutoCountSession {
+  detections: AutoCountDetection[];
+}
+
+export interface AutoCountStartResponse {
+  session_id: string;
+  task_id: string;
+  status: string;
+}
+
+// Quick Adjust Types
+export type GeometryAdjustAction =
+  | 'nudge'
+  | 'snap_to_grid'
+  | 'extend'
+  | 'trim'
+  | 'offset'
+  | 'split'
+  | 'join';
+
+export interface GeometryAdjustRequest {
+  action: GeometryAdjustAction;
+  params: Record<string, unknown>;
+}
+
+export interface GeometryAdjustResponse {
+  status: string;
+  action: string;
+  measurement_id: string;
+  new_geometry_type: string;
+  new_geometry_data: Record<string, unknown>;
+  new_quantity: number;
+  new_unit: string;
+  created_measurement_id?: string | null;
 }

@@ -78,8 +78,7 @@ export function DrawingPreviewLayer({
                         const midX = (start.x + end.x) / 2;
                         const midY = (start.y + end.y) / 2;
                         const distanceText = formatDistance(pixelDist, pixelsPerUnit, unitLabel);
-                        console.log(`Line: start=(${start.x.toFixed(1)},${start.y.toFixed(1)}) end=(${end.x.toFixed(1)},${end.y.toFixed(1)}) pixelDist=${pixelDist.toFixed(1)} pixelsPerUnit=${pixelsPerUnit} -> ${distanceText}`);
-                        
+
                         return (
                             <>
                                 <Line
