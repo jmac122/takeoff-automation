@@ -213,6 +213,7 @@ export default function Testing() {
                                     <PageInfoCard
                                         key={page.id}
                                         page={{ ...page, document_id: uploadedDocumentId }}
+                                        projectId={DEMO_PROJECT_ID}
                                         isSelected={selectedPageId === page.id}
                                         onSelect={() => setSelectedPageId(page.id)}
                                     />

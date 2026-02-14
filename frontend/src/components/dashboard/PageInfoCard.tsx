@@ -15,6 +15,7 @@ interface PageInfoCardProps {
         thumbnail_url: string | null;
         image_url: string | null;
     };
+    projectId: string;
     isSelected: boolean;
     onSelect: () => void;
 }
@@ -28,12 +29,12 @@ function getConcreteVariant(relevance: string | null | undefined): "default" | "
     }
 }
 
-export function PageInfoCard({ page, isSelected, onSelect }: PageInfoCardProps) {
+export function PageInfoCard({ page, projectId, isSelected, onSelect }: PageInfoCardProps) {
     const navigate = useNavigate();
 
     const handleOpenTakeoff = (e: React.MouseEvent) => {
         e.stopPropagation();
-        navigate(`/documents/${page.document_id}/pages/${page.id}`);
+        navigate(`/projects/${projectId}/workspace`);
     };
 
     return (

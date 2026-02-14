@@ -6,6 +6,7 @@ import Konva from 'konva';
 
 import { apiClient } from '@/api/client';
 import { updateTitleBlockRegion } from '@/api/documents';
+import { ENABLE_NEW_WORKSPACE } from '@/lib/constants';
 import { MeasurementLayer } from '@/components/viewer/MeasurementLayer';
 import { DrawingPreviewLayer } from '@/components/viewer/DrawingPreviewLayer';
 import { DrawingInstructions } from '@/components/viewer/DrawingInstructions';
@@ -79,6 +80,14 @@ export function TakeoffViewer() {
     });
 
     const projectId = page?.document?.project_id;
+
+    // Redirect to new workspace when feature flag is enabled
+    useEffect(() => {
+        if (ENABLE_NEW_WORKSPACE && projectId) {
+            navigate(`/projects/${projectId}/workspace`, { replace: true });
+        }
+    }, [projectId, navigate]);
+
     const { data: conditionsData } = useConditions(projectId);
 
     // Fetch measurements for the page
@@ -999,8 +1008,8 @@ export function TakeoffViewer() {
                     >
                         <Stage
                             ref={stageRef}
-                            width={canvasControls.stageSize.width}
-                            height={canvasControls.stageSize.height}
+                            width={canvasControls.stageSize.width || 1}
+                            height={canvasControls.stageSize.height || 1}
                             pixelRatio={1}
                             scaleX={canvasControls.zoom}
                             scaleY={canvasControls.zoom}
