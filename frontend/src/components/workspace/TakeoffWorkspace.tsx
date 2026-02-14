@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Panel, Group, Separator } from 'react-resizable-panels';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import type Konva from 'konva';
 import { useWorkspaceStore, selectToolRejectionMessage } from '@/stores/workspaceStore';
 import { FocusProvider } from '@/contexts/FocusContext';
@@ -506,7 +506,7 @@ function TakeoffWorkspaceInner() {
             height: `calc(100vh - ${TOP_TOOLBAR_HEIGHT}px - ${BOTTOM_STATUS_BAR_HEIGHT}px)`,
           }}
         >
-          <Group orientation="horizontal" id="workspace-panels">
+          <PanelGroup direction="horizontal" id="workspace-panels">
             {/* Left Sidebar - Sheet Tree */}
             {!leftPanelCollapsed && (
               <>
@@ -525,7 +525,7 @@ function TakeoffWorkspaceInner() {
                     />
                   </div>
                 </Panel>
-                <Separator className="w-1 bg-neutral-800 hover:bg-blue-600 transition-colors" />
+                <PanelResizeHandle className="w-1 bg-neutral-800 hover:bg-blue-600 transition-colors" />
               </>
             )}
 
@@ -566,7 +566,7 @@ function TakeoffWorkspaceInner() {
             {/* Right Panel - Conditions */}
             {!rightPanelCollapsed && (
               <>
-                <Separator className="w-1 bg-neutral-800 hover:bg-blue-600 transition-colors" />
+                <PanelResizeHandle className="w-1 bg-neutral-800 hover:bg-blue-600 transition-colors" />
                 <Panel
                   id="right-panel"
                   defaultSize={25}
@@ -583,7 +583,7 @@ function TakeoffWorkspaceInner() {
                 </Panel>
               </>
             )}
-          </Group>
+          </PanelGroup>
         </div>
 
         {/* Plan Overlay Comparison View */}
