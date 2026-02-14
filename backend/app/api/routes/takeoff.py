@@ -493,6 +493,22 @@ async def predict_next_point(
     Synchronous (non-Celery) endpoint targeting <800ms latency.
     Returns ``prediction: null`` on any failure — never raises 500.
     """
+    # Validate condition exists and belongs to the same project
+    result = await db.execute(
+        select(Condition).where(Condition.id == request_body.condition_id)
+    )
+    condition = result.scalar_one_or_none()
+    if not condition:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Condition not found",
+        )
+    if page_data.document.project_id != condition.project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Page and condition must belong to the same project",
+        )
+
     start = time.monotonic()
     try:
         # Read page image from MinIO storage

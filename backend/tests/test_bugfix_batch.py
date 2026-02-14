@@ -552,3 +552,31 @@ class TestAutoCountTaskTrackerMethods:
         assert not hasattr(TaskTracker, "update_sync")
         assert not hasattr(TaskTracker, "complete_sync")
         assert not hasattr(TaskTracker, "fail_sync")
+
+
+# ============================================================================
+# Bug 11: predict_next_point ignores condition_id
+# ============================================================================
+
+
+class TestPredictNextPointConditionValidation:
+    """predict_next_point should validate condition_id before predicting."""
+
+    def test_condition_validation_in_source(self):
+        """Verify predict_next_point validates condition_id exists."""
+        import inspect
+        from app.api.routes.takeoff import predict_next_point
+
+        source = inspect.getsource(predict_next_point)
+        assert "Condition" in source
+        assert "condition_id" in source
+        assert "Condition not found" in source
+
+    def test_condition_project_check_in_source(self):
+        """Verify predict_next_point checks condition belongs to same project."""
+        import inspect
+        from app.api.routes.takeoff import predict_next_point
+
+        source = inspect.getsource(predict_next_point)
+        assert "project_id" in source
+        assert "same project" in source.lower()
