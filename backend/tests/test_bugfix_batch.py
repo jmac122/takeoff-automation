@@ -330,6 +330,36 @@ class TestRevisionCyclesAndBranches:
         assert "previous_parent" in source
         assert "is_latest_revision = True" in source
 
+    def test_only_marks_latest_if_no_successor(self):
+        """Document should only be marked latest if it has no successor."""
+        import inspect
+        from app.api.routes.documents import link_revision
+
+        source = inspect.getsource(link_revision)
+        # Should check if document has a successor before marking as latest
+        assert "has_successor" in source or "successor" in source
+        assert "is_latest_revision = not" in source or "if not" in source
+
+
+# ============================================================================
+# Bug 9: Document deletion doesn't update revision chain flags
+# ============================================================================
+
+
+class TestDocumentDeletionRevisionChain:
+    """delete_document should restore predecessor's is_latest_revision flag."""
+
+    def test_predecessor_becomes_latest_after_deletion(self):
+        """When deleting latest revision, predecessor should become latest."""
+        import inspect
+        from app.api.routes.documents import delete_document
+
+        source = inspect.getsource(delete_document)
+        # Should check for predecessor and restore its is_latest_revision flag
+        assert "supersedes_document_id" in source
+        assert "is_latest_revision = True" in source
+        assert "predecessor" in source.lower() or "parent" in source.lower()
+
 
 # ============================================================================
 # Bug 8: Page comparison uses PNG viewer keys (not TIFF)

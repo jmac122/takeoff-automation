@@ -300,11 +300,32 @@ async def delete_document(
             detail="Document not found",
         )
 
+    # Handle revision chain cleanup BEFORE deletion
+    # If this document has a predecessor, that predecessor should become latest
+    # (since this document's successor will be orphaned by SET NULL cascade)
+    if document.supersedes_document_id:
+        result = await db.execute(
+            select(Document).where(Document.id == document.supersedes_document_id)
+        )
+        predecessor = result.scalar_one_or_none()
+        if predecessor:
+            # Check if predecessor has any OTHER successors besides this one
+            result = await db.execute(
+                select(Document).where(
+                    Document.supersedes_document_id == predecessor.id,
+                    Document.id != document_id,
+                )
+            )
+            other_successor = result.scalar_one_or_none()
+            if not other_successor:
+                # No other successors after we delete this doc, so predecessor becomes latest
+                predecessor.is_latest_revision = True
+
     # Delete files from storage
     processor = get_document_processor()
     processor.delete_document_files(document.project_id, document_id)
 
-    # Delete from database (cascades to pages)
+    # Delete from database (cascades to pages, SET NULL on successors' FK)
     await db.delete(document)
     await db.commit()
 
@@ -412,7 +433,13 @@ async def link_revision(
     document.revision_number = request.revision_number
     document.revision_date = request.revision_date
     document.revision_label = request.revision_label
-    document.is_latest_revision = True
+    
+    # Only mark as latest if this document has no successor
+    result = await db.execute(
+        select(Document).where(Document.supersedes_document_id == document_id)
+    )
+    has_successor = result.scalar_one_or_none() is not None
+    document.is_latest_revision = not has_successor
 
     # Mark new parent as no longer latest
     old_doc.is_latest_revision = False

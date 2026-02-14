@@ -32,7 +32,7 @@ import { ScaleCalibrationDialog } from '@/components/viewer/ScaleCalibrationDial
 import { Loader2 } from 'lucide-react';
 import type { Page } from '@/types';
 
-export function TakeoffWorkspace() {
+function TakeoffWorkspaceInner() {
   const { id: projectId } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { addNotification } = useNotificationContext();
@@ -474,8 +474,7 @@ export function TakeoffWorkspace() {
   }
 
   return (
-    <FocusProvider>
-      <div className="flex h-screen flex-col bg-neutral-950" data-testid="takeoff-workspace">
+    <div className="flex h-screen flex-col bg-neutral-950" data-testid="takeoff-workspace">
         {/* Top Toolbar */}
         <TopToolbar
           projectId={projectId}
@@ -646,6 +645,13 @@ export function TakeoffWorkspace() {
           </div>
         )}
       </div>
+  );
+}
+
+export function TakeoffWorkspace() {
+  return (
+    <FocusProvider>
+      <TakeoffWorkspaceInner />
     </FocusProvider>
   );
 }
