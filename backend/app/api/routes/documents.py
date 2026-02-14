@@ -357,6 +357,35 @@ async def link_revision(
             detail="Documents must belong to the same project",
         )
 
+    # Reject cycles: check if old_doc is a descendant of document
+    # (i.e., document is already in old_doc's ancestor chain)
+    current = old_doc
+    visited = {old_doc.id}
+    while current.supersedes_document_id and current.supersedes_document_id not in visited:
+        if current.supersedes_document_id == document_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot create circular revision chain",
+            )
+        visited.add(current.supersedes_document_id)
+        result = await db.execute(
+            select(Document).where(Document.id == current.supersedes_document_id)
+        )
+        current = result.scalar_one_or_none()
+        if not current:
+            break
+
+    # Reject branches: check if old_doc already has a successor
+    result = await db.execute(
+        select(Document).where(Document.supersedes_document_id == old_doc.id)
+    )
+    existing_successor = result.scalar_one_or_none()
+    if existing_successor and existing_successor.id != document_id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Document already has a successor: {existing_successor.original_filename}",
+        )
+
     # Update current document
     document.supersedes_document_id = request.supersedes_document_id
     document.revision_number = request.revision_number
@@ -485,18 +514,27 @@ async def compare_pages(
     old_image_url = None
     new_image_url = None
 
+    # Convert TIFF keys to PNG for browser-viewable URLs
+    def _get_viewer_image_key(image_key: str) -> str:
+        """Convert .tiff storage keys to .png for browser compatibility."""
+        if image_key.endswith(".tiff"):
+            return image_key.replace(".tiff", ".png")
+        return image_key
+
     if old_page and old_page.image_key:
         try:
+            viewer_key = _get_viewer_image_key(old_page.image_key)
             old_image_url = storage.get_presigned_url(
-                old_page.image_key, expires_in=3600
+                viewer_key, expires_in=3600
             )
         except Exception:
             pass
 
     if new_page and new_page.image_key:
         try:
+            viewer_key = _get_viewer_image_key(new_page.image_key)
             new_image_url = storage.get_presigned_url(
-                new_page.image_key, expires_in=3600
+                viewer_key, expires_in=3600
             )
         except Exception:
             pass

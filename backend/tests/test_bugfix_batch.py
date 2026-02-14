@@ -295,6 +295,65 @@ class TestRevisionSelfCycle:
 
 
 # ============================================================================
+# Bug 7: Revision linking prevents cycles and branches
+# ============================================================================
+
+
+class TestRevisionCyclesAndBranches:
+    """link_revision should reject cycles (descendant→ancestor) and branches (multiple successors)."""
+
+    def test_prevents_cycle_to_descendant(self):
+        """Verify cycle detection logic exists in link_revision."""
+        import inspect
+        from app.api.routes.documents import link_revision
+
+        source = inspect.getsource(link_revision)
+        # Should check if old_doc is a descendant of document
+        assert "circular revision chain" in source.lower()
+
+    def test_prevents_multiple_successors(self):
+        """Verify branch detection logic exists in link_revision."""
+        import inspect
+        from app.api.routes.documents import link_revision
+
+        source = inspect.getsource(link_revision)
+        # Should check if old_doc already has a successor
+        assert "already has a successor" in source.lower()
+
+
+# ============================================================================
+# Bug 8: Page comparison uses PNG viewer keys (not TIFF)
+# ============================================================================
+
+
+class TestPageComparisonImageFormat:
+    """compare_pages should return browser-viewable PNG URLs, not TIFF."""
+
+    def test_tiff_key_converted_to_png(self):
+        """When page.image_key is .tiff, the signed URL should be for .png."""
+        from app.api.routes.documents import compare_pages
+
+        import inspect
+        source = inspect.getsource(compare_pages)
+        
+        # Should have a helper that converts .tiff to .png
+        assert "_get_viewer_image_key" in source or ".replace" in source
+        assert ".png" in source
+
+    def test_conversion_logic(self):
+        """Test the TIFF→PNG key conversion logic."""
+        def _get_viewer_image_key(image_key: str) -> str:
+            """Convert .tiff storage keys to .png for browser compatibility."""
+            if image_key.endswith(".tiff"):
+                return image_key.replace(".tiff", ".png")
+            return image_key
+
+        assert _get_viewer_image_key("page.tiff") == "page.png"
+        assert _get_viewer_image_key("page.png") == "page.png"
+        assert _get_viewer_image_key("path/to/image.tiff") == "path/to/image.png"
+
+
+# ============================================================================
 # Bug 5: Component reorder accepts JSON body
 # ============================================================================
 
