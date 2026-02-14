@@ -29,7 +29,6 @@ interface PageCardProps {
 
 export function PageCard({
     page,
-    documentId,
     projectId,
     isSelectMode = false,
     isSelected = false,
