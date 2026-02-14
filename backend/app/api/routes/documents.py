@@ -301,9 +301,9 @@ async def delete_document(
         )
 
     # Handle revision chain cleanup BEFORE deletion
-    # If this document has a predecessor, that predecessor should become latest
-    # (since this document's successor will be orphaned by SET NULL cascade)
-    if document.supersedes_document_id:
+    # Only restore predecessor's is_latest flag if this document IS actually latest
+    # (if this is a middle revision, successors will be orphaned and keep their flags)
+    if document.supersedes_document_id and document.is_latest_revision:
         result = await db.execute(
             select(Document).where(Document.id == document.supersedes_document_id)
         )

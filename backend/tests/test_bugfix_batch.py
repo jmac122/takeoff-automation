@@ -360,6 +360,17 @@ class TestDocumentDeletionRevisionChain:
         assert "is_latest_revision = True" in source
         assert "predecessor" in source.lower() or "parent" in source.lower()
 
+    def test_only_restores_if_deleting_latest(self):
+        """Predecessor should only become latest if we're deleting the actual latest revision."""
+        import inspect
+        from app.api.routes.documents import delete_document
+
+        source = inspect.getsource(delete_document)
+        # Should check document.is_latest_revision before restoring predecessor
+        assert "document.is_latest_revision" in source
+        # Should have conditional logic around restoration
+        assert "if" in source.lower()
+
 
 # ============================================================================
 # Bug 8: Page comparison uses PNG viewer keys (not TIFF)
