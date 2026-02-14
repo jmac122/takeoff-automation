@@ -215,9 +215,7 @@ class AssemblyService:
 
         # Auto-set sort_order if not provided
         if "sort_order" not in kwargs or kwargs["sort_order"] is None:
-            max_order = max(
-                (c.sort_order for c in assembly.components), default=-1
-            )
+            max_order = max((c.sort_order for c in assembly.components), default=-1)
             kwargs["sort_order"] = max_order + 1
 
         # Convert unit_cost to Decimal if present
@@ -356,9 +354,9 @@ class AssemblyService:
             component.quantity_with_waste = calc_qty * (
                 1 + component.waste_percent / 100
             )
-            component.extended_cost = Decimal(
-                str(component.quantity_with_waste)
-            ) * component.unit_cost
+            component.extended_cost = (
+                Decimal(str(component.quantity_with_waste)) * component.unit_cost
+            )
 
             # Accumulate by type
             ctype = component.component_type
@@ -369,7 +367,9 @@ class AssemblyService:
 
             # Accumulate labor hours
             if component.labor_hours is not None:
-                total_labor_hours += component.labor_hours * component.quantity_with_waste
+                total_labor_hours += (
+                    component.labor_hours * component.quantity_with_waste
+                )
 
         # Update assembly totals
         assembly.material_cost = cost_by_type["material"]
@@ -388,9 +388,11 @@ class AssemblyService:
             assembly.unit_cost = Decimal("0")
 
         # Markup
-        markup_factor = Decimal("1") + Decimal(
-            str(assembly.overhead_percent / 100)
-        ) + Decimal(str(assembly.profit_percent / 100))
+        markup_factor = (
+            Decimal("1")
+            + Decimal(str(assembly.overhead_percent / 100))
+            + Decimal(str(assembly.profit_percent / 100))
+        )
         assembly.total_with_markup = assembly.total_cost * markup_factor
 
         await session.commit()
@@ -533,13 +535,21 @@ class AssemblyService:
             select(
                 func.count(Condition.id).label("total_conditions"),
                 func.count(Assembly.id).label("conditions_with_assemblies"),
-                func.coalesce(func.sum(Assembly.material_cost), 0).label("material_cost"),
+                func.coalesce(func.sum(Assembly.material_cost), 0).label(
+                    "material_cost"
+                ),
                 func.coalesce(func.sum(Assembly.labor_cost), 0).label("labor_cost"),
-                func.coalesce(func.sum(Assembly.equipment_cost), 0).label("equipment_cost"),
-                func.coalesce(func.sum(Assembly.subcontract_cost), 0).label("subcontract_cost"),
+                func.coalesce(func.sum(Assembly.equipment_cost), 0).label(
+                    "equipment_cost"
+                ),
+                func.coalesce(func.sum(Assembly.subcontract_cost), 0).label(
+                    "subcontract_cost"
+                ),
                 func.coalesce(func.sum(Assembly.other_cost), 0).label("other_cost"),
                 func.coalesce(func.sum(Assembly.total_cost), 0).label("total_cost"),
-                func.coalesce(func.sum(Assembly.total_with_markup), 0).label("total_with_markup"),
+                func.coalesce(func.sum(Assembly.total_with_markup), 0).label(
+                    "total_with_markup"
+                ),
             )
             .select_from(Condition)
             .outerjoin(Assembly, Assembly.condition_id == Condition.id)

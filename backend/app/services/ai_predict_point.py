@@ -106,7 +106,9 @@ class PredictNextPointService:
         try:
             # Downscale aggressively for speed
             resized_bytes, llm_width, llm_height = resize_image_for_llm(
-                image_bytes, max_dimension=PREDICT_MAX_DIMENSION, fmt="PNG",
+                image_bytes,
+                max_dimension=PREDICT_MAX_DIMENSION,
+                fmt="PNG",
             )
 
             # Scale last geometry coords into LLM image space so the prompt
@@ -114,7 +116,10 @@ class PredictNextPointService:
             scale_to_llm_x = llm_width / image_width if image_width else 1
             scale_to_llm_y = llm_height / image_height if image_height else 1
             scaled_last = _scale_geometry(
-                last_geometry_type, last_geometry_data, scale_to_llm_x, scale_to_llm_y,
+                last_geometry_type,
+                last_geometry_data,
+                scale_to_llm_x,
+                scale_to_llm_y,
             )
 
             prompt = PREDICT_NEXT_PROMPT.format(
@@ -141,7 +146,9 @@ class PredictNextPointService:
 
             confidence = float(data.get("confidence", 0))
             if confidence < 0.3:
-                logger.debug("AI prediction below confidence threshold", confidence=confidence)
+                logger.debug(
+                    "AI prediction below confidence threshold", confidence=confidence
+                )
                 return None
 
             geometry_type = data["geometry_type"]
@@ -151,14 +158,25 @@ class PredictNextPointService:
             if geometry_type == "point" and isinstance(geometry_data, dict):
                 if "x" not in geometry_data:
                     # Try alternative coordinate formats from LLM
-                    if "point" in geometry_data and isinstance(geometry_data["point"], dict):
-                        geometry_data = {"x": geometry_data["point"].get("x", 0), "y": geometry_data["point"].get("y", 0)}
+                    if "point" in geometry_data and isinstance(
+                        geometry_data["point"], dict
+                    ):
+                        geometry_data = {
+                            "x": geometry_data["point"].get("x", 0),
+                            "y": geometry_data["point"].get("y", 0),
+                        }
                     elif isinstance(geometry_data, list) and len(geometry_data) >= 2:
                         geometry_data = {"x": geometry_data[0], "y": geometry_data[1]}
                     else:
-                        logger.warning("Unrecognized point format from LLM", data=geometry_data)
+                        logger.warning(
+                            "Unrecognized point format from LLM", data=geometry_data
+                        )
                         return None
-            elif geometry_type == "point" and isinstance(geometry_data, list) and len(geometry_data) >= 2:
+            elif (
+                geometry_type == "point"
+                and isinstance(geometry_data, list)
+                and len(geometry_data) >= 2
+            ):
                 # Handle list format: [x, y]
                 geometry_data = {"x": geometry_data[0], "y": geometry_data[1]}
             elif geometry_type in ("line", "polyline", "polygon"):
@@ -208,8 +226,7 @@ def _scale_geometry(
     points = geometry_data.get("points", [])
     return {
         "points": [
-            {"x": (p.get("x") or 0) * sx, "y": (p.get("y") or 0) * sy}
-            for p in points
+            {"x": (p.get("x") or 0) * sx, "y": (p.get("y") or 0) * sy} for p in points
         ],
     }
 

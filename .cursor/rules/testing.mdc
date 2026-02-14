@@ -1,9 +1,8 @@
 ---
-description: Testing requirements for all ForgeX code changes
-globs: ["backend/**/*.py", "frontend/**/*.ts", "frontend/**/*.tsx"]
+alwaysApply: true
 ---
 
-# Testing Rules
+## Testing Rules
 
 ## Core Rule
 

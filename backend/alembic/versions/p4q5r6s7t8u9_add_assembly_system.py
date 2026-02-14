@@ -5,6 +5,7 @@ Revises: o3p4q5r6s7t8
 Create Date: 2026-02-11
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -150,7 +151,9 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
-    op.create_index("ix_assemblies_condition_id", "assemblies", ["condition_id"], unique=True)
+    op.create_index(
+        "ix_assemblies_condition_id", "assemblies", ["condition_id"], unique=True
+    )
 
     # Create assembly_components table
     op.create_table(

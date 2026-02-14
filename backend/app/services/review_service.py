@@ -378,9 +378,9 @@ class ReviewService:
                         else_=0,
                     )
                 ).label("approved"),
-                func.sum(
-                    case((Measurement.is_rejected == True, 1), else_=0)
-                ).label("rejected"),
+                func.sum(case((Measurement.is_rejected == True, 1), else_=0)).label(
+                    "rejected"
+                ),
                 func.sum(
                     case(
                         (
@@ -393,9 +393,9 @@ class ReviewService:
                         else_=0,
                     )
                 ).label("modified"),
-                func.sum(
-                    case((Measurement.is_ai_generated == True, 1), else_=0)
-                ).label("ai_generated_count"),
+                func.sum(case((Measurement.is_ai_generated == True, 1), else_=0)).label(
+                    "ai_generated_count"
+                ),
                 # AI accuracy: approved AI measurements / total AI measurements
                 func.sum(
                     case(
