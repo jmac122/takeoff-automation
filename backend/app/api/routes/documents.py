@@ -301,9 +301,10 @@ async def delete_document(
         )
 
     # Handle revision chain cleanup BEFORE deletion
-    # Only restore predecessor's is_latest flag if this document IS actually latest
-    # (if this is a middle revision, successors will be orphaned and keep their flags)
-    if document.supersedes_document_id and document.is_latest_revision:
+    # Restore predecessor's is_latest flag when the deleted document is the
+    # predecessor's only successor — regardless of whether the deleted doc
+    # is itself the latest revision (handles middle-revision deletion too).
+    if document.supersedes_document_id:
         result = await db.execute(
             select(Document).where(Document.id == document.supersedes_document_id)
         )
@@ -382,7 +383,9 @@ async def link_revision(
     # (i.e., document is already in old_doc's ancestor chain)
     current = old_doc
     visited = {old_doc.id}
-    while current.supersedes_document_id and current.supersedes_document_id not in visited:
+    while (
+        current.supersedes_document_id and current.supersedes_document_id not in visited
+    ):
         if current.supersedes_document_id == document_id:
             raise HTTPException(
                 status_code=400,
@@ -433,7 +436,7 @@ async def link_revision(
     document.revision_number = request.revision_number
     document.revision_date = request.revision_date
     document.revision_label = request.revision_label
-    
+
     # Only mark as latest if this document has no successor
     result = await db.execute(
         select(Document).where(Document.supersedes_document_id == document_id)
@@ -541,6 +544,33 @@ async def compare_pages(
     """
     storage = get_storage_service()
 
+    # Validate that both documents exist and belong to the same project
+    old_doc_result = await db.execute(
+        select(Document).where(Document.id == request.old_document_id)
+    )
+    old_doc = old_doc_result.scalar_one_or_none()
+    if not old_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Old document not found",
+        )
+
+    new_doc_result = await db.execute(
+        select(Document).where(Document.id == request.new_document_id)
+    )
+    new_doc = new_doc_result.scalar_one_or_none()
+    if not new_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="New document not found",
+        )
+
+    if old_doc.project_id != new_doc.project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Documents must belong to the same project",
+        )
+
     # Find old page
     old_page_result = await db.execute(
         select(Page).where(
@@ -572,18 +602,14 @@ async def compare_pages(
     if old_page and old_page.image_key:
         try:
             viewer_key = _get_viewer_image_key(old_page.image_key)
-            old_image_url = storage.get_presigned_url(
-                viewer_key, expires_in=3600
-            )
+            old_image_url = storage.get_presigned_url(viewer_key, expires_in=3600)
         except Exception:
             pass
 
     if new_page and new_page.image_key:
         try:
             viewer_key = _get_viewer_image_key(new_page.image_key)
-            new_image_url = storage.get_presigned_url(
-                viewer_key, expires_in=3600
-            )
+            new_image_url = storage.get_presigned_url(viewer_key, expires_in=3600)
         except Exception:
             pass
 
@@ -593,5 +619,5 @@ async def compare_pages(
         old_image_url=old_image_url,
         new_image_url=new_image_url,
         page_number=request.page_number,
-        has_both=old_page is not None and new_page is not None,
+        has_both=old_image_url is not None and new_image_url is not None,
     )

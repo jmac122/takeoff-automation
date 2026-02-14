@@ -5,7 +5,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
     # Slabs
     # ------------------------------------------------------------------
     {
-        "name": "4\" Slab on Grade - Standard (WWF)",
+        "name": '4" Slab on Grade - Standard (WWF)',
         "description": "4-inch slab on grade with welded wire fabric reinforcement",
         "scope": "concrete",
         "category": "Slabs",
@@ -20,13 +20,13 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
         "crew_size": 6,
         "component_definitions": [
             {
-                "name": "Concrete (4\" thick)",
+                "name": 'Concrete (4" thick)',
                 "component_type": "material",
                 "quantity_formula": "{qty} * 4 / 12 / 27",
                 "unit": "CY",
                 "unit_cost": 165.00,
                 "waste_percent": 5.0,
-                "description": "3000 PSI concrete, 4\" slab",
+                "description": '3000 PSI concrete, 4" slab',
             },
             {
                 "name": "Welded Wire Fabric 6x6-W1.4xW1.4",
@@ -69,7 +69,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
         ],
     },
     {
-        "name": "4\" Slab on Grade - Reinforced (#4@18\" O.C.)",
+        "name": '4" Slab on Grade - Reinforced (#4@18" O.C.)',
         "description": "4-inch slab on grade with #4 rebar at 18 inches on center each way",
         "scope": "concrete",
         "category": "Slabs",
@@ -84,7 +84,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
         "crew_size": 6,
         "component_definitions": [
             {
-                "name": "Concrete (4\" thick)",
+                "name": 'Concrete (4" thick)',
                 "component_type": "material",
                 "quantity_formula": "{qty} * 4 / 12 / 27",
                 "unit": "CY",
@@ -92,13 +92,13 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
                 "waste_percent": 5.0,
             },
             {
-                "name": "#4 Rebar @ 18\" O.C. EW",
+                "name": '#4 Rebar @ 18" O.C. EW',
                 "component_type": "material",
                 "quantity_formula": "{qty} * 0.89",
                 "unit": "LB",
                 "unit_cost": 0.75,
                 "waste_percent": 5.0,
-                "description": "#4 rebar at 18\" on center each way",
+                "description": '#4 rebar at 18" on center each way',
             },
             {
                 "name": "Rebar Chairs",
@@ -137,7 +137,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
         ],
     },
     {
-        "name": "6\" Slab on Grade - Heavy Duty",
+        "name": '6" Slab on Grade - Heavy Duty',
         "description": "6-inch slab on grade with #5 rebar at 12 inches on center",
         "scope": "concrete",
         "category": "Slabs",
@@ -152,7 +152,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
         "crew_size": 6,
         "component_definitions": [
             {
-                "name": "Concrete (6\" thick)",
+                "name": 'Concrete (6" thick)',
                 "component_type": "material",
                 "quantity_formula": "{qty} * 6 / 12 / 27",
                 "unit": "CY",
@@ -160,7 +160,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
                 "waste_percent": 5.0,
             },
             {
-                "name": "#5 Rebar @ 12\" O.C. EW",
+                "name": '#5 Rebar @ 12" O.C. EW',
                 "component_type": "material",
                 "quantity_formula": "{qty} * 2.09",
                 "unit": "LB",
@@ -207,7 +207,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
     # Foundations
     # ------------------------------------------------------------------
     {
-        "name": "Strip Footing 24\"x12\"",
+        "name": 'Strip Footing 24"x12"',
         "description": "Continuous strip footing, 24 inches wide by 12 inches deep",
         "scope": "concrete",
         "category": "Foundations",
@@ -222,7 +222,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
         "crew_size": 4,
         "component_definitions": [
             {
-                "name": "Concrete (24\"x12\" footing)",
+                "name": 'Concrete (24"x12" footing)',
                 "component_type": "material",
                 "quantity_formula": "{qty} * 24 / 12 * 12 / 12 / 27",
                 "unit": "CY",
@@ -246,7 +246,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
                 "unit": "LF",
                 "unit_cost": 3.50,
                 "waste_percent": 0,
-                "description": "Footing forms both sides, 12\" height",
+                "description": 'Footing forms both sides, 12" height',
             },
             {
                 "name": "Form & Pour Labor",
@@ -290,7 +290,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
                 "unit": "LF",
                 "unit_cost": 0.78,
                 "waste_percent": 10.0,
-                "description": "5 bars each way at 8\" O.C.",
+                "description": '5 bars each way at 8" O.C.',
             },
             {
                 "name": "Dowels (4 per footing)",
@@ -344,22 +344,22 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
                 "waste_percent": 5.0,
             },
             {
-                "name": "#5 Rebar Vertical @ 12\" O.C.",
+                "name": '#5 Rebar Vertical @ 12" O.C.',
                 "component_type": "material",
                 "quantity_formula": "{qty} * 8 * 1.043",
                 "unit": "LF",
                 "unit_cost": 0.78,
                 "waste_percent": 10.0,
-                "description": "Vertical bars every 12\"",
+                "description": 'Vertical bars every 12"',
             },
             {
-                "name": "#4 Rebar Horizontal @ 18\" O.C.",
+                "name": '#4 Rebar Horizontal @ 18" O.C.',
                 "component_type": "material",
                 "quantity_formula": "{qty} * ceil(8 / 1.5) * 0.668",
                 "unit": "LB",
                 "unit_cost": 0.75,
                 "waste_percent": 10.0,
-                "description": "Horizontal bars at 18\" O.C.",
+                "description": 'Horizontal bars at 18" O.C.',
             },
             {
                 "name": "Wall Forms (both sides, SFCA)",
@@ -401,7 +401,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
     # Paving
     # ------------------------------------------------------------------
     {
-        "name": "4\" Sidewalk",
+        "name": '4" Sidewalk',
         "description": "4-inch concrete sidewalk with broom finish",
         "scope": "concrete",
         "category": "Paving",
@@ -416,7 +416,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
         "crew_size": 4,
         "component_definitions": [
             {
-                "name": "Concrete (4\" thick)",
+                "name": 'Concrete (4" thick)',
                 "component_type": "material",
                 "quantity_formula": "{qty} * 4 / 12 / 27",
                 "unit": "CY",
@@ -434,10 +434,11 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
             {
                 "name": "Edge Forms",
                 "component_type": "material",
-                "quantity_formula": "{perimeter}",
+                "quantity_formula": "4 * sqrt({qty})",
                 "unit": "LF",
                 "unit_cost": 2.00,
                 "waste_percent": 5.0,
+                "description": "Perimeter estimate from area (assumes square); adjust for actual shape",
             },
             {
                 "name": "Pour & Finish Labor",
@@ -452,7 +453,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
         ],
     },
     {
-        "name": "Curb & Gutter (6\"x18\")",
+        "name": 'Curb & Gutter (6"x18")',
         "description": "Standard curb and gutter, 6 inches by 18 inches",
         "scope": "concrete",
         "category": "Paving",
@@ -507,7 +508,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
     # Vertical (Columns & Walls)
     # ------------------------------------------------------------------
     {
-        "name": "Concrete Column 16\"x16\"",
+        "name": 'Concrete Column 16"x16"',
         "description": "16-inch square concrete column",
         "scope": "concrete",
         "category": "Vertical",
@@ -522,7 +523,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
         "crew_size": 4,
         "component_definitions": [
             {
-                "name": "Concrete (16\"x16\" col, 10' height)",
+                "name": 'Concrete (16"x16" col, 10\' height)',
                 "component_type": "material",
                 "quantity_formula": "{count} * 16 / 12 * 16 / 12 * 10 / 27",
                 "unit": "CY",
@@ -540,7 +541,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
                 "description": "8 vertical #8 bars per column",
             },
             {
-                "name": "#3 Ties @ 12\" O.C.",
+                "name": '#3 Ties @ 12" O.C.',
                 "component_type": "material",
                 "quantity_formula": "{count} * 10 * 4 * 0.376",
                 "unit": "LB",
@@ -569,7 +570,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
         ],
     },
     {
-        "name": "8\" Concrete Wall",
+        "name": '8" Concrete Wall',
         "description": "8-inch thick concrete wall, measured by area (SFCA)",
         "scope": "concrete",
         "category": "Vertical",
@@ -584,7 +585,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
         "crew_size": 6,
         "component_definitions": [
             {
-                "name": "Concrete (8\" wall)",
+                "name": 'Concrete (8" wall)',
                 "component_type": "material",
                 "quantity_formula": "{qty} * 8 / 12 / 27",
                 "unit": "CY",
@@ -592,7 +593,7 @@ CONCRETE_ASSEMBLY_TEMPLATES: list[dict] = [
                 "waste_percent": 5.0,
             },
             {
-                "name": "#5 Rebar @ 12\" O.C. EW",
+                "name": '#5 Rebar @ 12" O.C. EW',
                 "component_type": "material",
                 "quantity_formula": "{qty} * 2.09",
                 "unit": "LB",

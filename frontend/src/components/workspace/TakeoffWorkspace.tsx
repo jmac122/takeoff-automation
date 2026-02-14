@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
+import type { PanelImperativeHandle } from 'react-resizable-panels';
 import type Konva from 'konva';
 import { useWorkspaceStore, selectToolRejectionMessage } from '@/stores/workspaceStore';
 import { FocusProvider } from '@/contexts/FocusContext';
@@ -41,6 +42,27 @@ function TakeoffWorkspaceInner() {
   const rightPanelCollapsed = useWorkspaceStore((s) => s.rightPanelCollapsed);
   const toolRejectionMessage = useWorkspaceStore(selectToolRejectionMessage);
   const clearToolRejection = useWorkspaceStore((s) => s.clearToolRejection);
+
+  // Imperative refs for collapsible sidebar panels
+  const leftPanelRef = useRef<PanelImperativeHandle>(null);
+  const rightPanelRef = useRef<PanelImperativeHandle>(null);
+
+  // Sync store collapsed state with panel imperative API
+  useEffect(() => {
+    if (leftPanelCollapsed) {
+      leftPanelRef.current?.collapse();
+    } else {
+      leftPanelRef.current?.expand();
+    }
+  }, [leftPanelCollapsed]);
+
+  useEffect(() => {
+    if (rightPanelCollapsed) {
+      rightPanelRef.current?.collapse();
+    } else {
+      rightPanelRef.current?.expand();
+    }
+  }, [rightPanelCollapsed]);
 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastText, setToastText] = useState('');
@@ -370,7 +392,7 @@ function TakeoffWorkspaceInner() {
     scaleCalibration.cancelCalibration();
     setShowCalibrationDialog(false);
     setShowScaleLocation(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSheetId]);
 
   // Review mode integration
@@ -390,7 +412,7 @@ function TakeoffWorkspaceInner() {
     reject({ measurementId: reviewCurrentId, reviewer: 'user', reason: 'Rejected via keyboard shortcut' });
   }, [reviewCurrentId, reject]);
 
-  const handleReviewEdit = useCallback(() => {}, []);
+  const handleReviewEdit = useCallback(() => { }, []);
 
   const handleAutoAccept = useCallback((threshold: number) => {
     autoAccept({ threshold });
@@ -475,176 +497,174 @@ function TakeoffWorkspaceInner() {
 
   return (
     <div className="flex h-screen flex-col bg-neutral-950" data-testid="takeoff-workspace">
-        {/* Top Toolbar */}
-        <TopToolbar
-          projectId={projectId}
-          onAutoAccept={handleAutoAccept}
-          isAutoAccepting={isAutoAccepting}
-          onRunBatchAi={runBatchAi}
-          isBatchAiRunning={isBatchAiRunning}
-          onUndo={handleUndo}
-          onRedo={handleRedo}
-          canUndo={undoRedo.canUndo}
-          canRedo={undoRedo.canRedo}
-          onSetScale={handleSetScale}
-          onDetectScale={scaleDetection.detectScale}
-          isDetectingScale={scaleDetection.isDetecting}
-          onToggleScaleLocation={() => setShowScaleLocation((prev) => !prev)}
-          showScaleLocation={showScaleLocation}
-          hasScaleLocation={!!scaleLocationBbox}
-          onToggleTitleBlockMode={handleToggleTitleBlockMode}
-          isTitleBlockMode={isTitleBlockMode}
-          onToggleTitleBlockRegion={() => setShowTitleBlockRegion((prev) => !prev)}
-          showTitleBlockRegion={showTitleBlockRegion}
-          hasTitleBlockRegion={!!existingTitleBlockRect}
-        />
+      {/* Top Toolbar */}
+      <TopToolbar
+        projectId={projectId}
+        onAutoAccept={handleAutoAccept}
+        isAutoAccepting={isAutoAccepting}
+        onRunBatchAi={runBatchAi}
+        isBatchAiRunning={isBatchAiRunning}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={undoRedo.canUndo}
+        canRedo={undoRedo.canRedo}
+        onSetScale={handleSetScale}
+        onDetectScale={scaleDetection.detectScale}
+        isDetectingScale={scaleDetection.isDetecting}
+        onToggleScaleLocation={() => setShowScaleLocation((prev) => !prev)}
+        showScaleLocation={showScaleLocation}
+        hasScaleLocation={!!scaleLocationBbox}
+        onToggleTitleBlockMode={handleToggleTitleBlockMode}
+        isTitleBlockMode={isTitleBlockMode}
+        onToggleTitleBlockRegion={() => setShowTitleBlockRegion((prev) => !prev)}
+        showTitleBlockRegion={showTitleBlockRegion}
+        hasTitleBlockRegion={!!existingTitleBlockRect}
+      />
 
-        {/* Main Content Area */}
-        <div
-          className="flex-1 overflow-hidden"
-          style={{
-            height: `calc(100vh - ${TOP_TOOLBAR_HEIGHT}px - ${BOTTOM_STATUS_BAR_HEIGHT}px)`,
-          }}
-        >
-          <PanelGroup direction="horizontal" id="workspace-panels">
-            {/* Left Sidebar - Sheet Tree */}
-            {!leftPanelCollapsed && (
-              <>
-                <Panel
-                  id="left-sidebar"
-                  defaultSize={20}
-                  minSize={15}
-                  maxSize={35}
-                  data-testid="left-sidebar"
-                >
-                  <div className="h-full overflow-hidden border-r border-neutral-700 bg-neutral-900">
-                    <SheetTree
-                      projectId={projectId}
-                      sheetsData={sheetsData ?? null}
-                      isLoading={isLoadingSheets}
-                    />
-                  </div>
-                </Panel>
-                <PanelResizeHandle className="w-1 bg-neutral-800 hover:bg-blue-600 transition-colors" />
-              </>
-            )}
-
-            {/* Center Canvas */}
-            <Panel id="center-canvas" minSize={30}>
-              <CenterCanvas
-                projectId={projectId}
-                pageId={activeSheetId ?? undefined}
-                isLoadingSheet={isLoadingSheetImage}
-                sheetImageUrl={activeSheet?.image_url}
-                scaleValue={activeSheet?.scale_value}
-                pixelsPerUnit={
-                  activeSheet?.scale_calibrated && activeSheet?.scale_value
-                    ? activeSheet.scale_value
-                    : undefined
-                }
-                isScaleCalibrated={activeSheet?.scale_calibrated}
-                activeSheetScaleUnit={pageData?.scale_unit}
-                undoRedo={undoRedo}
-                calibrationState={scaleCalibration.state}
-                calibrationCurrentPoint={calibrationCurrentPoint}
-                onCalibrationClick={handleCalibrationClick}
-                onCalibrationMouseMove={handleCalibrationMouseMove}
-                scaleDetectionResult={scaleDetection.detectionResult}
-                scaleHighlightBox={scaleDetection.scaleHighlightBox}
-                onDismissDetection={scaleDetection.dismissResult}
-                showScaleLocation={showScaleLocation}
-                scaleLocationBbox={scaleLocationBbox}
-                isTitleBlockMode={isTitleBlockMode}
-                showTitleBlockRegion={showTitleBlockRegion}
-                titleBlockRegion={existingTitleBlockRect}
-                onTitleBlockClick={handleTitleBlockClick}
-                onTitleBlockMouseMove={handleTitleBlockMouseMove}
-                titleBlockDraftRect={titleBlockDraftRect}
-              />
-            </Panel>
-
-            {/* Right Panel - Conditions */}
-            {!rightPanelCollapsed && (
-              <>
-                <PanelResizeHandle className="w-1 bg-neutral-800 hover:bg-blue-600 transition-colors" />
-                <Panel
-                  id="right-panel"
-                  defaultSize={25}
-                  minSize={18}
-                  maxSize={40}
-                  data-testid="right-panel-wrapper"
-                >
-                  <RightPanel
-                  projectId={projectId}
-                  pageId={activeSheetId ?? undefined}
-                  documentId={activeDocumentId ?? undefined}
-                  onCompare={handleCompare}
-                />
-                </Panel>
-              </>
-            )}
-          </PanelGroup>
-        </div>
-
-        {/* Plan Overlay Comparison View */}
-        {compareState && (
-          <PlanOverlayView
-            oldDocumentId={compareState.oldDocId}
-            newDocumentId={compareState.newDocId}
-            maxPageCount={compareState.maxPages}
-            onClose={() => setCompareState(null)}
-          />
-        )}
-
-        {/* Bottom Status Bar */}
-        <BottomStatusBar projectId={projectId} />
-
-        {/* Scale Calibration Dialog */}
-        <ScaleCalibrationDialog
-          open={showCalibrationDialog}
-          onOpenChange={setShowCalibrationDialog}
-          page={pageData}
-          pageId={activeSheetId ?? undefined}
-          onScaleUpdated={handleScaleUpdated}
-          calibrationState={scaleCalibration.state}
-          onStartCalibration={scaleCalibration.startCalibration}
-          onCancelCalibration={scaleCalibration.cancelCalibration}
-          onClearLine={scaleCalibration.clearLine}
-          onSubmitCalibration={scaleCalibration.submitCalibration}
-        />
-
-        {/* Title block save banner */}
-        {isTitleBlockMode && pendingTitleBlock && (
-          <div className="fixed bottom-16 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-sky-500/50 bg-sky-900/90 px-4 py-2 shadow-lg">
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-sky-200">Title block region selected</span>
-              <button
-                onClick={handleSaveTitleBlockRegion}
-                disabled={isSavingTitleBlock}
-                className="rounded bg-sky-500 px-3 py-1 text-xs font-medium text-black hover:bg-sky-400 disabled:opacity-60"
-              >
-                {isSavingTitleBlock ? 'Saving...' : 'Save & Re-run OCR'}
-              </button>
-              <button
-                onClick={resetTitleBlockSelection}
-                className="rounded bg-neutral-700 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-600"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Tool rejection toast */}
-        {toastVisible && (
-          <div
-            className="fixed bottom-12 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-lg"
-            role="alert"
+      {/* Main Content Area */}
+      <div
+        className="flex-1 overflow-hidden"
+        style={{
+          height: `calc(100vh - ${TOP_TOOLBAR_HEIGHT}px - ${BOTTOM_STATUS_BAR_HEIGHT}px)`,
+        }}
+      >
+        <PanelGroup orientation="horizontal" id="workspace-panels">
+          {/* Left Sidebar - Sheet Tree */}
+          <Panel
+            id="left-sidebar"
+            panelRef={leftPanelRef}
+            defaultSize={20}
+            minSize={15}
+            maxSize={35}
+            collapsible
+            collapsedSize={0}
+            data-testid="left-sidebar"
           >
-            {toastText}
-          </div>
-        )}
+            <div className="h-full overflow-hidden border-r border-neutral-700 bg-neutral-900">
+              <SheetTree
+                projectId={projectId}
+                sheetsData={sheetsData ?? null}
+                isLoading={isLoadingSheets}
+              />
+            </div>
+          </Panel>
+          <PanelResizeHandle className="w-1 bg-neutral-800 hover:bg-blue-600 transition-colors" />
+
+          {/* Center Canvas */}
+          <Panel id="center-canvas" minSize={30}>
+            <CenterCanvas
+              projectId={projectId}
+              pageId={activeSheetId ?? undefined}
+              isLoadingSheet={isLoadingSheetImage}
+              sheetImageUrl={activeSheet?.image_url}
+              scaleValue={activeSheet?.scale_value}
+              pixelsPerUnit={
+                activeSheet?.scale_calibrated && activeSheet?.scale_value
+                  ? activeSheet.scale_value
+                  : undefined
+              }
+              isScaleCalibrated={activeSheet?.scale_calibrated}
+              activeSheetScaleUnit={pageData?.scale_unit}
+              undoRedo={undoRedo}
+              calibrationState={scaleCalibration.state}
+              calibrationCurrentPoint={calibrationCurrentPoint}
+              onCalibrationClick={handleCalibrationClick}
+              onCalibrationMouseMove={handleCalibrationMouseMove}
+              scaleDetectionResult={scaleDetection.detectionResult}
+              scaleHighlightBox={scaleDetection.scaleHighlightBox}
+              onDismissDetection={scaleDetection.dismissResult}
+              showScaleLocation={showScaleLocation}
+              scaleLocationBbox={scaleLocationBbox}
+              isTitleBlockMode={isTitleBlockMode}
+              showTitleBlockRegion={showTitleBlockRegion}
+              titleBlockRegion={existingTitleBlockRect}
+              onTitleBlockClick={handleTitleBlockClick}
+              onTitleBlockMouseMove={handleTitleBlockMouseMove}
+              titleBlockDraftRect={titleBlockDraftRect}
+            />
+          </Panel>
+
+          {/* Right Panel - Conditions */}
+          <PanelResizeHandle className="w-1 bg-neutral-800 hover:bg-blue-600 transition-colors" />
+          <Panel
+            id="right-panel"
+            panelRef={rightPanelRef}
+            defaultSize={25}
+            minSize={18}
+            maxSize={40}
+            collapsible
+            collapsedSize={0}
+            data-testid="right-panel-wrapper"
+          >
+            <RightPanel
+              projectId={projectId}
+              pageId={activeSheetId ?? undefined}
+              documentId={activeDocumentId ?? undefined}
+              onCompare={handleCompare}
+            />
+          </Panel>
+        </PanelGroup>
       </div>
+
+      {/* Plan Overlay Comparison View */}
+      {compareState && (
+        <PlanOverlayView
+          oldDocumentId={compareState.oldDocId}
+          newDocumentId={compareState.newDocId}
+          maxPageCount={compareState.maxPages}
+          onClose={() => setCompareState(null)}
+        />
+      )}
+
+      {/* Bottom Status Bar */}
+      <BottomStatusBar projectId={projectId} />
+
+      {/* Scale Calibration Dialog */}
+      <ScaleCalibrationDialog
+        open={showCalibrationDialog}
+        onOpenChange={setShowCalibrationDialog}
+        page={pageData}
+        pageId={activeSheetId ?? undefined}
+        onScaleUpdated={handleScaleUpdated}
+        calibrationState={scaleCalibration.state}
+        onStartCalibration={scaleCalibration.startCalibration}
+        onCancelCalibration={scaleCalibration.cancelCalibration}
+        onClearLine={scaleCalibration.clearLine}
+        onSubmitCalibration={scaleCalibration.submitCalibration}
+      />
+
+      {/* Title block save banner */}
+      {isTitleBlockMode && pendingTitleBlock && (
+        <div className="fixed bottom-16 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-sky-500/50 bg-sky-900/90 px-4 py-2 shadow-lg">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-sky-200">Title block region selected</span>
+            <button
+              onClick={handleSaveTitleBlockRegion}
+              disabled={isSavingTitleBlock}
+              className="rounded bg-sky-500 px-3 py-1 text-xs font-medium text-black hover:bg-sky-400 disabled:opacity-60"
+            >
+              {isSavingTitleBlock ? 'Saving...' : 'Save & Re-run OCR'}
+            </button>
+            <button
+              onClick={resetTitleBlockSelection}
+              className="rounded bg-neutral-700 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-600"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tool rejection toast */}
+      {toastVisible && (
+        <div
+          className="fixed bottom-12 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-lg"
+          role="alert"
+        >
+          {toastText}
+        </div>
+      )}
+    </div>
   );
 }
 
