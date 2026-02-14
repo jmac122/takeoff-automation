@@ -145,6 +145,40 @@ async def get_calibrated_page(
     return CalibratedPageData(page=page, document=document)
 
 
+class PageData:
+    """Data class for a page with its document (no calibration required)."""
+
+    def __init__(self, page: Page, document: Document):
+        self.page = page
+        self.document = document
+
+
+async def get_page_with_document(
+    page_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> PageData:
+    """Dependency to fetch a page and its document without requiring calibration.
+
+    Raises:
+        HTTPException 404: If page not found
+    """
+    result = await db.execute(
+        select(Page, Document)
+        .join(Document, Page.document_id == Document.id)
+        .where(Page.id == page_id)
+    )
+    row = result.one_or_none()
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Page not found",
+        )
+
+    page, document = row
+    return PageData(page=page, document=document)
+
+
 def validate_provider(provider: str | None) -> str | None:
     """Validate that provider is available if specified.
 
@@ -486,7 +520,7 @@ async def predict_next_point(
     page_id: uuid.UUID,
     request_body: PredictNextPointRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
-    page_data: Annotated[CalibratedPageData, Depends(get_calibrated_page)],
+    page_data: Annotated[PageData, Depends(get_page_with_document)],
 ) -> PredictNextPointResponse:
     """Predict the next measurement point for AutoTab.
 

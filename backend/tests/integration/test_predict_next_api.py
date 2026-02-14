@@ -8,7 +8,7 @@ from httpx import AsyncClient, ASGITransport
 
 from app.main import app
 from app.api.deps import get_db
-from app.api.routes.takeoff import get_calibrated_page, CalibratedPageData
+from app.api.routes.takeoff import get_page_with_document, PageData
 
 
 @pytest.fixture
@@ -69,15 +69,15 @@ def mock_db_session(mock_condition):
 @pytest.fixture
 def override_deps(mock_page, mock_document, mock_db_session):
     """Override FastAPI dependencies for testing."""
-    page_data = CalibratedPageData(page=mock_page, document=mock_document)
+    page_data = PageData(page=mock_page, document=mock_document)
 
-    async def override_get_calibrated_page():
+    async def override_get_page_with_document():
         return page_data
 
     async def override_get_db():
         yield mock_db_session
 
-    app.dependency_overrides[get_calibrated_page] = override_get_calibrated_page
+    app.dependency_overrides[get_page_with_document] = override_get_page_with_document
     app.dependency_overrides[get_db] = override_get_db
     yield
     app.dependency_overrides.clear()
@@ -179,7 +179,7 @@ class TestPredictNextPointEndpoint:
         self, base_url, transport, mock_page, mock_document, mock_db_session,
     ):
         """Non-existent condition_id returns 404."""
-        page_data = CalibratedPageData(page=mock_page, document=mock_document)
+        page_data = PageData(page=mock_page, document=mock_document)
 
         # Configure DB to return None for condition lookup
         mock_result = MagicMock()
@@ -192,7 +192,7 @@ class TestPredictNextPointEndpoint:
         async def override_db():
             yield mock_db_session
 
-        app.dependency_overrides[get_calibrated_page] = override_page
+        app.dependency_overrides[get_page_with_document] = override_page
         app.dependency_overrides[get_db] = override_db
 
         try:
@@ -214,7 +214,7 @@ class TestPredictNextPointEndpoint:
         self, base_url, transport, mock_page, mock_document, mock_db_session,
     ):
         """Condition from different project returns 400."""
-        page_data = CalibratedPageData(page=mock_page, document=mock_document)
+        page_data = PageData(page=mock_page, document=mock_document)
 
         # Condition with different project_id
         wrong_condition = MagicMock()
@@ -231,7 +231,7 @@ class TestPredictNextPointEndpoint:
         async def override_db():
             yield mock_db_session
 
-        app.dependency_overrides[get_calibrated_page] = override_page
+        app.dependency_overrides[get_page_with_document] = override_page
         app.dependency_overrides[get_db] = override_db
 
         try:

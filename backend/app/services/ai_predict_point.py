@@ -11,7 +11,6 @@ from typing import Any
 
 import structlog
 
-from app.services.ai_takeoff import scale_coordinates
 from app.services.llm_client import get_llm_client
 from app.utils.pdf_utils import resize_image_for_llm
 
@@ -200,13 +199,13 @@ class PredictNextPointService:
                     geometry_data = {"points": geometry_data}
 
             # Scale coordinates back to original image space
-            geometry_data = scale_coordinates(
-                geometry_data,
+            scale_back_x = image_width / llm_width if llm_width else 1
+            scale_back_y = image_height / llm_height if llm_height else 1
+            geometry_data = _scale_geometry(
                 geometry_type,
-                llm_width,
-                llm_height,
-                image_width,
-                image_height,
+                geometry_data,
+                scale_back_x,
+                scale_back_y,
             )
 
             logger.info(
