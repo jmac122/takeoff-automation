@@ -533,11 +533,11 @@ function TakeoffWorkspaceInner() {
           <Panel
             id="left-sidebar"
             panelRef={leftPanelRef}
-            defaultSize={20}
-            minSize={15}
-            maxSize={35}
+            defaultSize="18%"
+            minSize="1%"
+            maxSize="40%"
             collapsible
-            collapsedSize={0}
+            collapsedSize="0%"
             data-testid="left-sidebar"
           >
             <div className="h-full overflow-hidden border-r border-neutral-700 bg-neutral-900">
@@ -551,7 +551,7 @@ function TakeoffWorkspaceInner() {
           <PanelResizeHandle className="w-1 bg-neutral-800 hover:bg-blue-600 transition-colors" />
 
           {/* Center Canvas */}
-          <Panel id="center-canvas" minSize={30}>
+          <Panel id="center-canvas" minSize="30%">
             <CenterCanvas
               projectId={projectId}
               pageId={activeSheetId ?? undefined}
@@ -589,11 +589,11 @@ function TakeoffWorkspaceInner() {
           <Panel
             id="right-panel"
             panelRef={rightPanelRef}
-            defaultSize={25}
-            minSize={18}
-            maxSize={40}
+            defaultSize="22%"
+            minSize="1%"
+            maxSize="45%"
             collapsible
-            collapsedSize={0}
+            collapsedSize="0%"
             data-testid="right-panel-wrapper"
           >
             <RightPanel
