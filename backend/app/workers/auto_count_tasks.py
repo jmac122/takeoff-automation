@@ -31,11 +31,11 @@ SyncSession = sessionmaker(bind=sync_engine)
 def _report_progress(task, db: Session, percent: int, message: str) -> None:
     """Update task progress."""
     try:
-        TaskTracker.update_sync(
+        TaskTracker.update_progress_sync(
             db,
             task_id=task.request.id,
-            progress=percent,
-            message=message,
+            percent=percent,
+            step=message,
         )
     except Exception:
         pass  # Progress reporting should never block the main task
@@ -188,10 +188,10 @@ def auto_count_task(
         _report_progress(self, db, 100, "Detection complete")
 
         # Mark task complete
-        TaskTracker.complete_sync(
+        TaskTracker.mark_completed_sync(
             db,
             task_id=self.request.id,
-            result={
+            result_summary={
                 "session_id": session_id,
                 "total_detections": len(all_matches),
                 "template_matches": template_count,
@@ -211,7 +211,7 @@ def auto_count_task(
         # Validation errors — don't retry
         logger.error("Auto count validation error", error=str(e))
         _fail_session(db, session_id, str(e))
-        TaskTracker.fail_sync(db, task_id=self.request.id, error=str(e))
+        TaskTracker.mark_failed_sync(db, task_id=self.request.id, error_message=str(e))
         raise
 
     except Exception as e:
@@ -221,7 +221,7 @@ def auto_count_task(
             self.retry(countdown=60)
         except MaxRetriesExceededError:
             _fail_session(db, session_id, f"Max retries exceeded: {e}")
-            TaskTracker.fail_sync(db, task_id=self.request.id, error=str(e))
+            TaskTracker.mark_failed_sync(db, task_id=self.request.id, error_message=str(e))
             raise
 
     finally:

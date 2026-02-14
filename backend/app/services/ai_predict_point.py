@@ -55,6 +55,18 @@ def _format_last_coords(geometry_type: str, geometry_data: dict[str, Any]) -> st
         x = geometry_data.get("x", 0)
         y = geometry_data.get("y", 0)
         return f'{{"x": {x}, "y": {y}}}'
+    elif geometry_type == "rectangle":
+        x = geometry_data.get("x", 0)
+        y = geometry_data.get("y", 0)
+        w = geometry_data.get("width", 0)
+        h = geometry_data.get("height", 0)
+        return f'{{"x": {x}, "y": {y}, "width": {w}, "height": {h}}}'
+    elif geometry_type == "circle":
+        center = geometry_data.get("center", {})
+        cx = center.get("x", 0) if isinstance(center, dict) else 0
+        cy = center.get("y", 0) if isinstance(center, dict) else 0
+        r = geometry_data.get("radius", 0)
+        return f'{{"center": {{"x": {cx}, "y": {cy}}}, "radius": {r}}}'
     else:
         points = geometry_data.get("points", [])
         if not points:
@@ -69,6 +81,10 @@ def _geometry_template(geometry_type: str) -> str:
     """Return the expected geometry_data JSON template for the prompt."""
     if geometry_type == "point":
         return '{"x": <number>, "y": <number>}'
+    elif geometry_type == "rectangle":
+        return '{"x": <number>, "y": <number>, "width": <number>, "height": <number>}'
+    elif geometry_type == "circle":
+        return '{"center": {"x": <number>, "y": <number>}, "radius": <number>}'
     else:
         return '{"points": [{"x": <number>, "y": <number>}, ...]}'
 
@@ -223,12 +239,32 @@ def _scale_geometry(
             "x": (geometry_data.get("x") or 0) * sx,
             "y": (geometry_data.get("y") or 0) * sy,
         }
-    points = geometry_data.get("points", [])
-    return {
-        "points": [
-            {"x": (p.get("x") or 0) * sx, "y": (p.get("y") or 0) * sy} for p in points
-        ],
-    }
+    elif geometry_type == "rectangle":
+        return {
+            "x": (geometry_data.get("x") or 0) * sx,
+            "y": (geometry_data.get("y") or 0) * sy,
+            "width": (geometry_data.get("width") or 0) * sx,
+            "height": (geometry_data.get("height") or 0) * sy,
+        }
+    elif geometry_type == "circle":
+        center = geometry_data.get("center", {})
+        if not isinstance(center, dict):
+            center = {}
+        return {
+            "center": {
+                "x": (center.get("x") or 0) * sx,
+                "y": (center.get("y") or 0) * sy,
+            },
+            "radius": (geometry_data.get("radius") or 0) * (sx + sy) / 2,
+        }
+    else:
+        points = geometry_data.get("points", [])
+        return {
+            "points": [
+                {"x": (p.get("x") or 0) * sx, "y": (p.get("y") or 0) * sy}
+                for p in points
+            ],
+        }
 
 
 # Singleton

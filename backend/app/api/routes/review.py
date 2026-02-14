@@ -112,10 +112,11 @@ async def modify_measurement(
             new_quantity=measurement.quantity,
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+        detail = str(e)
+        code = status.HTTP_400_BAD_REQUEST
+        if "not found" in detail.lower():
+            code = status.HTTP_404_NOT_FOUND
+        raise HTTPException(status_code=code, detail=detail)
 
 
 @router.post(

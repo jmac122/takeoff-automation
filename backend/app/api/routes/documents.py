@@ -343,6 +343,13 @@ async def link_revision(
     if not old_doc:
         raise HTTPException(status_code=404, detail="Superseded document not found")
 
+    # Reject self-cycles
+    if document_id == request.supersedes_document_id:
+        raise HTTPException(
+            status_code=400,
+            detail="A document cannot supersede itself",
+        )
+
     # Must be in the same project
     if document.project_id != old_doc.project_id:
         raise HTTPException(
@@ -417,8 +424,12 @@ async def get_revision_chain(
         chain.insert(0, next_doc)  # Insert at front (newer)
         current = next_doc
 
-    # Sort: oldest first (the one with no supersedes_document_id comes first)
-    chain.sort(key=lambda d: d.created_at)
+    # The chain is currently ordered newest → oldest (forward walk
+    # inserted at front, backward walk appended).  Reverse to get
+    # oldest-first, preserving the topological order from the
+    # supersedes_document_id linked list rather than relying on
+    # created_at which can differ from true revision sequence.
+    chain.reverse()
 
     return RevisionChainResponse(
         chain=[

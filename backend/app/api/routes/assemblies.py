@@ -4,7 +4,7 @@ import uuid
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -382,7 +382,7 @@ async def delete_component(
 )
 async def reorder_components(
     assembly_id: uuid.UUID,
-    component_ids: list[uuid.UUID],
+    component_ids: Annotated[list[uuid.UUID], Body()],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Reorder components by the provided ID list."""
