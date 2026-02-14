@@ -184,9 +184,9 @@
 | PUT | `/measurements/{id}` | Update measurement |
 | DELETE | `/measurements/{id}` | Delete measurement |
 | PUT | `/measurements/{id}/adjust` | Quick adjust (7 operations) |
-| PUT | `/measurements/{id}/verify` | Approve measurement |
-| DELETE | `/measurements/{id}/reject` | Reject measurement |
-| PUT | `/measurements/{id}/geometry` | Modify geometry |
+| POST | `/measurements/{id}/approve` | Approve measurement |
+| POST | `/measurements/{id}/reject` | Reject measurement |
+| POST | `/measurements/{id}/modify` | Modify measurement |
 
 ### AI Takeoff
 | Method | Path | Description |
@@ -200,6 +200,10 @@
 ### Review
 | Method | Path | Description |
 |--------|------|-------------|
+| POST | `/measurements/{id}/approve` | Approve measurement |
+| POST | `/measurements/{id}/reject` | Reject measurement |
+| POST | `/measurements/{id}/modify` | Modify measurement |
+| GET | `/measurements/{id}/history` | Measurement history |
 | POST | `/projects/{id}/measurements/auto-accept` | Batch auto-accept |
 | GET | `/projects/{id}/review-stats` | Review statistics |
 | GET | `/pages/{id}/measurements/next-unreviewed` | Next unreviewed |
@@ -208,18 +212,33 @@
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/pages/{id}/auto-count` | Start auto count |
+| GET | `/auto-count-sessions/{id}` | Get session details |
+| GET | `/pages/{id}/auto-count-sessions` | List page sessions |
+| POST | `/auto-count-detections/{id}/confirm` | Confirm detection |
+| POST | `/auto-count-detections/{id}/reject` | Reject detection |
+| POST | `/auto-count-sessions/{id}/bulk-confirm` | Bulk confirm |
+| POST | `/auto-count-sessions/{id}/create-measurements` | Create measurements |
 
 ### Assemblies
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/conditions/{id}/assembly` | Create assembly |
-| POST | `/conditions/{id}/assembly/from-template` | From template |
 | GET | `/conditions/{id}/assembly` | Get assembly |
+| GET | `/assemblies/{id}` | Get assembly by ID |
 | PUT | `/assemblies/{id}` | Update assembly |
-| POST | `/assemblies/{id}/items` | Add item |
-| PUT | `/assembly-items/{id}` | Update item |
-| DELETE | `/assembly-items/{id}` | Remove item |
+| DELETE | `/assemblies/{id}` | Delete assembly |
+| POST | `/assemblies/{id}/calculate` | Recalculate costs |
+| POST | `/assemblies/{id}/lock` | Lock assembly |
+| POST | `/assemblies/{id}/unlock` | Unlock assembly |
+| POST | `/assemblies/{id}/components` | Add component |
+| PUT | `/components/{id}` | Update component |
+| DELETE | `/components/{id}` | Remove component |
+| PUT | `/assemblies/{id}/components/reorder` | Reorder components |
 | GET | `/assembly-templates` | List templates |
+| GET | `/assembly-templates/{id}` | Get template |
+| POST | `/formulas/validate` | Validate formula |
+| GET | `/formulas/presets` | Formula presets |
+| GET | `/formulas/help` | Formula documentation |
 | GET | `/projects/{id}/cost-summary` | Project cost rollup |
 
 ### Exports

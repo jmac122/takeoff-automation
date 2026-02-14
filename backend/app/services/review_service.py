@@ -371,6 +371,7 @@ class ReviewService:
                             and_(
                                 Measurement.is_verified == True,
                                 Measurement.is_rejected == False,
+                                Measurement.is_modified == False,
                             ),
                             1,
                         ),
