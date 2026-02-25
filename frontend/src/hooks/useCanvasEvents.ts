@@ -35,7 +35,7 @@ export function useCanvasEvents({
     drawing,
     onMeasurementCreate,
     onMeasurementSelect,
-    onConditionSelect,
+    onConditionSelect: _onConditionSelect,
     onConditionRequired,
     handleWheel,
 }: UseCanvasEventsOptions) {
@@ -158,9 +158,10 @@ export function useCanvasEvents({
             // If select tool or no tool, allow panning with left click
             // If select tool, handle selection
             if (drawing.tool === 'select') {
-                if (e.target === e.target.getStage()) {
+                const clickedOnEmptyArea =
+                    e.target === e.target.getStage() || e.target.getClassName() === 'Image';
+                if (clickedOnEmptyArea) {
                     onMeasurementSelect(null);
-                    onConditionSelect?.(null);
                     setIsPanning(true);
                     setPanStart({ x: pointerPos.x, y: pointerPos.y });
                     setPanStartPos({ x: pan.x, y: pan.y });
@@ -180,7 +181,6 @@ export function useCanvasEvents({
         getImagePointFromStage,
         onMeasurementCreate,
         onMeasurementSelect,
-        onConditionSelect,
         onConditionRequired,
     ]);
 
@@ -242,7 +242,7 @@ export function useCanvasEvents({
                     const dx = Math.abs(endPoint.x - startPoint.x);
                     const dy = Math.abs(endPoint.y - startPoint.y);
                     const minSize = 5; // Minimum 5 pixels
-                    
+
                     if (dx >= minSize || dy >= minSize) {
                         const result = drawing.finishDrawing();
                         if (result.tool !== 'select' && result.previewShape) {

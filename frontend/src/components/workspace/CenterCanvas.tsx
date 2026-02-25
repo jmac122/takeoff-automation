@@ -21,6 +21,7 @@ import { useWorkspaceCanvasControls } from '@/hooks/useWorkspaceCanvasControls';
 import { useWorkspaceDrawingState } from '@/hooks/useWorkspaceDrawingState';
 import { useWorkspaceCanvasEvents } from '@/hooks/useWorkspaceCanvasEvents';
 import { useUndoRedo } from '@/hooks/useUndoRedo';
+import { useAutoTab } from '@/hooks/useAutoTab';
 import { createMeasurementGeometry, offsetGeometryData, type MeasurementResult } from '@/utils/measurementUtils';
 import { MeasurementLayer } from '@/components/viewer/MeasurementLayer';
 import { DrawingPreviewLayer } from '@/components/viewer/DrawingPreviewLayer';
@@ -305,6 +306,9 @@ export function CenterCanvas({
   const drawing = useWorkspaceDrawingState();
   const activeCondition = activeConditionId ? conditionsMap.get(activeConditionId) : undefined;
 
+  // AutoTab: AI prediction of next measurement
+  const autoTab = useAutoTab(effectivePageId, activeConditionId);
+
   // ---------------------------------------------------------------------------
   // Measurement CRUD callbacks
   // ---------------------------------------------------------------------------
@@ -329,6 +333,12 @@ export function CenterCanvas({
 
       invalidateMeasurements();
       setSelectedMeasurements([created.id]);
+
+      // Trigger AutoTab prediction for the next measurement
+      autoTab.triggerPrediction(
+        geometry.geometryType,
+        geometry.geometryData as Record<string, unknown>,
+      );
 
       const capturedConditionId = activeConditionId;
       const capturedPageId = effectivePageId;
@@ -356,17 +366,33 @@ export function CenterCanvas({
     } catch (err) {
       console.error('Failed to create measurement:', err);
     }
-  }, [activeConditionId, effectivePageId, invalidateMeasurements, setSelectedMeasurements, undoRedo]);
+  }, [activeConditionId, effectivePageId, invalidateMeasurements, setSelectedMeasurements, undoRedo, autoTab]);
 
-  // CM-034: Update measurement (move/edit) and push to undo stack
+  // CM-034: Update measurement (move/edit) and push to undo stack.
+  // Uses optimistic cache update to avoid refetch race conditions that
+  // cause shapes to teleport back to their pre-edit position.
   const handleMeasurementUpdate = useCallback(async (
     measurementId: string,
     geometryData: JsonObject,
     previousGeometryData?: JsonObject,
   ) => {
+    // Optimistically update the cache so the shape stays in place
+    const cacheKey = ['measurements', effectivePageId];
+    queryClient.setQueryData(cacheKey, (old: { measurements: Measurement[] } | undefined) => {
+      if (!old) return old;
+      return {
+        ...old,
+        measurements: old.measurements.map((m) =>
+          m.id === measurementId ? { ...m, geometry_data: geometryData } : m
+        ),
+      };
+    });
+
     try {
       await updateMeasurement(measurementId, { geometry_data: geometryData });
-      invalidateMeasurements();
+      // Background refetch to sync any server-side computed fields (quantity, etc.)
+      queryClient.invalidateQueries({ queryKey: cacheKey });
+      queryClient.invalidateQueries({ queryKey: ['conditions', projectId] });
 
       if (previousGeometryData) {
         undoRedo.push({
@@ -383,8 +409,9 @@ export function CenterCanvas({
       }
     } catch (err) {
       console.error('Failed to update measurement:', err);
+      invalidateMeasurements();
     }
-  }, [invalidateMeasurements, undoRedo]);
+  }, [effectivePageId, projectId, queryClient, invalidateMeasurements, undoRedo]);
 
   // CM-033: Delete measurement and push to undo stack
   const handleMeasurementDelete = useCallback(async (measurement: Measurement) => {
@@ -595,6 +622,28 @@ export function CenterCanvas({
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
       if (useWorkspaceStore.getState().focusRegion !== 'canvas') return;
 
+      // AutoTab ghost: Tab to accept prediction, Esc to dismiss
+      const hasGhost = useWorkspaceStore.getState().ghostPrediction !== null;
+
+      if (e.key === 'Tab' && hasGhost) {
+        e.preventDefault();
+        const prediction = autoTab.acceptPrediction();
+        if (prediction) {
+          void handleMeasurementCreate({
+            tool: prediction.geometry_type as string,
+            points: (prediction.geometry_data as { points?: Array<{ x: number; y: number }> }).points
+              ?? [prediction.geometry_data as { x: number; y: number }],
+          } as MeasurementResult);
+        }
+        return;
+      }
+
+      if (e.key === 'Escape' && hasGhost) {
+        e.preventDefault();
+        autoTab.dismissPrediction();
+        return;
+      }
+
       // Undo/Redo (CM-035)
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
@@ -654,7 +703,7 @@ export function CenterCanvas({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [drawing, undoRedo, allMeasurements, handleMeasurementDelete, isCalibrating, isTitleBlockMode]);
+  }, [drawing, undoRedo, allMeasurements, handleMeasurementDelete, handleMeasurementCreate, isCalibrating, isTitleBlockMode, autoTab]);
 
   // ---------------------------------------------------------------------------
   // Cursor management (CM-006)

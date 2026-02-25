@@ -5,7 +5,14 @@ from typing import Any
 
 import structlog
 
-from app.services.llm_client import get_llm_client, LLMProvider, LLMResponse
+from app.services.llm_client import (
+    get_llm_client,
+    LLMProvider,
+    LLMResponse,
+    PROVIDER_MAX_RESOLUTION,
+    DEFAULT_MAX_RESOLUTION,
+)
+from app.utils.pdf_utils import resize_image_for_llm
 from app.config import get_settings
 
 logger = structlog.get_logger()
@@ -21,12 +28,12 @@ def scale_coordinates(
     original_height: int,
 ) -> dict[str, Any]:
     """Scale coordinates from LLM image space to original image space.
-    
+
     The LLM receives a resized image but returns coordinates in that resized space.
     We need to scale them back to the original image dimensions so they align
     with the page's scale_value (pixels_per_foot) which is calibrated for the
     original image.
-    
+
     Args:
         geometry_data: The geometry data with coordinates
         geometry_type: "polygon", "polyline", "line", or "point"
@@ -34,17 +41,17 @@ def scale_coordinates(
         llm_height: Height of image sent to LLM
         original_width: Original page image width
         original_height: Original page image height
-        
+
     Returns:
         Geometry data with scaled coordinates
     """
     # No scaling needed if dimensions match
     if llm_width == original_width and llm_height == original_height:
         return geometry_data
-    
+
     scale_x = original_width / llm_width
     scale_y = original_height / llm_height
-    
+
     if geometry_type == "point":
         # Use `or 0` to handle both missing keys AND explicit null values
         x = geometry_data.get("x") or 0
@@ -60,10 +67,12 @@ def scale_coordinates(
             # Use `or 0` to handle both missing keys AND explicit null values
             x = point.get("x") or 0
             y = point.get("y") or 0
-            scaled_points.append({
-                "x": x * scale_x,
-                "y": y * scale_y,
-            })
+            scaled_points.append(
+                {
+                    "x": x * scale_x,
+                    "y": y * scale_y,
+                }
+            )
         return {"points": scaled_points}
 
 
@@ -343,43 +352,51 @@ class AITakeoffService:
         )
 
         # Select appropriate prompt template
-        prompt_template = self.ELEMENT_PROMPTS.get(measurement_type, AREA_DETECTION_PROMPT)
+        prompt_template = self.ELEMENT_PROMPTS.get(
+            measurement_type, AREA_DETECTION_PROMPT
+        )
+
+        # Pre-resize image so prompt dimensions match what the LLM actually sees
+        max_dim = PROVIDER_MAX_RESOLUTION.get(llm.provider, DEFAULT_MAX_RESOLUTION)
+        resized_bytes, llm_width, llm_height = resize_image_for_llm(
+            image_bytes,
+            max_dimension=max_dim,
+            fmt="PNG",
+        )
+
+        if llm_width != width or llm_height != height:
+            logger.info(
+                "Pre-resized image for prompt accuracy",
+                original_size=f"{width}x{height}",
+                llm_size=f"{llm_width}x{llm_height}",
+                max_dimension=max_dim,
+            )
 
         # Build context
-        scale_description = scale_text or "unknown - use visual cues for relative sizing"
+        scale_description = (
+            scale_text or "unknown - use visual cues for relative sizing"
+        )
         context = ""
         if ocr_text:
             context = f"Text found on page (truncated): {ocr_text[:500]}"
 
-        # Build prompt
+        # Build prompt with actual LLM image dimensions so coordinates match
         prompt = prompt_template.format(
-            width=width,
-            height=height,
+            width=llm_width,
+            height=llm_height,
             element_type=element_type,
             scale_description=scale_description,
             context=context,
         )
 
-        # Call LLM
+        # Call LLM with pre-resized image (won't be resized again)
         try:
             data, response = llm.analyze_image_json(
-                image_bytes=image_bytes,
+                image_bytes=resized_bytes,
                 prompt=prompt,
                 system_prompt=TAKEOFF_SYSTEM_PROMPT,
                 max_tokens=2048,
             )
-
-            # Get LLM image dimensions for coordinate scaling
-            llm_width = response.image_width or width
-            llm_height = response.image_height or height
-            
-            # Log if scaling is needed
-            if llm_width != width or llm_height != height:
-                logger.info(
-                    "Scaling AI coordinates from LLM image space to original",
-                    llm_size=f"{llm_width}x{llm_height}",
-                    original_size=f"{width}x{height}",
-                )
 
             # Parse detected elements
             elements = []
@@ -399,9 +416,12 @@ class AITakeoffService:
 
                 # Scale coordinates from LLM image space to original image space
                 geometry_data = scale_coordinates(
-                    geometry_data, geometry_type,
-                    llm_width, llm_height,
-                    width, height,
+                    geometry_data,
+                    geometry_type,
+                    llm_width,
+                    llm_height,
+                    width,
+                    height,
                 )
 
                 elements.append(
@@ -477,40 +497,48 @@ class AITakeoffService:
             task="element_detection",
         )
 
+        # Pre-resize image so prompt dimensions match what the LLM actually sees.
+        # Without this, the prompt claims dimensions of e.g. 5100x3300 while the
+        # LLM only sees 1568x1015, causing coordinates to land in the wrong space.
+        max_dim = PROVIDER_MAX_RESOLUTION.get(llm.provider, DEFAULT_MAX_RESOLUTION)
+        resized_bytes, llm_width, llm_height = resize_image_for_llm(
+            image_bytes,
+            max_dimension=max_dim,
+            fmt="PNG",
+        )
+
+        if llm_width != width or llm_height != height:
+            logger.info(
+                "Pre-resized image for autonomous takeoff prompt accuracy",
+                original_size=f"{width}x{height}",
+                llm_size=f"{llm_width}x{llm_height}",
+                max_dimension=max_dim,
+            )
+
         # Build context
-        scale_description = scale_text or "unknown - use visual cues for relative sizing"
+        scale_description = (
+            scale_text or "unknown - use visual cues for relative sizing"
+        )
         context = ""
         if ocr_text:
             context = f"Text found on page (truncated): {ocr_text[:1000]}"
 
-        # Build prompt for autonomous detection
+        # Build prompt with actual LLM image dimensions so coordinates match
         prompt = AUTONOMOUS_DETECTION_PROMPT.format(
-            width=width,
-            height=height,
+            width=llm_width,
+            height=llm_height,
             scale_description=scale_description,
             context=context,
         )
 
-        # Call LLM
+        # Call LLM with pre-resized image (won't be resized again)
         try:
             data, response = llm.analyze_image_json(
-                image_bytes=image_bytes,
+                image_bytes=resized_bytes,
                 prompt=prompt,
                 system_prompt=TAKEOFF_SYSTEM_PROMPT,
                 max_tokens=4096,  # More tokens for autonomous detection
             )
-
-            # Get LLM image dimensions for coordinate scaling
-            llm_width = response.image_width or width
-            llm_height = response.image_height or height
-            
-            # Log if scaling is needed
-            if llm_width != width or llm_height != height:
-                logger.info(
-                    "Scaling AI coordinates from LLM image space to original",
-                    llm_size=f"{llm_width}x{llm_height}",
-                    original_size=f"{width}x{height}",
-                )
 
             # Parse detected elements - AI determines element_type
             elements = []
@@ -535,9 +563,12 @@ class AITakeoffService:
 
                 # Scale coordinates from LLM image space to original image space
                 geometry_data = scale_coordinates(
-                    geometry_data, geometry_type,
-                    llm_width, llm_height,
-                    width, height,
+                    geometry_data,
+                    geometry_type,
+                    llm_width,
+                    llm_height,
+                    width,
+                    height,
                 )
 
                 # Apply default depths if AI didn't specify
@@ -561,7 +592,9 @@ class AITakeoffService:
             # Group by element type for logging
             type_counts = {}
             for elem in elements:
-                type_counts[elem.element_type] = type_counts.get(elem.element_type, 0) + 1
+                type_counts[elem.element_type] = (
+                    type_counts.get(elem.element_type, 0) + 1
+                )
 
             logger.info(
                 "Autonomous AI takeoff complete",

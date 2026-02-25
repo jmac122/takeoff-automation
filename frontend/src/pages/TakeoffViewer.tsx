@@ -29,6 +29,7 @@ import { useConditions } from '@/hooks/useConditions';
 import { useMeasurements } from '@/hooks/useMeasurements';
 import { useCanvasEvents } from '@/hooks/useCanvasEvents';
 import { usePageImage } from '@/hooks/usePageImage';
+import { useAutoTab } from '@/hooks/useAutoTab';
 import { useNotificationContext } from '@/contexts/NotificationContext';
 import { createMeasurementGeometry, offsetGeometryData } from '@/utils/measurementUtils';
 import { pollUntil } from '@/utils/polling';
@@ -68,6 +69,7 @@ export function TakeoffViewer() {
     // Drawing state
     const drawing = useDrawingState();
     const undoRedo = useUndoRedo();
+    const autoTab = useAutoTab(pageId ?? null, selectedConditionId);
 
     // Fetch page data
     const { data: page, isLoading: pageLoading } = useQuery({
@@ -172,26 +174,26 @@ export function TakeoffViewer() {
                             }
                         },
                         redo: async () => {
-                                try {
-                                    const recreated = await measurements.createMeasurementAsync({
-                                        conditionId: selectedConditionId,
-                                        pageId,
-                                        geometryType: geometry.geometryType,
-                                        geometryData: geometry.geometryData as unknown as JsonObject,
-                                    });
-                                    if (!recreated?.id) {
-                                        throw new Error('Failed to recreate measurement during redo.');
-                                    }
-                                    measurementId = recreated.id as string;
-                                    setSelectedMeasurementId(measurementId);
-                                    setSelectedConditionId(selectedConditionId);
-                                } catch (error) {
-                                    const message =
-                                        error instanceof Error
-                                            ? error.message
-                                            : 'Failed to redo measurement creation.';
-                                    addNotification('error', 'Redo failed', message);
+                            try {
+                                const recreated = await measurements.createMeasurementAsync({
+                                    conditionId: selectedConditionId,
+                                    pageId,
+                                    geometryType: geometry.geometryType,
+                                    geometryData: geometry.geometryData as unknown as JsonObject,
+                                });
+                                if (!recreated?.id) {
+                                    throw new Error('Failed to recreate measurement during redo.');
                                 }
+                                measurementId = recreated.id as string;
+                                setSelectedMeasurementId(measurementId);
+                                setSelectedConditionId(selectedConditionId);
+                            } catch (error) {
+                                const message =
+                                    error instanceof Error
+                                        ? error.message
+                                        : 'Failed to redo measurement creation.';
+                                addNotification('error', 'Redo failed', message);
+                            }
                         },
                     });
 
@@ -548,6 +550,17 @@ export function TakeoffViewer() {
         onClearSelection: clearSelection,
         onUndo: handleUndo,
         onRedo: handleRedo,
+        onAcceptGhost: () => {
+            const prediction = autoTab.acceptPrediction();
+            if (prediction) {
+                handleMeasurementCreate({
+                    tool: prediction.geometry_type as string,
+                    points: (prediction.geometry_data as { points?: Array<{ x: number; y: number }> }).points
+                        ?? [prediction.geometry_data as { x: number; y: number }],
+                } as import('@/utils/measurementUtils').MeasurementResult);
+            }
+        },
+        onDismissGhost: () => autoTab.dismissPrediction(),
     });
 
     const handleScaleUpdated = () => {
@@ -744,17 +757,17 @@ export function TakeoffViewer() {
     // Calibration mouse handlers - click-to-start, click-to-finish (left-click only)
     const handleCalibrationClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
         if (!scaleCalibration.state.isCalibrating) return;
-        
+
         // Only respond to left-click (button 0)
         // Right-click (1) and middle-click (2) should be ignored for calibration
         if (e.evt.button !== 0) return;
-        
+
         const stage = e.target.getStage();
         if (!stage) return;
-        
+
         const pos = stage.getRelativePointerPosition();
         if (!pos) return;
-        
+
         if (!scaleCalibration.state.isDrawing) {
             // First click: start drawing
             scaleCalibration.startDrawing({ x: pos.x, y: pos.y });
@@ -767,15 +780,15 @@ export function TakeoffViewer() {
 
     const handleCalibrationMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
         if (!scaleCalibration.state.isCalibrating) return;
-        
+
         const stage = e.target.getStage();
         if (!stage) return;
-        
+
         const pos = stage.getRelativePointerPosition();
         if (!pos) return;
-        
+
         setCalibrationCurrentPoint({ x: pos.x, y: pos.y });
-        
+
         if (scaleCalibration.state.isDrawing) {
             scaleCalibration.updateDrawing({ x: pos.x, y: pos.y });
         }

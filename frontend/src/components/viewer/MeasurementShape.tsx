@@ -44,13 +44,18 @@ export function MeasurementShape({
     );
     const geometryBeforeDragRef = useRef<JsonObject | null>(null);
     const geometryBeforeTransformRef = useRef<JsonObject | null>(null);
+    const isLocallyEditingRef = useRef(false);
 
     const rectRef = useRef<Konva.Rect>(null);
     const circleRef = useRef<Konva.Circle>(null);
     const cursorRef = useRef<string | null>(null);
 
+    // Sync from server, but skip if user is actively dragging/transforming
+    // to prevent the shape from teleporting back to the pre-edit position.
     useEffect(() => {
-        setLocalGeometry(measurement.geometry_data as JsonObject);
+        if (!isLocallyEditingRef.current) {
+            setLocalGeometry(measurement.geometry_data as JsonObject);
+        }
     }, [measurement.geometry_data]);
 
     const setCursor = useCallback((cursor: string) => {
@@ -103,6 +108,7 @@ export function MeasurementShape({
     }, [clearCursor]);
 
     const handleGroupDragStart = useCallback(() => {
+        isLocallyEditingRef.current = true;
         geometryBeforeDragRef.current = localGeometry;
     }, [localGeometry]);
 
@@ -112,6 +118,7 @@ export function MeasurementShape({
             const dy = e.target.y();
             if (dx === 0 && dy === 0) {
                 geometryBeforeDragRef.current = null;
+                isLocallyEditingRef.current = false;
                 return;
             }
 
@@ -121,11 +128,13 @@ export function MeasurementShape({
             e.target.position({ x: 0, y: 0 });
             onUpdate(next, previous);
             geometryBeforeDragRef.current = null;
+            isLocallyEditingRef.current = false;
         },
         [localGeometry, measurement.geometry_type, onUpdate]
     );
 
     const handleVertexDragStart = useCallback(() => {
+        isLocallyEditingRef.current = true;
         geometryBeforeDragRef.current = localGeometry;
     }, [localGeometry]);
 
@@ -148,17 +157,22 @@ export function MeasurementShape({
             setLocalGeometry(next);
             onUpdate(next, previous as JsonObject);
             geometryBeforeDragRef.current = null;
+            isLocallyEditingRef.current = false;
         },
         [localGeometry, onUpdate]
     );
 
     const handleRectTransformStart = useCallback(() => {
+        isLocallyEditingRef.current = true;
         geometryBeforeTransformRef.current = localGeometry;
     }, [localGeometry]);
 
     const handleRectTransformEnd = useCallback(() => {
         const node = rectRef.current;
-        if (!node) return;
+        if (!node) {
+            isLocallyEditingRef.current = false;
+            return;
+        }
         const previous = geometryBeforeTransformRef.current ?? localGeometry;
         const scaleX = node.scaleX();
         const scaleY = node.scaleY();
@@ -177,15 +191,20 @@ export function MeasurementShape({
         setLocalGeometry(next as unknown as JsonObject);
         onUpdate(next as unknown as JsonObject, previous);
         geometryBeforeTransformRef.current = null;
+        isLocallyEditingRef.current = false;
     }, [localGeometry, onUpdate]);
 
     const handleCircleTransformStart = useCallback(() => {
+        isLocallyEditingRef.current = true;
         geometryBeforeTransformRef.current = localGeometry;
     }, [localGeometry]);
 
     const handleCircleTransformEnd = useCallback(() => {
         const node = circleRef.current;
-        if (!node) return;
+        if (!node) {
+            isLocallyEditingRef.current = false;
+            return;
+        }
         const previous = geometryBeforeTransformRef.current ?? localGeometry;
         const scaleX = node.scaleX();
         const scaleY = node.scaleY();
@@ -201,11 +220,21 @@ export function MeasurementShape({
         setLocalGeometry(next as unknown as JsonObject);
         onUpdate(next as unknown as JsonObject, previous);
         geometryBeforeTransformRef.current = null;
+        isLocallyEditingRef.current = false;
     }, [localGeometry, onUpdate]);
 
     const commonGroupProps = {
-        onClick: onSelect,
-        onTap: onSelect,
+        onClick: (e: Konva.KonvaEventObject<MouseEvent>) => {
+            e.cancelBubble = true;
+            onSelect();
+        },
+        onTap: (e: Konva.KonvaEventObject<Event>) => {
+            e.cancelBubble = true;
+            onSelect();
+        },
+        onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+            e.cancelBubble = true;
+        },
         onMouseEnter: handleMouseEnter,
         onMouseLeave: handleMouseLeave,
         onContextMenu: (e: Konva.KonvaEventObject<PointerEvent | MouseEvent>) => {

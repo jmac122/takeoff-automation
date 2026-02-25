@@ -46,7 +46,6 @@ export function useWorkspaceCanvasEvents({
 
   const setViewport = useWorkspaceStore((s) => s.setViewport);
   const setSelectedMeasurements = useWorkspaceStore((s) => s.setSelectedMeasurements);
-  const setActiveCondition = useWorkspaceStore((s) => s.setActiveCondition);
 
   // Global mouseup to prevent stuck panning
   useEffect(() => {
@@ -92,6 +91,13 @@ export function useWorkspaceCanvasEvents({
     }
 
     if (isLeftClick) {
+      // Clicking directly on the stage or background image (not on a shape)
+      // is needed for both drawing-tool interaction and select-tool panning.
+      // Shape clicks are handled by MeasurementShape via cancelBubble so they
+      // never reach here.
+      const clickedOnEmptyArea =
+        e.target === e.target.getStage() || e.target.getClassName() === 'Image';
+
       if (activeTool && activeTool !== 'select') {
         const point = getImagePointFromStage(stage);
         if (!point) return;
@@ -132,11 +138,11 @@ export function useWorkspaceCanvasEvents({
         return;
       }
 
-      // Select tool: click empty stage clears selection, clicking stage starts pan
+      // Select tool: click empty area clears measurement selection and starts pan.
+      // Preserve activeConditionId so the side-panel selection is not lost.
       if (activeTool === 'select') {
-        if (e.target === e.target.getStage()) {
+        if (clickedOnEmptyArea) {
           setSelectedMeasurements([]);
-          setActiveCondition(null);
           setIsPanning(true);
           setPanStart({ x: pointerPos.x, y: pointerPos.y });
           setPanStartPos({ x: viewport.panX, y: viewport.panY });
@@ -151,7 +157,7 @@ export function useWorkspaceCanvasEvents({
       setPanStartPos({ x: viewport.panX, y: viewport.panY });
       stage.draggable(false);
     }
-  }, [drawing, getImagePointFromStage, onMeasurementCreate, setViewport, setSelectedMeasurements, setActiveCondition]);
+  }, [drawing, getImagePointFromStage, onMeasurementCreate, setViewport, setSelectedMeasurements]);
 
   const handleStageMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
