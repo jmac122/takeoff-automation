@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useAutoTab } from './useAutoTab';
+import type { PredictNextPointResponse } from '@/api/takeoff';
 
 vi.mock('@/api/takeoff', () => ({
   takeoffApi: {
@@ -69,7 +70,7 @@ describe('useAutoTab', () => {
     it('returns null when no ghost prediction exists', () => {
       const { result } = renderHook(() => useAutoTab('page-1', 'cond-1'));
 
-      let prediction: ReturnType<typeof result.current.acceptPrediction>;
+      let prediction: ReturnType<typeof result.current.acceptPrediction> = undefined as never;
       act(() => {
         prediction = result.current.acceptPrediction();
       });
@@ -167,6 +168,7 @@ describe('useAutoTab', () => {
       const { takeoffApi } = await import('@/api/takeoff');
       vi.mocked(takeoffApi.predictNextPoint).mockResolvedValue({
         prediction: GHOST_PREDICTION,
+        latency_ms: 450,
       });
 
       const { result } = renderHook(() => useAutoTab('page-1', 'cond-1'));
@@ -182,7 +184,7 @@ describe('useAutoTab', () => {
     it('sets pendingPrediction during API call', async () => {
       const { takeoffApi } = await import('@/api/takeoff');
 
-      let resolvePromise: (v: { prediction: null }) => void;
+      let resolvePromise: (v: PredictNextPointResponse) => void;
       vi.mocked(takeoffApi.predictNextPoint).mockReturnValue(
         new Promise((resolve) => {
           resolvePromise = resolve;
@@ -199,7 +201,7 @@ describe('useAutoTab', () => {
       expect(useWorkspaceStore.getState().pendingPrediction).toBe(true);
 
       await act(async () => {
-        resolvePromise!({ prediction: null });
+        resolvePromise!({ prediction: null, latency_ms: 100 });
         await triggerPromise;
       });
 
