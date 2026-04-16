@@ -1,5 +1,10 @@
 ---
-alwaysApply: true
+description: Testing conventions for this project. Use when writing tests, adding tests to new or modified code, running pytest/Vitest, or working with backend/tests or frontend *.test.ts files. Covers pytest fixtures, Vitest setup, Celery gotchas, and coverage requirements.
+globs:
+  - backend/tests/**/*.py
+  - frontend/**/*.test.ts
+  - frontend/**/*.test.tsx
+alwaysApply: false
 ---
 
 ## Testing Rules
@@ -12,10 +17,33 @@ commit. Tests are not a follow-up task. If you write a function, you write its t
 ## Backend Test Conventions
 
 - **Framework:** pytest + pytest-asyncio (`asyncio_mode = "auto"`)
-- **Location:** `backend/tests/test_<module>.py`
+- **Location:** `backend/tests/test_<module>.py` and `backend/tests/unit/test_<module>.py`
 - **Route tests:** `TestClient(create_app())` from `fastapi.testclient`
 - **Service/model tests:** direct imports with `MagicMock` sessions
 - **Run:** `cd backend && pytest tests/ -v --tb=short`
+
+### Stubbing Heavy Dependencies for Local Runs
+
+Backend tests that import through `llm_client.py` require `anthropic`, `openai`,
+`tenacity`, etc. When running outside Docker, stub them at the top of the test file
+**before** importing app modules:
+
+```python
+import sys
+from unittest.mock import MagicMock
+
+for mod in ("anthropic", "openai", "google.generativeai", "google", "tenacity"):
+    if mod not in sys.modules:
+        sys.modules[mod] = MagicMock()
+
+# tenacity decorators must be passthrough callables
+sys.modules["tenacity"].retry = lambda **kw: lambda fn: fn
+sys.modules["tenacity"].stop_after_attempt = lambda n: None
+sys.modules["tenacity"].wait_exponential = lambda **kw: None
+sys.modules["tenacity"].retry_if_exception_type = lambda t: None
+
+from app.services.ai_takeoff import AITakeoffService  # now safe
+```
 
 ## Available Fixtures (from `backend/tests/conftest.py`)
 
@@ -29,7 +57,26 @@ commit. Tests are not a follow-up task. If you write a function, you write its t
 - **Framework:** Vitest
 - **Location:** colocated `<module>.test.ts` next to source file
 - **Mocking:** `vi.mock()` for API client, `vi.fn()` for callbacks
+- **Store tests:** reset Zustand state in `beforeEach` via `useWorkspaceStore.setState({...})`
+- **React Query tests:** create isolated `QueryClient({ defaultOptions: { queries: { retry: false } } })`
+- **Hook tests:** `renderHook()` from `@testing-library/react`, wrap state updates in `act()`
 - **Run:** `cd frontend && npm test`
+
+### Testing Optimistic Updates
+
+When testing React Query cache patches (optimistic UI), use `queryClient.setQueryData()`
+directly and assert the cache state — no need to render components:
+
+```typescript
+queryClient.setQueryData(cacheKey, (old) => ({
+  ...old,
+  measurements: old.measurements.map((m) =>
+    m.id === targetId ? { ...m, geometry_data: newGeometry } : m,
+  ),
+}));
+const cached = queryClient.getQueryData(cacheKey);
+expect(cached.measurements[0].geometry_data).toEqual(newGeometry);
+```
 
 ## Minimum Test Coverage by Layer
 
