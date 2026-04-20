@@ -4,7 +4,7 @@
 # Web Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
-python-multipart==0.0.6
+python-multipart==0.0.22
 
 # Database
 sqlalchemy[asyncio]==2.0.25
@@ -28,7 +28,7 @@ python-magic==0.4.27
 # PDF/Image Processing (lightweight)
 pdf2image==1.17.0
 pymupdf==1.23.18
-Pillow==10.2.0
+Pillow==10.3.0
 numpy==1.26.3
 
 # LLM Clients - Multi-Provider Support
