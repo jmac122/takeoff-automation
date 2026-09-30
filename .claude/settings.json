@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash|.*create_pull_request",
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "command": "[ -f /home/user/.specstory-cloud/hook.sh ] && bash /home/user/.specstory-cloud/hook.sh pr-open; exit 0"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "command": "[ -f /home/user/.specstory-cloud/hook.sh ] && bash /home/user/.specstory-cloud/hook.sh stop; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
