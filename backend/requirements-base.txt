@@ -4,7 +4,7 @@
 # Web Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
-python-multipart==0.0.6
+python-multipart==0.0.31
 
 # Database
 sqlalchemy[asyncio]==2.0.25
@@ -28,7 +28,7 @@ python-magic==0.4.27
 # PDF/Image Processing (lightweight)
 pdf2image==1.17.0
 pymupdf==1.23.18
-Pillow==10.2.0
+Pillow==12.3.0
 numpy==1.26.3
 
 # LLM Clients - Multi-Provider Support
@@ -43,7 +43,7 @@ google-cloud-vision==3.5.0
 httpx==0.26.0
 
 # Auth
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 
 # Export System
@@ -51,6 +51,6 @@ openpyxl==3.1.5
 reportlab==4.4.9
 
 # Utilities
-python-dotenv==1.0.0
+python-dotenv==1.2.2
 structlog==24.1.0
 tenacity==8.2.3
